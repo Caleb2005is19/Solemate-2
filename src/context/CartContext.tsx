@@ -6,6 +6,7 @@ interface CartContextType {
   addToCart: (product: Product, size: number) => void;
   removeFromCart: (id: string, size: number) => void;
   updateQuantity: (id: string, size: number, quantity: number) => void;
+  clearCart: () => void;
   isCartOpen: boolean;
   setIsCartOpen: (isOpen: boolean) => void;
   cartTotal: number;
@@ -58,6 +59,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
     );
   };
 
+  const clearCart = () => setItems([]);
+
   const toggleWishlist = (product: Product) => {
     setWishlistItems((prev) => {
       if (prev.find(item => item.id === product.id)) {
@@ -81,6 +84,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         addToCart,
         removeFromCart,
         updateQuantity,
+        clearCart,
         isCartOpen,
         setIsCartOpen,
         cartTotal,

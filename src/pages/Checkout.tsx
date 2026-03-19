@@ -1,18 +1,39 @@
 import React, { useState } from 'react';
 import { useCart } from '../context/CartContext';
+import { useStore } from '../context/StoreContext';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, CheckCircle2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { formatPrice } from '../utils';
 
 export function Checkout() {
-  const { items, cartTotal, cartCount } = useCart();
+  const { items, cartTotal, cartCount, clearCart } = useCart();
+  const { addOrder } = useStore();
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'mpesa' | 'card'>('mpesa');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Mock checkout process
+    const formData = new FormData(e.target as HTMLFormElement);
+    
+    addOrder({
+      id: Math.random().toString(36).substr(2, 9),
+      customerInfo: {
+        firstName: formData.get('firstName') as string,
+        lastName: formData.get('lastName') as string,
+        email: formData.get('email') as string,
+        phone: formData.get('phone') as string,
+        location: formData.get('location') as string,
+        city: formData.get('city') as string,
+      },
+      items: [...items],
+      total: cartTotal,
+      status: 'Pending',
+      date: new Date().toISOString(),
+      paymentMethod,
+    });
+    
+    clearCart();
     setIsSubmitted(true);
   };
 
@@ -83,6 +104,7 @@ export function Checkout() {
                       <input
                         type="email"
                         id="email"
+                        name="email"
                         required
                         className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all"
                         placeholder="you@example.com"
@@ -93,6 +115,7 @@ export function Checkout() {
                       <input
                         type="tel"
                         id="phone"
+                        name="phone"
                         required
                         className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all"
                         placeholder="07XX XXX XXX"
@@ -110,6 +133,7 @@ export function Checkout() {
                       <input
                         type="text"
                         id="firstName"
+                        name="firstName"
                         required
                         className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all"
                       />
@@ -119,6 +143,7 @@ export function Checkout() {
                       <input
                         type="text"
                         id="lastName"
+                        name="lastName"
                         required
                         className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all"
                       />
@@ -128,6 +153,7 @@ export function Checkout() {
                       <input
                         type="text"
                         id="location"
+                        name="location"
                         required
                         className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all"
                         placeholder="e.g. Kilimani, Yaya Centre"
@@ -137,6 +163,7 @@ export function Checkout() {
                       <label htmlFor="city" className="block text-sm font-medium text-zinc-700 mb-1">City / Town</label>
                       <select
                         id="city"
+                        name="city"
                         required
                         className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all bg-white"
                       >

@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { products } from '../data/products';
+import { useStore } from '../context/StoreContext';
 import { ProductCard } from '../components/ProductCard';
 import { SlidersHorizontal, X } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useCart } from '../context/CartContext';
 
 export function Shop() {
+  const { products } = useStore();
   const [searchParams, setSearchParams] = useSearchParams();
   const { searchQuery, setSearchQuery, wishlistItems } = useCart();
   
@@ -15,6 +16,7 @@ export function Shop() {
   
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [selectedGender, setSelectedGender] = useState<string>(genderParam);
+  const [selectedColor, setSelectedColor] = useState<string>('All');
   
   useEffect(() => {
     if (genderParam) {
@@ -24,6 +26,7 @@ export function Shop() {
 
   const categories = ['All', ...Array.from(new Set(products.map(p => p.category)))];
   const genders = ['All', 'Men', 'Women', 'Unisex', 'Kids'];
+  const colors = ['All', ...Array.from(new Set(products.map(p => p.color))).filter(Boolean)];
   
   let filteredProducts = showWishlist ? wishlistItems : products;
 
@@ -40,6 +43,10 @@ export function Shop() {
 
   if (selectedGender !== 'All') {
     filteredProducts = filteredProducts.filter(p => p.gender === selectedGender || p.gender === 'Unisex');
+  }
+
+  if (selectedColor !== 'All') {
+    filteredProducts = filteredProducts.filter(p => p.color === selectedColor);
   }
 
   return (
@@ -63,7 +70,7 @@ export function Shop() {
         {/* Filters */}
         {!showWishlist && (
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 mb-8 pb-6 border-b border-zinc-200">
-            <div className="flex flex-col sm:flex-row gap-4 w-full lg:w-auto">
+            <div className="flex flex-col gap-4 w-full lg:w-auto">
               {/* Gender Filter */}
               <div className="flex items-center gap-2 overflow-x-auto pb-2 sm:pb-0 hide-scrollbar">
                 <span className="text-sm font-bold text-zinc-400 uppercase tracking-wider mr-2">Gender:</span>
@@ -81,6 +88,24 @@ export function Shop() {
                     }`}
                   >
                     {gender}
+                  </button>
+                ))}
+              </div>
+
+              {/* Color Filter */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-2 sm:pb-0 hide-scrollbar">
+                <span className="text-sm font-bold text-zinc-400 uppercase tracking-wider mr-2">Color:</span>
+                {colors.map(color => (
+                  <button
+                    key={color}
+                    onClick={() => setSelectedColor(color)}
+                    className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+                      selectedColor === color
+                        ? 'bg-zinc-900 text-white'
+                        : 'bg-white text-zinc-600 hover:bg-zinc-100 border border-zinc-200'
+                    }`}
+                  >
+                    {color}
                   </button>
                 ))}
               </div>
@@ -121,6 +146,7 @@ export function Shop() {
                 setSearchQuery('');
                 setSelectedGender('All');
                 setSelectedCategory('All');
+                setSelectedColor('All');
                 setSearchParams({});
               }}
               className="mt-6 px-6 py-2 bg-orange-500 text-white rounded-full font-medium hover:bg-orange-600 transition-colors"

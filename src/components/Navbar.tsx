@@ -58,6 +58,8 @@ export function Navbar() {
               <Link to="/shop" className="text-zinc-600 hover:text-orange-500 px-3 py-2 text-sm font-medium transition-colors">Shop All</Link>
               <Link to="/shop?gender=Men" className="text-zinc-600 hover:text-orange-500 px-3 py-2 text-sm font-medium transition-colors">Men</Link>
               <Link to="/shop?gender=Women" className="text-zinc-600 hover:text-orange-500 px-3 py-2 text-sm font-medium transition-colors">Women</Link>
+              <div className="h-4 w-px bg-zinc-300 mx-2"></div>
+              <Link to="/admin" className="text-zinc-500 hover:text-zinc-900 px-2 py-2 text-xs font-bold uppercase tracking-wider transition-colors">Admin</Link>
             </div>
 
             {/* Right side icons */}
@@ -137,6 +139,8 @@ export function Navbar() {
                 <Link to="/shop?gender=Men" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-md text-base font-medium text-zinc-900 hover:bg-zinc-50 hover:text-orange-500">Men's</Link>
                 <Link to="/shop?gender=Women" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-md text-base font-medium text-zinc-900 hover:bg-zinc-50 hover:text-orange-500">Women's</Link>
                 <Link to="/shop?wishlist=true" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-md text-base font-medium text-zinc-900 hover:bg-zinc-50 hover:text-orange-500">My Wishlist ({wishlistItems.length})</Link>
+                <div className="h-px bg-zinc-200 my-2 mx-3"></div>
+                <Link to="/admin" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-md text-base font-bold text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900 uppercase tracking-wider">Admin Portal</Link>
               </div>
             </motion.div>
           )}

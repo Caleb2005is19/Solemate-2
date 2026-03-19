@@ -1,11 +1,12 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, ShieldCheck, Truck, Clock } from 'lucide-react';
-import { products } from '../data/products';
+import { useStore } from '../context/StoreContext';
 import { ProductCard } from '../components/ProductCard';
 import { motion } from 'motion/react';
 
 export function Home() {
+  const { products } = useStore();
   const featuredProducts = products.slice(0, 4);
 
   return (
