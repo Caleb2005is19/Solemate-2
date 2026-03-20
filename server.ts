@@ -3,7 +3,24 @@ import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import dotenv from 'dotenv';
 
+import { v2 as cloudinary } from 'cloudinary';
+
 dotenv.config();
+
+// Cloudinary Configuration
+const CLOUDINARY_CLOUD_NAME = process.env.VITE_CLOUDINARY_CLOUD_NAME;
+const CLOUDINARY_API_KEY = process.env.CLOUDINARY_API_KEY;
+const CLOUDINARY_API_SECRET = process.env.CLOUDINARY_API_SECRET;
+
+if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_API_KEY || !CLOUDINARY_API_SECRET) {
+  console.warn('Cloudinary credentials missing. Image uploads will not work.');
+}
+
+cloudinary.config({
+  cloud_name: CLOUDINARY_CLOUD_NAME,
+  api_key: CLOUDINARY_API_KEY,
+  api_secret: CLOUDINARY_API_SECRET,
+});
 
 async function startServer() {
   const app = express();
@@ -44,6 +61,21 @@ async function startServer() {
       throw error;
     }
   };
+
+  // Cloudinary Signature Route
+  app.get('/api/cloudinary/sign', (req, res) => {
+    const timestamp = Math.round(new Date().getTime() / 1000);
+    const signature = cloudinary.utils.api_sign_request(
+      { timestamp, folder: 'solemate_products' },
+      process.env.CLOUDINARY_API_SECRET!
+    );
+    res.json({
+      signature,
+      timestamp,
+      cloudName: process.env.VITE_CLOUDINARY_CLOUD_NAME,
+      apiKey: process.env.CLOUDINARY_API_KEY,
+    });
+  });
 
   // API Routes
   app.post('/api/mpesa/stkpush', async (req, res) => {

@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
-import { LayoutDashboard, Package, ShoppingCart, Plus, Edit, Trash, Check, X, Users, Link as LinkIcon, LogOut, Upload, TrendingUp } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, Plus, Edit, Trash, Check, X, Users, Link as LinkIcon, LogOut, Upload, TrendingUp, Image as ImageIcon, DollarSign, Tag, Info, Box } from 'lucide-react';
 import { Product, OrderStatus, Order, Seller } from '../types';
 import { formatPrice } from '../utils';
-import { loginWithGoogle, logout, storage } from '../firebase';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import imageCompression from 'browser-image-compression';
+import { loginWithGoogle, logout } from '../firebase';
+import { uploadToCloudinary } from '../services/cloudinaryService';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 
 export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
@@ -102,16 +101,8 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
 
     setIsUploadingImage(true);
     try {
-      const options = {
-        maxSizeMB: 0.5,
-        maxWidthOrHeight: 1024,
-        useWebWorker: true,
-      };
-      const compressedFile = await imageCompression(file, options);
-      const imageRef = ref(storage, `products/${Date.now()}_${compressedFile.name}`);
-      await uploadBytes(imageRef, compressedFile);
-      const downloadURL = await getDownloadURL(imageRef);
-      setFormData({ ...formData, image: downloadURL });
+      const result = await uploadToCloudinary(file);
+      setFormData({ ...formData, image: result.secure_url });
     } catch (error) {
       console.error("Error uploading image:", error);
       alert("Failed to upload image. Please try again.");
@@ -350,116 +341,313 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
               <h1 className="text-3xl font-bold text-zinc-900">Products</h1>
               <button
                 onClick={() => { setEditingProduct(null); setFormData({ name: '', brand: '', price: 0, image: '', category: 'Sneakers', gender: 'Unisex', color: '', description: '', inStock: true }); setIsAddingProduct(true); }}
-                className="flex items-center gap-2 bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-800 transition-colors"
+                className="flex items-center gap-2 bg-zinc-900 text-white px-6 py-3 rounded-2xl hover:bg-zinc-800 transition-all shadow-lg shadow-zinc-200 active:scale-95"
               >
-                <Plus className="w-4 h-4" /> Add Product
+                <Plus className="w-5 h-5" /> 
+                <span className="font-bold">Add Product</span>
               </button>
             </div>
 
-            {isAddingProduct ? (
-              <div className="bg-white p-6 rounded-2xl border border-zinc-200 shadow-sm">
-                <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-xl font-bold text-zinc-900">{editingProduct ? 'Edit Product' : 'Add New Product'}</h2>
-                  <button onClick={() => setIsAddingProduct(false)} className="p-2 hover:bg-zinc-100 rounded-full"><X className="w-5 h-5"/></button>
-                </div>
-                <form onSubmit={handleSaveProduct} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-zinc-700 mb-1">Name</label>
-                      <input type="text" required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full px-4 py-2 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 outline-none" />
+            {isAddingProduct && (
+              <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+                <div className="bg-white rounded-[2rem] w-full max-w-4xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+                  <div className="p-6 md:p-8 border-b border-zinc-100 flex justify-between items-center bg-white sticky top-0 z-10">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-orange-100 text-orange-600 rounded-xl flex items-center justify-center">
+                        {editingProduct ? <Edit className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
+                      </div>
+                      <div>
+                        <h2 className="text-2xl font-black text-zinc-900">{editingProduct ? 'Edit Product' : 'New Product'}</h2>
+                        <p className="text-sm text-zinc-500">Fill in the details below to {editingProduct ? 'update' : 'create'} your product</p>
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-zinc-700 mb-1">Brand</label>
-                      <input type="text" required value={formData.brand} onChange={e => setFormData({...formData, brand: e.target.value})} className="w-full px-4 py-2 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 outline-none" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-zinc-700 mb-1">Price (KES)</label>
-                      <input type="number" required value={formData.price} onChange={e => setFormData({...formData, price: Number(e.target.value)})} className="w-full px-4 py-2 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 outline-none" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-zinc-700 mb-1">Product Image</label>
-                      <div className="flex items-center gap-4">
-                        {formData.image && (
-                          <img src={formData.image} alt="Preview" className="w-12 h-12 rounded-lg object-cover border border-zinc-200" />
-                        )}
-                        <label className="flex-1 flex items-center justify-center gap-2 px-4 py-2 border-2 border-dashed border-zinc-300 rounded-xl hover:border-orange-500 hover:bg-orange-50 transition-colors cursor-pointer">
-                          <Upload className="w-4 h-4 text-zinc-500" />
-                          <span className="text-sm font-medium text-zinc-600">
-                            {isUploadingImage ? 'Uploading...' : 'Upload Image'}
-                          </span>
+                    <button 
+                      onClick={() => setIsAddingProduct(false)} 
+                      className="p-3 hover:bg-zinc-100 rounded-2xl transition-colors text-zinc-400 hover:text-zinc-900"
+                    >
+                      <X className="w-6 h-6"/>
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleSaveProduct} className="p-6 md:p-8 space-y-8 max-h-[70vh] overflow-y-auto">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                      {/* Left Column: Image Upload */}
+                      <div className="lg:col-span-1 space-y-4">
+                        <label className="block text-sm font-bold text-zinc-900 uppercase tracking-wider">Product Image</label>
+                        <div className="relative group">
+                          <div className={`aspect-square rounded-[2rem] overflow-hidden border-2 border-dashed transition-all flex flex-col items-center justify-center gap-4 ${formData.image ? 'border-zinc-200 bg-zinc-50' : 'border-zinc-300 bg-zinc-50 hover:border-orange-500 hover:bg-orange-50'}`}>
+                            {formData.image ? (
+                              <>
+                                <img src={formData.image} alt="Preview" className="w-full h-full object-cover" />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                  <button 
+                                    type="button"
+                                    onClick={() => setFormData({...formData, image: ''})}
+                                    className="p-3 bg-red-500 text-white rounded-2xl hover:bg-red-600 transition-colors shadow-lg"
+                                  >
+                                    <Trash className="w-5 h-5" />
+                                  </button>
+                                </div>
+                              </>
+                            ) : (
+                              <div className="text-center p-6">
+                                <div className="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center mx-auto mb-4 text-zinc-400 group-hover:text-orange-500 transition-colors">
+                                  <ImageIcon className="w-8 h-8" />
+                                </div>
+                                <p className="text-sm font-bold text-zinc-900 mb-1">Upload Photo</p>
+                                <p className="text-xs text-zinc-500">PNG, JPG up to 5MB</p>
+                              </div>
+                            )}
+                            
+                            {isUploadingImage && (
+                              <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center gap-3">
+                                <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+                                <p className="text-sm font-bold text-orange-600">Uploading...</p>
+                              </div>
+                            )}
+                          </div>
                           <input 
                             type="file" 
                             accept="image/*" 
                             onChange={handleImageUpload} 
                             disabled={isUploadingImage}
-                            className="hidden" 
+                            className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-not-allowed" 
                           />
-                        </label>
+                        </div>
+                        <p className="text-xs text-zinc-400 text-center">Tip: High-quality images sell better!</p>
+                      </div>
+
+                      {/* Right Column: Form Fields */}
+                      <div className="lg:col-span-2 space-y-6">
+                        {/* Basic Info Section */}
+                        <div className="space-y-4">
+                          <div className="flex items-center gap-2 text-zinc-900">
+                            <Info className="w-4 h-4 text-orange-500" />
+                            <h3 className="text-sm font-bold uppercase tracking-wider">Basic Information</h3>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-1">
+                              <label className="text-xs font-bold text-zinc-500 uppercase ml-1">Product Name</label>
+                              <div className="relative">
+                                <Tag className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+                                <input 
+                                  type="text" 
+                                  required 
+                                  placeholder="e.g. Air Max 270"
+                                  value={formData.name} 
+                                  onChange={e => setFormData({...formData, name: e.target.value})} 
+                                  className="w-full pl-11 pr-4 py-3 rounded-2xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all" 
+                                />
+                              </div>
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-xs font-bold text-zinc-500 uppercase ml-1">Brand</label>
+                              <div className="relative">
+                                <Box className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+                                <input 
+                                  type="text" 
+                                  required 
+                                  placeholder="e.g. Nike"
+                                  value={formData.brand} 
+                                  onChange={e => setFormData({...formData, brand: e.target.value})} 
+                                  className="w-full pl-11 pr-4 py-3 rounded-2xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all" 
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Pricing & Category Section */}
+                        <div className="space-y-4">
+                          <div className="flex items-center gap-2 text-zinc-900">
+                            <DollarSign className="w-4 h-4 text-orange-500" />
+                            <h3 className="text-sm font-bold uppercase tracking-wider">Pricing & Category</h3>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="space-y-1">
+                              <label className="text-xs font-bold text-zinc-500 uppercase ml-1">Price (KES)</label>
+                              <input 
+                                type="number" 
+                                required 
+                                value={formData.price} 
+                                onChange={e => setFormData({...formData, price: Number(e.target.value)})} 
+                                className="w-full px-4 py-3 rounded-2xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 outline-none font-bold" 
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-xs font-bold text-zinc-500 uppercase ml-1">Category</label>
+                              <select 
+                                value={formData.category} 
+                                onChange={e => setFormData({...formData, category: e.target.value})} 
+                                className="w-full px-4 py-3 rounded-2xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 outline-none bg-white font-medium"
+                              >
+                                <option>Sneakers</option>
+                                <option>Lifestyle</option>
+                                <option>Running</option>
+                                <option>Skate</option>
+                              </select>
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-xs font-bold text-zinc-500 uppercase ml-1">Gender</label>
+                              <select 
+                                value={formData.gender} 
+                                onChange={e => setFormData({...formData, gender: e.target.value as any})} 
+                                className="w-full px-4 py-3 rounded-2xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 outline-none bg-white font-medium"
+                              >
+                                <option>Men</option>
+                                <option>Women</option>
+                                <option>Unisex</option>
+                                <option>Kids</option>
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Details Section */}
+                        <div className="space-y-4">
+                          <div className="flex items-center gap-2 text-zinc-900">
+                            <Package className="w-4 h-4 text-orange-500" />
+                            <h3 className="text-sm font-bold uppercase tracking-wider">Product Details</h3>
+                          </div>
+                          <div className="space-y-4">
+                            <div className="space-y-1">
+                              <label className="text-xs font-bold text-zinc-500 uppercase ml-1">Color</label>
+                              <input 
+                                type="text" 
+                                required 
+                                placeholder="e.g. Black/White/Red"
+                                value={formData.color} 
+                                onChange={e => setFormData({...formData, color: e.target.value})} 
+                                className="w-full px-4 py-3 rounded-2xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 outline-none" 
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-xs font-bold text-zinc-500 uppercase ml-1">Description</label>
+                              <textarea 
+                                required 
+                                rows={4} 
+                                placeholder="Describe the product features, materials, and fit..."
+                                value={formData.description} 
+                                onChange={e => setFormData({...formData, description: e.target.value})} 
+                                className="w-full px-4 py-3 rounded-2xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 outline-none resize-none"
+                              ></textarea>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between p-4 bg-zinc-50 rounded-2xl border border-zinc-100">
+                          <div className="flex items-center gap-3">
+                            <input 
+                              type="checkbox" 
+                              id="inStock" 
+                              checked={formData.inStock} 
+                              onChange={e => setFormData({...formData, inStock: e.target.checked})} 
+                              className="w-6 h-6 text-orange-500 rounded-lg border-zinc-300 focus:ring-orange-500 cursor-pointer" 
+                            />
+                            <label htmlFor="inStock" className="font-bold text-zinc-900 cursor-pointer">Available in Stock</label>
+                          </div>
+                          <p className="text-xs text-zinc-500">Uncheck if the product is currently unavailable</p>
+                        </div>
                       </div>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-zinc-700 mb-1">Category</label>
-                      <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} className="w-full px-4 py-2 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 outline-none">
-                        <option>Sneakers</option><option>Lifestyle</option><option>Running</option><option>Skate</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-zinc-700 mb-1">Gender</label>
-                      <select value={formData.gender} onChange={e => setFormData({...formData, gender: e.target.value as any})} className="w-full px-4 py-2 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 outline-none">
-                        <option>Men</option><option>Women</option><option>Unisex</option><option>Kids</option>
-                      </select>
-                    </div>
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-zinc-700 mb-1">Color</label>
-                      <input type="text" required value={formData.color} onChange={e => setFormData({...formData, color: e.target.value})} className="w-full px-4 py-2 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 outline-none" placeholder="e.g. Black, White, Red" />
-                    </div>
+                  </form>
+
+                  <div className="p-6 md:p-8 border-t border-zinc-100 bg-zinc-50/50 flex flex-col md:flex-row gap-4 justify-end">
+                    <button 
+                      type="button"
+                      onClick={() => setIsAddingProduct(false)} 
+                      className="px-8 py-3 rounded-2xl font-bold text-zinc-600 hover:bg-zinc-100 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      onClick={handleSaveProduct}
+                      disabled={isUploadingImage}
+                      className="px-12 py-3 bg-orange-500 text-white rounded-2xl font-black hover:bg-orange-600 transition-all shadow-lg shadow-orange-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {editingProduct ? 'Update Product' : 'Create Product'}
+                    </button>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-zinc-700 mb-1">Description</label>
-                    <textarea required rows={3} value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full px-4 py-2 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 outline-none"></textarea>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input type="checkbox" id="inStock" checked={formData.inStock} onChange={e => setFormData({...formData, inStock: e.target.checked})} className="w-4 h-4 text-orange-500 rounded focus:ring-orange-500" />
-                    <label htmlFor="inStock" className="text-sm font-medium text-zinc-700">In Stock</label>
-                  </div>
-                  <button type="submit" className="px-6 py-2 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 transition-colors">
-                    {editingProduct ? 'Update Product' : 'Save Product'}
-                  </button>
-                </form>
+                </div>
               </div>
-            ) : (
-              <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden">
+            )}
+
+            {!isAddingProduct && (
+              <div className="bg-white rounded-[2rem] border border-zinc-100 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse">
                     <thead>
-                      <tr className="bg-zinc-50 border-b border-zinc-200">
-                        <th className="p-4 font-bold text-zinc-600 text-sm">Product</th>
-                        <th className="p-4 font-bold text-zinc-600 text-sm">Price</th>
-                        <th className="p-4 font-bold text-zinc-600 text-sm">Category</th>
-                        <th className="p-4 font-bold text-zinc-600 text-sm">Status</th>
-                        <th className="p-4 font-bold text-zinc-600 text-sm text-right">Actions</th>
+                      <tr className="bg-zinc-50/50 border-b border-zinc-100">
+                        <th className="p-6 font-bold text-zinc-500 text-xs uppercase tracking-wider">Product</th>
+                        <th className="p-6 font-bold text-zinc-500 text-xs uppercase tracking-wider">Price</th>
+                        <th className="p-6 font-bold text-zinc-500 text-xs uppercase tracking-wider">Category</th>
+                        <th className="p-6 font-bold text-zinc-500 text-xs uppercase tracking-wider">Status</th>
+                        <th className="p-6 font-bold text-zinc-500 text-xs uppercase tracking-wider text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {products.map(p => (
-                        <tr key={p.id} className="border-b border-zinc-100 hover:bg-zinc-50">
-                          <td className="p-4 flex items-center gap-3">
-                            <img src={p.image} alt={p.name} className="w-10 h-10 rounded-lg object-cover" />
-                            <div>
-                              <p className="font-bold text-zinc-900 text-sm">{p.name}</p>
-                              <p className="text-xs text-zinc-500">{p.brand}</p>
+                      {products.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="p-20 text-center">
+                            <div className="flex flex-col items-center gap-4">
+                              <div className="w-20 h-20 bg-zinc-50 rounded-full flex items-center justify-center text-zinc-300">
+                                <Package className="w-10 h-10" />
+                              </div>
+                              <div>
+                                <p className="text-zinc-900 font-bold">No products found</p>
+                                <p className="text-zinc-500 text-sm">Start by adding your first product to the store.</p>
+                              </div>
+                              <button
+                                onClick={() => setIsAddingProduct(true)}
+                                className="mt-2 text-orange-500 font-bold hover:underline"
+                              >
+                                Add your first product
+                              </button>
                             </div>
                           </td>
-                          <td className="p-4 text-sm font-medium text-zinc-900">{formatPrice(p.price)}</td>
-                          <td className="p-4 text-sm text-zinc-600">{p.category}</td>
-                          <td className="p-4">
-                            <span className={`px-2 py-1 rounded-full text-xs font-bold ${p.inStock ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                        </tr>
+                      ) : products.map(p => (
+                        <tr key={p.id} className="border-b border-zinc-50 hover:bg-zinc-50/50 transition-colors group">
+                          <td className="p-6 flex items-center gap-4">
+                            <div className="w-14 h-14 rounded-2xl overflow-hidden border border-zinc-100 bg-zinc-50 flex-shrink-0">
+                              <img src={p.image} alt={p.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                            </div>
+                            <div>
+                              <p className="font-black text-zinc-900">{p.name}</p>
+                              <p className="text-xs font-bold text-zinc-400 uppercase tracking-tight">{p.brand}</p>
+                            </div>
+                          </td>
+                          <td className="p-6">
+                            <p className="font-black text-zinc-900">{formatPrice(p.price)}</p>
+                          </td>
+                          <td className="p-6">
+                            <span className="px-3 py-1 bg-zinc-100 text-zinc-600 rounded-lg text-xs font-bold uppercase tracking-wider">
+                              {p.category}
+                            </span>
+                          </td>
+                          <td className="p-6">
+                            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider ${p.inStock ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${p.inStock ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
                               {p.inStock ? 'In Stock' : 'Out of Stock'}
                             </span>
                           </td>
-                          <td className="p-4 text-right space-x-2">
-                            <button onClick={() => openEdit(p)} className="p-2 text-zinc-400 hover:text-orange-500 transition-colors"><Edit className="w-4 h-4"/></button>
-                            <button onClick={() => deleteProduct(p.id)} className="p-2 text-zinc-400 hover:text-red-500 transition-colors"><Trash className="w-4 h-4"/></button>
+                          <td className="p-6 text-right">
+                            <div className="flex justify-end gap-2">
+                              <button 
+                                onClick={() => openEdit(p)} 
+                                className="p-3 text-zinc-400 hover:text-orange-500 hover:bg-orange-50 rounded-xl transition-all"
+                                title="Edit Product"
+                              >
+                                <Edit className="w-5 h-5"/>
+                              </button>
+                              <button 
+                                onClick={() => { if(window.confirm('Are you sure you want to delete this product?')) deleteProduct(p.id); }} 
+                                className="p-3 text-zinc-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all"
+                                title="Delete Product"
+                              >
+                                <Trash className="w-5 h-5"/>
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
