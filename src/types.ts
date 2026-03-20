@@ -41,6 +41,7 @@ export type OrderStatus = 'Pending' | 'Processing' | 'Shipped' | 'Delivered' | '
 export interface Order {
   id: string;
   userId?: string;
+  sellerIds?: string[];
   customerInfo: {
     firstName: string;
     lastName: string;

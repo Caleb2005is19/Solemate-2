@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
-import { LayoutDashboard, Package, ShoppingCart, Plus, Edit, Trash, Check, X, Users, Link as LinkIcon, LogOut, Upload } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, Plus, Edit, Trash, Check, X, Users, Link as LinkIcon, LogOut, Upload, TrendingUp } from 'lucide-react';
 import { Product, OrderStatus, Order, Seller } from '../types';
 import { formatPrice } from '../utils';
 import { loginWithGoogle, logout, storage } from '../firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import imageCompression from 'browser-image-compression';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 
 export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
   const { sellerId } = useParams<{ sellerId: string }>();
@@ -158,6 +159,17 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
   const totalRevenue = orders.reduce((sum, o) => sum + o.total, 0);
   const pendingOrders = orders.filter(o => o.status === 'Pending').length;
 
+  // Prepare chart data (last 7 days)
+  const chartData = Array.from({ length: 7 }).map((_, i) => {
+    const date = new Date();
+    date.setDate(date.getDate() - (6 - i));
+    const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const dayRevenue = orders
+      .filter(o => o.status !== 'Cancelled' && new Date(o.date).toDateString() === date.toDateString())
+      .reduce((acc, o) => acc + o.total, 0);
+    return { name: dateStr, revenue: dayRevenue };
+  });
+
   return (
     <div className="min-h-screen bg-zinc-50 flex flex-col md:flex-row">
       {/* Sidebar */}
@@ -217,18 +229,96 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
         {activeTab === 'overview' && (
           <div className="space-y-6">
             <h1 className="text-3xl font-bold text-zinc-900">Dashboard Overview</h1>
+            
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-white p-6 rounded-2xl border border-zinc-200 shadow-sm">
-                <p className="text-zinc-500 font-medium mb-2">Total Revenue</p>
-                <h3 className="text-3xl font-black text-zinc-900">{formatPrice(totalRevenue)}</h3>
+              <div className="bg-white p-6 rounded-3xl border border-zinc-100 shadow-sm">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="w-12 h-12 bg-green-100 text-green-600 rounded-2xl flex items-center justify-center">
+                    <TrendingUp className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-zinc-500 font-medium">Total Revenue</p>
+                    <p className="text-2xl font-black text-zinc-900">{formatPrice(totalRevenue)}</p>
+                  </div>
+                </div>
               </div>
-              <div className="bg-white p-6 rounded-2xl border border-zinc-200 shadow-sm">
-                <p className="text-zinc-500 font-medium mb-2">Total Orders</p>
-                <h3 className="text-3xl font-black text-zinc-900">{orders.length}</h3>
+              <div className="bg-white p-6 rounded-3xl border border-zinc-100 shadow-sm">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center">
+                    <ShoppingCart className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-zinc-500 font-medium">Total Orders</p>
+                    <p className="text-2xl font-black text-zinc-900">{orders.length}</p>
+                  </div>
+                </div>
               </div>
-              <div className="bg-white p-6 rounded-2xl border border-zinc-200 shadow-sm">
-                <p className="text-zinc-500 font-medium mb-2">Active Products</p>
-                <h3 className="text-3xl font-black text-zinc-900">{products.length}</h3>
+              <div className="bg-white p-6 rounded-3xl border border-zinc-100 shadow-sm">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="w-12 h-12 bg-orange-100 text-orange-600 rounded-2xl flex items-center justify-center">
+                    <Package className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-zinc-500 font-medium">Active Products</p>
+                    <p className="text-2xl font-black text-zinc-900">{products.length}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Revenue Chart */}
+            <div className="bg-white p-8 rounded-3xl border border-zinc-100 shadow-sm mb-8">
+              <div className="flex items-center justify-between mb-8">
+                <div>
+                  <h3 className="text-xl font-bold text-zinc-900">Revenue Overview</h3>
+                  <p className="text-sm text-zinc-500">Performance over the last 7 days</p>
+                </div>
+                <div className="px-4 py-2 bg-zinc-50 rounded-xl text-sm font-bold text-zinc-600">
+                  Last 7 Days
+                </div>
+              </div>
+              <div className="h-[300px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={chartData}>
+                    <defs>
+                      <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#f97316" stopOpacity={0.1}/>
+                        <stop offset="95%" stopColor="#f97316" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f4f4f5" />
+                    <XAxis 
+                      dataKey="name" 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fill: '#71717a', fontSize: 12 }}
+                      dy={10}
+                    />
+                    <YAxis 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fill: '#71717a', fontSize: 12 }}
+                      tickFormatter={(value) => `KSh ${value / 1000}k`}
+                    />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: '#fff', 
+                        borderRadius: '16px', 
+                        border: '1px solid #f4f4f5',
+                        boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'
+                      }}
+                      formatter={(value: number) => [formatPrice(value), 'Revenue']}
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey="revenue" 
+                      stroke="#f97316" 
+                      strokeWidth={3}
+                      fillOpacity={1} 
+                      fill="url(#colorRevenue)" 
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
               </div>
             </div>
           </div>

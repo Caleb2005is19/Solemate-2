@@ -34,9 +34,12 @@ export function Shop() {
   let filteredProducts = showWishlist ? wishlistItems : products;
 
   if (searchQuery) {
+    const query = searchQuery.toLowerCase();
     filteredProducts = filteredProducts.filter(p => 
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-      p.brand.toLowerCase().includes(searchQuery.toLowerCase())
+      p.name.toLowerCase().includes(query) || 
+      p.brand.toLowerCase().includes(query) ||
+      p.category.toLowerCase().includes(query) ||
+      p.description?.toLowerCase().includes(query)
     );
   }
 

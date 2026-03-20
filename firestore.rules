@@ -44,6 +44,7 @@ service cloud.firestore {
     //   - status: string (required)
     //   - date: string (required)
     //   - paymentMethod: string (required)
+    //   - userId: string (optional, for tracking customer orders)
     //
     // ===============================================================
 
@@ -57,53 +58,75 @@ service cloud.firestore {
 
     function isAdmin() {
       return isAuthenticated() &&
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-          (request.auth.token.email == "carlisat19@gmail.com" && request.auth.token.email_verified == true));
+        (
+          (request.auth.token.email == "carlisat19@gmail.com" && request.auth.token.email_verified == true) ||
+          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+        );
     }
 
     function isSeller(sellerId) {
       return isAuthenticated() && request.auth.uid == sellerId;
     }
 
+    function isOrderOwner(orderData) {
+      return isAuthenticated() && (
+        ('userId' in orderData && request.auth.uid == orderData.userId) ||
+        ('sellerIds' in orderData && request.auth.uid in orderData.sellerIds)
+      );
+    }
+
     function hasRequiredFields(fields) {
       return request.resource.data.keys().hasAll(fields);
     }
 
-    function isValidUser() {
-      return hasRequiredFields(['email', 'role']) &&
-             request.resource.data.email is string &&
-             request.resource.data.role in ['admin', 'seller'];
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
     }
 
-    function isValidSeller() {
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return hasRequiredFields(['email', 'displayName']) &&
+             data.email is string &&
+             data.displayName is string &&
+             (!('role' in data) || data.role in ['admin', 'seller']);
+    }
+
+    function isValidSeller(data) {
       return hasRequiredFields(['name', 'email', 'status', 'joinedDate']) &&
-             request.resource.data.name is string &&
-             request.resource.data.email is string &&
-             request.resource.data.status in ['Active', 'Suspended'] &&
-             request.resource.data.joinedDate is string;
+             hasOnlyAllowedFields(['name', 'email', 'status', 'joinedDate', 'id']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.email is string &&
+             data.status in ['Active', 'Suspended'] &&
+             data.joinedDate is string;
     }
 
-    function isValidProduct() {
-      return hasRequiredFields(['name', 'brand', 'price', 'image', 'category', 'gender', 'color', 'description', 'inStock']) &&
-             request.resource.data.name is string &&
-             request.resource.data.brand is string &&
-             request.resource.data.price is number &&
-             request.resource.data.image is string &&
-             request.resource.data.category is string &&
-             request.resource.data.gender in ['Men', 'Women', 'Unisex', 'Kids'] &&
-             request.resource.data.color is string &&
-             request.resource.data.description is string &&
-             request.resource.data.inStock is bool;
+    function isValidProduct(data) {
+      return hasRequiredFields(['name', 'brand', 'price', 'image', 'category', 'gender', 'color', 'description', 'inStock', 'sellerId']) &&
+             hasOnlyAllowedFields(['name', 'brand', 'price', 'image', 'category', 'gender', 'color', 'description', 'inStock', 'sellerId', 'id', 'isNew']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 200 &&
+             data.brand is string &&
+             data.price is number && data.price >= 0 &&
+             data.image is string &&
+             data.category is string &&
+             data.gender in ['Men', 'Women', 'Unisex', 'Kids'] &&
+             data.color is string &&
+             data.description is string && data.description.size() < 2000 &&
+             data.inStock is bool &&
+             data.sellerId is string;
     }
 
-    function isValidOrder() {
+    function isValidOrder(data) {
       return hasRequiredFields(['customerInfo', 'items', 'total', 'status', 'date', 'paymentMethod']) &&
-             request.resource.data.customerInfo is map &&
-             request.resource.data.items is list &&
-             request.resource.data.total is number &&
-             request.resource.data.status in ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled'] &&
-             request.resource.data.date is string &&
-             request.resource.data.paymentMethod is string;
+             data.customerInfo is map &&
+             data.items is list &&
+             data.total is number && data.total >= 0 &&
+             data.status in ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled'] &&
+             data.date is string &&
+             data.paymentMethod is string;
     }
 
     // ===============================================================
@@ -111,30 +134,34 @@ service cloud.firestore {
     // ===============================================================
 
     match /users/{userId} {
-      allow read: if isAdmin() || request.auth.uid == userId;
-      allow create: if isAdmin() && isValidUser();
-      allow update: if isAdmin() && isValidUser();
+      allow read: if request.auth.uid == userId || isAdmin();
+      // Only admins can create/update users, or a user can create their own initial profile
+      allow create: if (request.auth.uid == userId || isAdmin()) && isValidUser(request.resource.data);
+      allow update: if (request.auth.uid == userId || isAdmin()) && isValidUser(request.resource.data);
       allow delete: if isAdmin();
     }
 
     match /sellers/{sellerId} {
-      allow read: if true; // Public needs to read seller info for products
-      allow create: if isAdmin() && isValidSeller();
-      allow update: if (isAdmin() || isSeller(sellerId)) && isValidSeller();
+      allow read: if true; 
+      allow create: if (isAdmin() || request.auth.uid == sellerId) && isValidSeller(request.resource.data);
+      allow update: if (isAdmin() || isSeller(sellerId)) && isValidSeller(request.resource.data);
       allow delete: if isAdmin();
     }
 
     match /products/{productId} {
       allow read: if true;
-      allow create: if isValidProduct();
-      allow update: if isValidProduct();
-      allow delete: if true;
+      allow create: if isAuthenticated() && isValidProduct(request.resource.data) && (isAdmin() || isSeller(request.resource.data.sellerId));
+      allow update: if isAuthenticated() && isValidProduct(request.resource.data) && (isAdmin() || isSeller(resource.data.sellerId));
+      allow delete: if isAdmin() || (isAuthenticated() && isSeller(resource.data.sellerId));
     }
 
     match /orders/{orderId} {
-      allow read: if true;
-      allow create: if isValidOrder();
-      allow update: if true;
+      // Only admins or the customer who placed the order can read it
+      allow read: if isAdmin() || isOrderOwner(resource.data);
+      // Anyone can place an order (even guests, but we prefer tracking if logged in)
+      allow create: if isValidOrder(request.resource.data);
+      // Only admins can update order status
+      allow update: if isAdmin() && isValidOrder(request.resource.data);
       allow delete: if isAdmin();
     }
   }

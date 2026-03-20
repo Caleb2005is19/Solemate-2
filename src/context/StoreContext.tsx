@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Product, Order, OrderStatus, Seller, UserProfile } from '../types';
 import { db, auth } from '../firebase';
-import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, getDoc, query, where, Query, or } from 'firebase/firestore';
 import { onAuthStateChanged, User } from 'firebase/auth';
 
 enum OperationType {
@@ -26,12 +26,21 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
     authInfo: {
       userId: auth.currentUser?.uid,
       email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo: auth.currentUser?.providerData.map(provider => ({
+        providerId: provider.providerId,
+        displayName: provider.displayName,
+        email: provider.email,
+        photoUrl: provider.photoURL
+      })) || []
     },
     operationType,
     path
   };
   console.error('Firestore Error: ', JSON.stringify(errInfo));
-  // We don't throw here to avoid crashing the whole app, just log it.
+  throw new Error(JSON.stringify(errInfo));
 }
 
 interface StoreContextType {
@@ -112,7 +121,33 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setSellers(slrs);
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'sellers'));
 
-    const unsubOrders = onSnapshot(collection(db, 'orders'), (snapshot) => {
+    return () => {
+      unsubProducts();
+      unsubSellers();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!currentUser) {
+      setOrders([]);
+      return;
+    }
+
+    let q: Query;
+    if (isAdmin) {
+      q = collection(db, 'orders');
+    } else {
+      // For non-admins, we show orders where they are either the customer or a seller
+      q = query(
+        collection(db, 'orders'), 
+        or(
+          where('userId', '==', currentUser.uid),
+          where('sellerIds', 'array-contains', currentUser.uid)
+        )
+      );
+    }
+
+    const unsubOrders = onSnapshot(q, (snapshot) => {
       const ords: Order[] = [];
       snapshot.forEach(doc => ords.push({ id: doc.id, ...doc.data() } as Order));
       // Sort by date descending locally
@@ -120,12 +155,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setOrders(ords);
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'orders'));
 
-    return () => {
-      unsubProducts();
-      unsubSellers();
-      unsubOrders();
-    };
-  }, []);
+    return () => unsubOrders();
+  }, [currentUser, isAdmin]);
 
   const addProduct = async (p: Product) => {
     try {
@@ -153,7 +184,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const addOrder = async (o: Order) => {
     try {
-      await setDoc(doc(db, 'orders', o.id), o);
+      // Extract unique seller IDs from items
+      const sellerIds = Array.from(new Set(o.items.map(item => item.sellerId).filter(Boolean)));
+      const orderWithSellers = { ...o, sellerIds };
+      await setDoc(doc(db, 'orders', o.id), orderWithSellers);
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, `orders/${o.id}`);
     }

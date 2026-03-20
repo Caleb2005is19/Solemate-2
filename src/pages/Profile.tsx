@@ -183,6 +183,41 @@ export function Profile() {
                           ))}
                         </div>
 
+                        <div className="mt-6 p-4 bg-zinc-50 rounded-2xl border border-zinc-100">
+                          <h4 className="text-sm font-bold text-zinc-900 mb-4">Order Status Timeline</h4>
+                          <div className="relative">
+                            <div className="absolute left-2 top-0 bottom-0 w-0.5 bg-zinc-200" />
+                            <div className="space-y-6 relative">
+                              {[
+                                { label: 'Order Placed', status: 'Pending', date: order.date },
+                                { label: 'Processing', status: 'Processing', date: order.status === 'Processing' || order.status === 'Shipped' || order.status === 'Delivered' ? 'Updated' : null },
+                                { label: 'Shipped', status: 'Shipped', date: order.status === 'Shipped' || order.status === 'Delivered' ? 'Updated' : null },
+                                { label: 'Delivered', status: 'Delivered', date: order.status === 'Delivered' ? 'Updated' : null },
+                              ].map((step, i) => {
+                                const isCompleted = step.date !== null;
+                                const isCurrent = order.status === step.status;
+                                
+                                return (
+                                  <div key={i} className="flex items-start gap-4 ml-1">
+                                    <div className={`w-2 h-2 rounded-full mt-1.5 z-10 ${
+                                      isCompleted ? 'bg-orange-500 ring-4 ring-orange-100' : 'bg-zinc-300'
+                                    }`} />
+                                    <div>
+                                      <p className={`text-sm font-bold ${isCompleted ? 'text-zinc-900' : 'text-zinc-400'}`}>
+                                        {step.label}
+                                        {isCurrent && <span className="ml-2 text-[10px] bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full uppercase">Current</span>}
+                                      </p>
+                                      {isCompleted && step.date !== 'Updated' && (
+                                        <p className="text-xs text-zinc-500">{new Date(step.date).toLocaleDateString()}</p>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+
                         <div className="mt-6 pt-6 border-t border-zinc-100 grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div>
                             <h5 className="text-sm font-bold text-zinc-900 mb-2 flex items-center gap-2">
