@@ -59,6 +59,7 @@ interface StoreContextType {
   userProfile: UserProfile | null;
   updateUserProfile: (profile: Partial<UserProfile>) => Promise<void>;
   isAdmin: boolean;
+  loading: boolean;
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
@@ -70,6 +71,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -119,7 +121,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const slrs: Seller[] = [];
       snapshot.forEach(doc => slrs.push({ id: doc.id, ...doc.data() } as Seller));
       setSellers(slrs);
-    }, (error) => handleFirestoreError(error, OperationType.LIST, 'sellers'));
+      setLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'sellers');
+      setLoading(false);
+    });
 
     return () => {
       unsubProducts();
@@ -240,7 +246,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       products, addProduct, updateProduct, deleteProduct, 
       orders, addOrder, updateOrderStatus,
       sellers, addSeller, updateSeller, deleteSeller,
-      currentUser, userProfile, updateUserProfile, isAdmin
+      currentUser, userProfile, updateUserProfile, isAdmin,
+      loading
     }}>
       {children}
     </StoreContext.Provider>

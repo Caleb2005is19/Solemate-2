@@ -11,7 +11,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 
 export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
   const { sellerId } = useParams<{ sellerId: string }>();
-  const { products: allProducts, orders: allOrders, sellers, addProduct, updateProduct, deleteProduct, updateOrderStatus, addSeller, updateSeller, deleteSeller, currentUser, isAdmin } = useStore();
+  const { products: allProducts, orders: allOrders, sellers, addProduct, updateProduct, deleteProduct, updateOrderStatus, addSeller, updateSeller, deleteSeller, currentUser, isAdmin, loading } = useStore();
   
   const currentSellerId = role === 'seller' ? sellerId : null;
   const currentSeller = currentSellerId ? sellers.find(s => s.id === currentSellerId) : null;
@@ -33,6 +33,17 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
   const [formData, setFormData] = useState<Partial<Product>>({
     name: '', brand: '', price: 0, image: '', category: 'Sneakers', gender: 'Unisex', color: '', description: '', inStock: true
   });
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-zinc-50 flex items-center justify-center p-4">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-zinc-500 font-medium">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (role === 'admin' && !isAdmin) {
     return (
@@ -61,8 +72,17 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
           <div className="w-16 h-16 bg-red-100 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
             <X className="w-8 h-8" />
           </div>
-          <h2 className="text-2xl font-bold text-zinc-900 mb-2">Invalid Link</h2>
-          <p className="text-zinc-500">This seller link is invalid or has expired. Please contact the administrator for a new link.</p>
+          <h2 className="text-2xl font-bold text-zinc-900 mb-2">Invalid Seller Link</h2>
+          <p className="text-zinc-500 mb-6">
+            This seller link is invalid, has expired, or belongs to a different database. 
+            If you recently redeployed the app, you may need to generate a new link from the Admin Portal.
+          </p>
+          <a 
+            href="/"
+            className="inline-block w-full py-3 bg-zinc-900 text-white rounded-xl font-bold hover:bg-zinc-800 transition-colors"
+          >
+            Return to Home
+          </a>
         </div>
       </div>
     );
