@@ -1,3 +1,12 @@
+export interface UserProfile {
+  id: string;
+  email: string;
+  displayName: string;
+  phone?: string;
+  location?: string;
+  city?: string;
+}
+
 export interface Seller {
   id: string;
   name: string;
@@ -31,6 +40,7 @@ export type OrderStatus = 'Pending' | 'Processing' | 'Shipped' | 'Delivered' | '
 
 export interface Order {
   id: string;
+  userId?: string;
   customerInfo: {
     firstName: string;
     lastName: string;

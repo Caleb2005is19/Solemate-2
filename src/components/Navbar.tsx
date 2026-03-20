@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ShoppingBag, Menu, Search, X, Heart, Phone } from 'lucide-react';
+import { ShoppingBag, Menu, Search, X, Heart, Phone, User } from 'lucide-react';
 import { useCart } from '../context/CartContext';
+import { useStore } from '../context/StoreContext';
 import { motion, AnimatePresence } from 'motion/react';
 
 export function Navbar() {
   const { cartCount, setIsCartOpen, wishlistItems, searchQuery, setSearchQuery } = useCart();
+  const { currentUser } = useStore();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const navigate = useNavigate();
@@ -80,6 +82,14 @@ export function Navbar() {
                 )}
               </Link>
 
+              <Link to="/profile" className="p-2 text-zinc-400 hover:text-zinc-900 transition-colors hidden sm:block">
+                {currentUser?.photoURL ? (
+                  <img src={currentUser.photoURL} alt="Profile" className="w-5 h-5 rounded-full" referrerPolicy="no-referrer" />
+                ) : (
+                  <User className="h-5 w-5" />
+                )}
+              </Link>
+
               <button
                 onClick={() => setIsCartOpen(true)}
                 className="p-2 text-zinc-400 hover:text-zinc-900 transition-colors relative"
@@ -139,6 +149,7 @@ export function Navbar() {
                 <Link to="/shop?gender=Men" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-md text-base font-medium text-zinc-900 hover:bg-zinc-50 hover:text-orange-500">Men's</Link>
                 <Link to="/shop?gender=Women" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-md text-base font-medium text-zinc-900 hover:bg-zinc-50 hover:text-orange-500">Women's</Link>
                 <Link to="/shop?wishlist=true" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-md text-base font-medium text-zinc-900 hover:bg-zinc-50 hover:text-orange-500">My Wishlist ({wishlistItems.length})</Link>
+                <Link to="/profile" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-md text-base font-medium text-zinc-900 hover:bg-zinc-50 hover:text-orange-500">My Profile</Link>
                 <div className="h-px bg-zinc-200 my-2 mx-3"></div>
                 <Link to="/admin" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-md text-base font-bold text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900 uppercase tracking-wider">Admin Portal</Link>
               </div>

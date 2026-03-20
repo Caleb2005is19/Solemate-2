@@ -1,0 +1,141 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId}
+    // Fields:
+    //   - email: string (required)
+    //   - role: string (required, 'admin' or 'seller')
+    //
+    // Collection: sellers
+    // Document ID: {sellerId}
+    // Fields:
+    //   - name: string (required)
+    //   - email: string (required)
+    //   - status: string (required)
+    //   - joinedDate: string (required)
+    //
+    // Collection: products
+    // Document ID: {productId}
+    // Fields:
+    //   - name: string (required)
+    //   - brand: string (required)
+    //   - price: number (required)
+    //   - image: string (required)
+    //   - category: string (required)
+    //   - gender: string (required)
+    //   - color: string (required)
+    //   - description: string (required)
+    //   - inStock: boolean (required)
+    //   - sellerId: string (required)
+    //
+    // Collection: orders
+    // Document ID: {orderId}
+    // Fields:
+    //   - customerInfo: map (required)
+    //   - items: list (required)
+    //   - total: number (required)
+    //   - status: string (required)
+    //   - date: string (required)
+    //   - paymentMethod: string (required)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "carlisat19@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isSeller(sellerId) {
+      return isAuthenticated() && request.auth.uid == sellerId;
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function isValidUser() {
+      return hasRequiredFields(['email', 'role']) &&
+             request.resource.data.email is string &&
+             request.resource.data.role in ['admin', 'seller'];
+    }
+
+    function isValidSeller() {
+      return hasRequiredFields(['name', 'email', 'status', 'joinedDate']) &&
+             request.resource.data.name is string &&
+             request.resource.data.email is string &&
+             request.resource.data.status in ['Active', 'Suspended'] &&
+             request.resource.data.joinedDate is string;
+    }
+
+    function isValidProduct() {
+      return hasRequiredFields(['name', 'brand', 'price', 'image', 'category', 'gender', 'color', 'description', 'inStock']) &&
+             request.resource.data.name is string &&
+             request.resource.data.brand is string &&
+             request.resource.data.price is number &&
+             request.resource.data.image is string &&
+             request.resource.data.category is string &&
+             request.resource.data.gender in ['Men', 'Women', 'Unisex', 'Kids'] &&
+             request.resource.data.color is string &&
+             request.resource.data.description is string &&
+             request.resource.data.inStock is bool;
+    }
+
+    function isValidOrder() {
+      return hasRequiredFields(['customerInfo', 'items', 'total', 'status', 'date', 'paymentMethod']) &&
+             request.resource.data.customerInfo is map &&
+             request.resource.data.items is list &&
+             request.resource.data.total is number &&
+             request.resource.data.status in ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled'] &&
+             request.resource.data.date is string &&
+             request.resource.data.paymentMethod is string;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAdmin() || request.auth.uid == userId;
+      allow create: if isAdmin() && isValidUser();
+      allow update: if isAdmin() && isValidUser();
+      allow delete: if isAdmin();
+    }
+
+    match /sellers/{sellerId} {
+      allow read: if true; // Public needs to read seller info for products
+      allow create: if isAdmin() && isValidSeller();
+      allow update: if (isAdmin() || isSeller(sellerId)) && isValidSeller();
+      allow delete: if isAdmin();
+    }
+
+    match /products/{productId} {
+      allow read: if true;
+      allow create: if isValidProduct();
+      allow update: if isValidProduct();
+      allow delete: if true;
+    }
+
+    match /orders/{orderId} {
+      allow read: if true;
+      allow create: if isValidOrder();
+      allow update: if true;
+      allow delete: if isAdmin();
+    }
+  }
+}

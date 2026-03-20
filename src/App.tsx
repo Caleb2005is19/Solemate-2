@@ -9,6 +9,7 @@ import { Shop } from './pages/Shop';
 import { ProductDetail } from './pages/ProductDetail';
 import { Checkout } from './pages/Checkout';
 import { Dashboard } from './pages/Dashboard';
+import { Profile } from './pages/Profile';
 
 export default function App() {
   return (
@@ -26,6 +27,7 @@ export default function App() {
                 <Route path="/checkout" element={<Checkout />} />
                 <Route path="/admin" element={<Dashboard role="admin" />} />
                 <Route path="/seller/:sellerId" element={<Dashboard role="seller" />} />
+                <Route path="/profile" element={<Profile />} />
                 <Route path="*" element={<Home />} />
               </Routes>
             </main>

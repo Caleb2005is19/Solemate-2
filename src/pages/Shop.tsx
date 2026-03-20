@@ -17,6 +17,8 @@ export function Shop() {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [selectedGender, setSelectedGender] = useState<string>(genderParam);
   const [selectedColor, setSelectedColor] = useState<string>('All');
+  const [selectedBrand, setSelectedBrand] = useState<string>('All');
+  const [maxPrice, setMaxPrice] = useState<number>(50000);
   
   useEffect(() => {
     if (genderParam) {
@@ -27,6 +29,7 @@ export function Shop() {
   const categories = ['All', ...Array.from(new Set(products.map(p => p.category)))];
   const genders = ['All', 'Men', 'Women', 'Unisex', 'Kids'];
   const colors = ['All', ...Array.from(new Set(products.map(p => p.color))).filter(Boolean)];
+  const brands = ['All', ...Array.from(new Set(products.map(p => p.brand))).filter(Boolean)];
   
   let filteredProducts = showWishlist ? wishlistItems : products;
 
@@ -48,6 +51,12 @@ export function Shop() {
   if (selectedColor !== 'All') {
     filteredProducts = filteredProducts.filter(p => p.color === selectedColor);
   }
+
+  if (selectedBrand !== 'All') {
+    filteredProducts = filteredProducts.filter(p => p.brand === selectedBrand);
+  }
+
+  filteredProducts = filteredProducts.filter(p => p.price <= maxPrice);
 
   return (
     <div className="min-h-screen bg-zinc-50 pt-8 pb-24">
@@ -109,6 +118,38 @@ export function Shop() {
                   </button>
                 ))}
               </div>
+              {/* Brand Filter */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-2 sm:pb-0 hide-scrollbar">
+                <span className="text-sm font-bold text-zinc-400 uppercase tracking-wider mr-2">Brand:</span>
+                {brands.map(brand => (
+                  <button
+                    key={brand}
+                    onClick={() => setSelectedBrand(brand)}
+                    className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+                      selectedBrand === brand
+                        ? 'bg-zinc-900 text-white'
+                        : 'bg-white text-zinc-600 hover:bg-zinc-100 border border-zinc-200'
+                    }`}
+                  >
+                    {brand}
+                  </button>
+                ))}
+              </div>
+
+              {/* Price Filter */}
+              <div className="flex items-center gap-4 pb-2 sm:pb-0">
+                <span className="text-sm font-bold text-zinc-400 uppercase tracking-wider">Max Price:</span>
+                <input 
+                  type="range" 
+                  min="1000" 
+                  max="50000" 
+                  step="1000"
+                  value={maxPrice}
+                  onChange={(e) => setMaxPrice(Number(e.target.value))}
+                  className="w-32 accent-zinc-900"
+                />
+                <span className="text-sm font-medium text-zinc-700">KSh {maxPrice.toLocaleString()}</span>
+              </div>
             </div>
             
             <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
@@ -147,6 +188,8 @@ export function Shop() {
                 setSelectedGender('All');
                 setSelectedCategory('All');
                 setSelectedColor('All');
+                setSelectedBrand('All');
+                setMaxPrice(50000);
                 setSearchParams({});
               }}
               className="mt-6 px-6 py-2 bg-orange-500 text-white rounded-full font-medium hover:bg-orange-600 transition-colors"

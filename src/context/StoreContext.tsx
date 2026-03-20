@@ -1,59 +1,212 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { Product, Order, OrderStatus, Seller } from '../types';
-import { products as initialProducts } from '../data/products';
+import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { Product, Order, OrderStatus, Seller, UserProfile } from '../types';
+import { db, auth } from '../firebase';
+import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
+import { onAuthStateChanged, User } from 'firebase/auth';
 
-const initialSellers: Seller[] = [
-  { id: 'seller-1', name: 'Nairobi Kicks', email: 'hello@nairobikicks.co.ke', status: 'Active', joinedDate: '2023-01-15' },
-  { id: 'seller-2', name: 'SneakerHead KE', email: 'sales@sneakerhead.co.ke', status: 'Active', joinedDate: '2023-03-22' },
-];
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: any;
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  // We don't throw here to avoid crashing the whole app, just log it.
+}
 
 interface StoreContextType {
   products: Product[];
-  addProduct: (p: Product) => void;
-  updateProduct: (id: string, p: Partial<Product>) => void;
-  deleteProduct: (id: string) => void;
+  addProduct: (p: Product) => Promise<void>;
+  updateProduct: (id: string, p: Partial<Product>) => Promise<void>;
+  deleteProduct: (id: string) => Promise<void>;
   orders: Order[];
-  addOrder: (o: Order) => void;
-  updateOrderStatus: (id: string, status: OrderStatus) => void;
+  addOrder: (o: Order) => Promise<void>;
+  updateOrderStatus: (id: string, status: OrderStatus) => Promise<void>;
   sellers: Seller[];
-  addSeller: (s: Seller) => void;
-  updateSeller: (id: string, s: Partial<Seller>) => void;
-  deleteSeller: (id: string) => void;
+  addSeller: (s: Seller) => Promise<void>;
+  updateSeller: (id: string, s: Partial<Seller>) => Promise<void>;
+  deleteSeller: (id: string) => Promise<void>;
+  currentUser: User | null;
+  userProfile: UserProfile | null;
+  updateUserProfile: (profile: Partial<UserProfile>) => Promise<void>;
+  isAdmin: boolean;
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [products, setProducts] = useState<Product[]>(initialProducts);
+  const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
-  const [sellers, setSellers] = useState<Seller[]>(initialSellers);
+  const [sellers, setSellers] = useState<Seller[]>([]);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
-  const addProduct = (p: Product) => setProducts([p, ...products]);
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      setCurrentUser(user);
+      if (user) {
+        // Fetch user profile
+        try {
+          const docRef = doc(db, 'users', user.uid);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            setUserProfile({ id: docSnap.id, ...docSnap.data() } as UserProfile);
+          } else {
+            // Create default profile
+            const newProfile: UserProfile = {
+              id: user.uid,
+              email: user.email || '',
+              displayName: user.displayName || '',
+            };
+            await setDoc(docRef, newProfile);
+            setUserProfile(newProfile);
+          }
+        } catch (error) {
+          handleFirestoreError(error, OperationType.GET, `users/${user.uid}`);
+        }
+
+        // Check if admin (for prototype, hardcode the email or check custom claims)
+        if (user.email === 'carlisat19@gmail.com') {
+          setIsAdmin(true);
+        } else {
+          setIsAdmin(false);
+        }
+      } else {
+        setIsAdmin(false);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const unsubProducts = onSnapshot(collection(db, 'products'), (snapshot) => {
+      const prods: Product[] = [];
+      snapshot.forEach(doc => prods.push({ id: doc.id, ...doc.data() } as Product));
+      setProducts(prods);
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'products'));
+
+    const unsubSellers = onSnapshot(collection(db, 'sellers'), (snapshot) => {
+      const slrs: Seller[] = [];
+      snapshot.forEach(doc => slrs.push({ id: doc.id, ...doc.data() } as Seller));
+      setSellers(slrs);
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'sellers'));
+
+    const unsubOrders = onSnapshot(collection(db, 'orders'), (snapshot) => {
+      const ords: Order[] = [];
+      snapshot.forEach(doc => ords.push({ id: doc.id, ...doc.data() } as Order));
+      // Sort by date descending locally
+      ords.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      setOrders(ords);
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'orders'));
+
+    return () => {
+      unsubProducts();
+      unsubSellers();
+      unsubOrders();
+    };
+  }, []);
+
+  const addProduct = async (p: Product) => {
+    try {
+      await setDoc(doc(db, 'products', p.id), p);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, `products/${p.id}`);
+    }
+  };
   
-  const updateProduct = (id: string, updates: Partial<Product>) => 
-    setProducts(products.map(p => p.id === id ? { ...p, ...updates } : p));
+  const updateProduct = async (id: string, updates: Partial<Product>) => {
+    try {
+      await updateDoc(doc(db, 'products', id), updates);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `products/${id}`);
+    }
+  };
     
-  const deleteProduct = (id: string) => 
-    setProducts(products.filter(p => p.id !== id));
+  const deleteProduct = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'products', id));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `products/${id}`);
+    }
+  };
 
-  const addOrder = (o: Order) => setOrders([o, ...orders]);
+  const addOrder = async (o: Order) => {
+    try {
+      await setDoc(doc(db, 'orders', o.id), o);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, `orders/${o.id}`);
+    }
+  };
   
-  const updateOrderStatus = (id: string, status: OrderStatus) =>
-    setOrders(orders.map(o => o.id === id ? { ...o, status } : o));
+  const updateOrderStatus = async (id: string, status: OrderStatus) => {
+    try {
+      await updateDoc(doc(db, 'orders', id), { status });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `orders/${id}`);
+    }
+  };
 
-  const addSeller = (s: Seller) => setSellers([s, ...sellers]);
+  const addSeller = async (s: Seller) => {
+    try {
+      await setDoc(doc(db, 'sellers', s.id), s);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, `sellers/${s.id}`);
+    }
+  };
   
-  const updateSeller = (id: string, updates: Partial<Seller>) =>
-    setSellers(sellers.map(s => s.id === id ? { ...s, ...updates } : s));
+  const updateSeller = async (id: string, updates: Partial<Seller>) => {
+    try {
+      await updateDoc(doc(db, 'sellers', id), updates);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `sellers/${id}`);
+    }
+  };
     
-  const deleteSeller = (id: string) =>
-    setSellers(sellers.filter(s => s.id !== id));
+  const deleteSeller = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'sellers', id));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `sellers/${id}`);
+    }
+  };
+
+  const updateUserProfile = async (profile: Partial<UserProfile>) => {
+    if (!currentUser) return;
+    try {
+      await updateDoc(doc(db, 'users', currentUser.uid), profile);
+      setUserProfile(prev => prev ? { ...prev, ...profile } : null);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `users/${currentUser.uid}`);
+    }
+  };
 
   return (
     <StoreContext.Provider value={{ 
       products, addProduct, updateProduct, deleteProduct, 
       orders, addOrder, updateOrderStatus,
-      sellers, addSeller, updateSeller, deleteSeller
+      sellers, addSeller, updateSeller, deleteSeller,
+      currentUser, userProfile, updateUserProfile, isAdmin
     }}>
       {children}
     </StoreContext.Provider>

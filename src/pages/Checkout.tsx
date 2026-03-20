@@ -8,21 +8,53 @@ import { formatPrice } from '../utils';
 
 export function Checkout() {
   const { items, cartTotal, cartCount, clearCart } = useCart();
-  const { addOrder } = useStore();
+  const { addOrder, currentUser } = useStore();
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'mpesa' | 'card'>('mpesa');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [showMpesaModal, setShowMpesaModal] = useState(false);
+  const [mpesaStatus, setMpesaStatus] = useState<'waiting' | 'success' | 'failed'>('waiting');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const formData = new FormData(e.target as HTMLFormElement);
+    const phone = formData.get('phone') as string;
     
+    const orderId = Math.random().toString(36).substr(2, 9);
+
+    if (paymentMethod === 'mpesa') {
+      setIsProcessing(true);
+      setPaymentError(null);
+      setShowMpesaModal(true);
+      setMpesaStatus('waiting');
+
+      // Simulate M-Pesa STK Push delay and user entering PIN
+      setTimeout(() => {
+        setMpesaStatus('success');
+        
+        // After showing success for 1.5s, complete the order
+        setTimeout(() => {
+          completeOrder(formData, orderId, phone);
+        }, 1500);
+      }, 5000);
+      
+      return; // Stop here, completeOrder will be called after simulation
+    }
+    
+    // For Card/COD, complete immediately
+    completeOrder(formData, orderId, phone);
+  };
+
+  const completeOrder = (formData: FormData, orderId: string, phone: string) => {
     addOrder({
-      id: Math.random().toString(36).substr(2, 9),
+      id: orderId,
+      userId: currentUser?.uid,
       customerInfo: {
         firstName: formData.get('firstName') as string,
         lastName: formData.get('lastName') as string,
         email: formData.get('email') as string,
-        phone: formData.get('phone') as string,
+        phone,
         location: formData.get('location') as string,
         city: formData.get('city') as string,
       },
@@ -34,6 +66,8 @@ export function Checkout() {
     });
     
     clearCart();
+    setIsProcessing(false);
+    setShowMpesaModal(false);
     setIsSubmitted(true);
   };
 
@@ -106,6 +140,7 @@ export function Checkout() {
                         id="email"
                         name="email"
                         required
+                        defaultValue={currentUser?.email || ''}
                         className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all"
                         placeholder="you@example.com"
                       />
@@ -135,6 +170,7 @@ export function Checkout() {
                         id="firstName"
                         name="firstName"
                         required
+                        defaultValue={currentUser?.displayName?.split(' ')[0] || ''}
                         className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all"
                       />
                     </div>
@@ -145,6 +181,7 @@ export function Checkout() {
                         id="lastName"
                         name="lastName"
                         required
+                        defaultValue={currentUser?.displayName?.split(' ').slice(1).join(' ') || ''}
                         className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all"
                       />
                     </div>
@@ -211,24 +248,16 @@ export function Checkout() {
                     <div className="bg-green-50 p-6 rounded-2xl border border-green-200">
                       <div className="flex items-center gap-3 mb-4">
                         <div className="w-10 h-10 bg-green-600 rounded-lg flex items-center justify-center text-white font-bold text-xs">M-PESA</div>
-                        <h3 className="text-lg font-bold text-green-900">Lipa na M-Pesa</h3>
+                        <h3 className="text-lg font-bold text-green-900">Lipa na M-Pesa Online</h3>
                       </div>
                       <p className="text-green-800 text-sm mb-4 leading-relaxed">
-                        1. Go to M-Pesa menu<br/>
-                        2. Select Lipa na M-Pesa -&gt; Buy Goods and Services<br/>
-                        3. Enter Till Number: <strong>123456</strong><br/>
-                        4. Enter Amount: <strong>{formatPrice(cartTotal)}</strong><br/>
-                        5. Enter your M-Pesa PIN and confirm.
+                        We will send an M-Pesa prompt to your phone number. Enter your PIN to complete the payment of <strong>{formatPrice(cartTotal)}</strong>.
                       </p>
-                      <div>
-                        <label className="block text-sm font-medium text-green-900 mb-1">M-Pesa Confirmation Code</label>
-                        <input 
-                          type="text" 
-                          required
-                          placeholder="e.g. QWE123RTY4" 
-                          className="w-full px-4 py-3 rounded-xl border border-green-200 focus:ring-2 focus:ring-green-500 outline-none bg-white" 
-                        />
-                      </div>
+                      {paymentError && (
+                        <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-xl text-sm font-medium">
+                          {paymentError}
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -243,9 +272,17 @@ export function Checkout() {
 
                 <button
                   type="submit"
-                  className="w-full py-4 px-8 bg-orange-500 text-white rounded-2xl font-bold text-lg hover:bg-orange-600 transition-all shadow-lg shadow-orange-500/25"
+                  disabled={isProcessing}
+                  className="w-full py-4 px-8 bg-orange-500 text-white rounded-2xl font-bold text-lg hover:bg-orange-600 transition-all shadow-lg shadow-orange-500/25 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  Confirm Order
+                  {isProcessing ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Processing Payment...
+                    </>
+                  ) : (
+                    'Confirm Order'
+                  )}
                 </button>
               </form>
             </div>
@@ -294,6 +331,42 @@ export function Checkout() {
           </div>
         </div>
       </div>
+
+      {/* M-Pesa Modal */}
+      {showMpesaModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl text-center"
+          >
+            {mpesaStatus === 'waiting' ? (
+              <>
+                <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <div className="w-8 h-8 border-4 border-green-600 border-t-transparent rounded-full animate-spin" />
+                </div>
+                <h3 className="text-xl font-bold text-zinc-900 mb-2">Check your phone</h3>
+                <p className="text-zinc-500 mb-6">
+                  We've sent an M-Pesa prompt to your phone. Please enter your PIN to complete the payment of <strong>{formatPrice(cartTotal)}</strong>.
+                </p>
+                <div className="text-sm text-zinc-400 animate-pulse">Waiting for payment...</div>
+              </>
+            ) : mpesaStatus === 'success' ? (
+              <>
+                <motion.div
+                  initial={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  className="w-16 h-16 bg-green-100 text-green-500 rounded-full flex items-center justify-center mx-auto mb-6"
+                >
+                  <CheckCircle2 className="w-8 h-8" />
+                </motion.div>
+                <h3 className="text-xl font-bold text-zinc-900 mb-2">Payment Successful!</h3>
+                <p className="text-zinc-500">Your M-Pesa payment was received.</p>
+              </>
+            ) : null}
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

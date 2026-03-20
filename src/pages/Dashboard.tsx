@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
-import { LayoutDashboard, Package, ShoppingCart, Plus, Edit, Trash, Check, X, Users, Link as LinkIcon } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, Plus, Edit, Trash, Check, X, Users, Link as LinkIcon, LogOut, Upload } from 'lucide-react';
 import { Product, OrderStatus, Order, Seller } from '../types';
 import { formatPrice } from '../utils';
+import { loginWithGoogle, logout, storage } from '../firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import imageCompression from 'browser-image-compression';
 
 export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
   const { sellerId } = useParams<{ sellerId: string }>();
-  const { products: allProducts, orders: allOrders, sellers, addProduct, updateProduct, deleteProduct, updateOrderStatus, addSeller, updateSeller, deleteSeller } = useStore();
+  const { products: allProducts, orders: allOrders, sellers, addProduct, updateProduct, deleteProduct, updateOrderStatus, addSeller, updateSeller, deleteSeller, currentUser, isAdmin } = useStore();
   
   const currentSellerId = role === 'seller' ? sellerId : null;
   const currentSeller = currentSellerId ? sellers.find(s => s.id === currentSellerId) : null;
@@ -16,6 +19,7 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
   const [isAddingProduct, setIsAddingProduct] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [viewingOrder, setViewingOrder] = useState<Order | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   
   const [isAddingSeller, setIsAddingSeller] = useState(false);
   const [editingSeller, setEditingSeller] = useState<Seller | null>(null);
@@ -23,6 +27,26 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
     name: '', email: '', status: 'Active'
   });
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  if (role === 'admin' && !isAdmin) {
+    return (
+      <div className="min-h-screen bg-zinc-50 flex items-center justify-center p-4">
+        <div className="bg-white p-8 rounded-2xl border border-zinc-200 shadow-sm text-center max-w-md w-full">
+          <div className="w-16 h-16 bg-orange-100 text-orange-500 rounded-full flex items-center justify-center mx-auto mb-4">
+            <LayoutDashboard className="w-8 h-8" />
+          </div>
+          <h2 className="text-2xl font-bold text-zinc-900 mb-2">Admin Access Required</h2>
+          <p className="text-zinc-500 mb-6">Please sign in with an authorized administrator account to access this portal.</p>
+          <button 
+            onClick={loginWithGoogle}
+            className="w-full py-3 bg-zinc-900 text-white rounded-xl font-bold hover:bg-zinc-800 transition-colors"
+          >
+            Sign in with Google
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (role === 'seller' && (!currentSellerId || !currentSeller)) {
     return (
@@ -51,8 +75,36 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
     name: '', brand: '', price: 0, image: '', category: 'Sneakers', gender: 'Unisex', color: '', description: '', inStock: true
   });
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingImage(true);
+    try {
+      const options = {
+        maxSizeMB: 0.5,
+        maxWidthOrHeight: 1024,
+        useWebWorker: true,
+      };
+      const compressedFile = await imageCompression(file, options);
+      const imageRef = ref(storage, `products/${Date.now()}_${compressedFile.name}`);
+      await uploadBytes(imageRef, compressedFile);
+      const downloadURL = await getDownloadURL(imageRef);
+      setFormData({ ...formData, image: downloadURL });
+    } catch (error) {
+      console.error("Error uploading image:", error);
+      alert("Failed to upload image. Please try again.");
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
+
   const handleSaveProduct = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.image) {
+      alert("Please upload an image for the product.");
+      return;
+    }
     if (editingProduct) {
       updateProduct(editingProduct.id, formData);
     } else {
@@ -146,6 +198,17 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
               <Users className="w-5 h-5" /> Sellers
             </button>
           )}
+          
+          {role === 'admin' && (
+            <div className="mt-auto pt-8">
+              <button
+                onClick={logout}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors text-red-400 hover:bg-red-500/10 hover:text-red-500"
+              >
+                <LogOut className="w-5 h-5" /> Sign Out
+              </button>
+            </div>
+          )}
         </nav>
       </div>
 
@@ -204,8 +267,25 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
                       <input type="number" required value={formData.price} onChange={e => setFormData({...formData, price: Number(e.target.value)})} className="w-full px-4 py-2 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 outline-none" />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-zinc-700 mb-1">Image URL</label>
-                      <input type="url" required value={formData.image} onChange={e => setFormData({...formData, image: e.target.value})} className="w-full px-4 py-2 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 outline-none" />
+                      <label className="block text-sm font-medium text-zinc-700 mb-1">Product Image</label>
+                      <div className="flex items-center gap-4">
+                        {formData.image && (
+                          <img src={formData.image} alt="Preview" className="w-12 h-12 rounded-lg object-cover border border-zinc-200" />
+                        )}
+                        <label className="flex-1 flex items-center justify-center gap-2 px-4 py-2 border-2 border-dashed border-zinc-300 rounded-xl hover:border-orange-500 hover:bg-orange-50 transition-colors cursor-pointer">
+                          <Upload className="w-4 h-4 text-zinc-500" />
+                          <span className="text-sm font-medium text-zinc-600">
+                            {isUploadingImage ? 'Uploading...' : 'Upload Image'}
+                          </span>
+                          <input 
+                            type="file" 
+                            accept="image/*" 
+                            onChange={handleImageUpload} 
+                            disabled={isUploadingImage}
+                            className="hidden" 
+                          />
+                        </label>
+                      </div>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-zinc-700 mb-1">Category</label>
