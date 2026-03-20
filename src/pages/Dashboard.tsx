@@ -29,6 +29,11 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
   });
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  // Form State
+  const [formData, setFormData] = useState<Partial<Product>>({
+    name: '', brand: '', price: 0, image: '', category: 'Sneakers', gender: 'Unisex', color: '', description: '', inStock: true
+  });
+
   if (role === 'admin' && !isAdmin) {
     return (
       <div className="min-h-screen bg-zinc-50 flex items-center justify-center p-4">
@@ -70,11 +75,6 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
   const orders = role === 'admin'
     ? allOrders
     : allOrders.filter(o => o.items.some(item => item.sellerId === currentSellerId));
-
-  // Form State
-  const [formData, setFormData] = useState<Partial<Product>>({
-    name: '', brand: '', price: 0, image: '', category: 'Sneakers', gender: 'Unisex', color: '', description: '', inStock: true
-  });
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

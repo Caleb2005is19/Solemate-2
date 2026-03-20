@@ -1,16 +1,33 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ShoppingBag, Menu, Search, X, Heart, Phone, User } from 'lucide-react';
+import { ShoppingBag, Menu, Search, X, Heart, Phone, User, LogIn, LogOut, ShieldCheck } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useStore } from '../context/StoreContext';
+import { loginWithGoogle, logout } from '../firebase';
 import { motion, AnimatePresence } from 'motion/react';
 
 export function Navbar() {
   const { cartCount, setIsCartOpen, wishlistItems, searchQuery, setSearchQuery } = useCart();
-  const { currentUser } = useStore();
+  const { currentUser, isAdmin } = useStore();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const navigate = useNavigate();
+
+  const handleLogin = async () => {
+    try {
+      await loginWithGoogle();
+    } catch (error: any) {
+      console.error("Login failed:", error);
+      if (error.code === 'auth/operation-not-allowed') {
+        alert("Google Sign-In is not enabled in your Firebase project. Please enable it in the Firebase Console (Authentication > Sign-in method).");
+      } else if (error.code === 'auth/unauthorized-domain') {
+        alert("This domain is not authorized for Google Sign-In. Please add your Vercel domain to the 'Authorized domains' list in the Firebase Console (Authentication > Settings).");
+      } else {
+        alert("Failed to sign in with Google. Please try again.");
+      }
+    }
+  };
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,8 +77,6 @@ export function Navbar() {
               <Link to="/shop" className="text-zinc-600 hover:text-orange-500 px-3 py-2 text-sm font-medium transition-colors">Shop All</Link>
               <Link to="/shop?gender=Men" className="text-zinc-600 hover:text-orange-500 px-3 py-2 text-sm font-medium transition-colors">Men</Link>
               <Link to="/shop?gender=Women" className="text-zinc-600 hover:text-orange-500 px-3 py-2 text-sm font-medium transition-colors">Women</Link>
-              <div className="h-4 w-px bg-zinc-300 mx-2"></div>
-              <Link to="/admin" className="text-zinc-500 hover:text-zinc-900 px-2 py-2 text-xs font-bold uppercase tracking-wider transition-colors">Admin</Link>
             </div>
 
             {/* Right side icons */}
@@ -82,13 +97,76 @@ export function Navbar() {
                 )}
               </Link>
 
-              <Link to="/profile" className="p-2 text-zinc-400 hover:text-zinc-900 transition-colors hidden sm:block">
-                {currentUser?.photoURL ? (
-                  <img src={currentUser.photoURL} alt="Profile" className="w-5 h-5 rounded-full" referrerPolicy="no-referrer" />
-                ) : (
-                  <User className="h-5 w-5" />
-                )}
-              </Link>
+              <div className="relative">
+                <button 
+                  onClick={() => currentUser ? setIsProfileOpen(!isProfileOpen) : handleLogin()}
+                  className="p-2 text-zinc-400 hover:text-zinc-900 transition-colors flex items-center gap-2"
+                >
+                  {currentUser ? (
+                    currentUser.photoURL ? (
+                      <img src={currentUser.photoURL} alt="Profile" className="w-5 h-5 rounded-full" referrerPolicy="no-referrer" />
+                    ) : (
+                      <User className="h-5 w-5" />
+                    )
+                  ) : (
+                    <div className="flex items-center gap-1 text-sm font-medium text-zinc-600 hover:text-orange-500">
+                      <LogIn className="h-5 w-5" />
+                      <span className="hidden md:inline">Sign In</span>
+                    </div>
+                  )}
+                </button>
+
+                {/* Profile Dropdown */}
+                <AnimatePresence>
+                  {isProfileOpen && currentUser && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setIsProfileOpen(false)}></div>
+                      <motion.div
+                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                        className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-zinc-100 py-1 z-50 overflow-hidden"
+                      >
+                        <div className="px-4 py-2 border-b border-zinc-50">
+                          <p className="text-xs text-zinc-500">Signed in as</p>
+                          <p className="text-sm font-medium text-zinc-900 truncate">{currentUser.email}</p>
+                        </div>
+                        
+                        <Link 
+                          to="/profile" 
+                          onClick={() => setIsProfileOpen(false)}
+                          className="flex items-center gap-2 px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-50 transition-colors"
+                        >
+                          <User className="w-4 h-4" />
+                          My Profile
+                        </Link>
+
+                        {isAdmin && (
+                          <Link 
+                            to="/admin" 
+                            onClick={() => setIsProfileOpen(false)}
+                            className="flex items-center gap-2 px-4 py-2 text-sm text-orange-600 font-medium hover:bg-orange-50 transition-colors"
+                          >
+                            <ShieldCheck className="w-4 h-4" />
+                            Admin Portal
+                          </Link>
+                        )}
+
+                        <button 
+                          onClick={() => {
+                            logout();
+                            setIsProfileOpen(false);
+                          }}
+                          className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                        >
+                          <LogOut className="w-4 h-4" />
+                          Sign Out
+                        </button>
+                      </motion.div>
+                    </>
+                  )}
+                </AnimatePresence>
+              </div>
 
               <button
                 onClick={() => setIsCartOpen(true)}
@@ -150,8 +228,36 @@ export function Navbar() {
                 <Link to="/shop?gender=Women" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-md text-base font-medium text-zinc-900 hover:bg-zinc-50 hover:text-orange-500">Women's</Link>
                 <Link to="/shop?wishlist=true" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-md text-base font-medium text-zinc-900 hover:bg-zinc-50 hover:text-orange-500">My Wishlist ({wishlistItems.length})</Link>
                 <Link to="/profile" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-md text-base font-medium text-zinc-900 hover:bg-zinc-50 hover:text-orange-500">My Profile</Link>
+                
+                {isAdmin && (
+                  <>
+                    <div className="h-px bg-zinc-200 my-2 mx-3"></div>
+                    <Link to="/admin" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-md text-base font-bold text-orange-600 hover:bg-orange-50 uppercase tracking-wider">Admin Portal</Link>
+                  </>
+                )}
+
                 <div className="h-px bg-zinc-200 my-2 mx-3"></div>
-                <Link to="/admin" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-md text-base font-bold text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900 uppercase tracking-wider">Admin Portal</Link>
+                {currentUser ? (
+                  <button 
+                    onClick={() => {
+                      logout();
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-md text-base font-medium text-red-600 hover:bg-red-50"
+                  >
+                    Sign Out
+                  </button>
+                ) : (
+                  <button 
+                    onClick={() => {
+                      handleLogin();
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-md text-base font-medium text-zinc-900 hover:bg-zinc-50 hover:text-orange-500"
+                  >
+                    Sign In
+                  </button>
+                )}
               </div>
             </motion.div>
           )}
