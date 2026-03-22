@@ -9,7 +9,7 @@ export function CartDrawer() {
   const { isCartOpen, setIsCartOpen, items, updateQuantity, removeFromCart, cartTotal } = useCart();
 
   const orderDetails = items.map(item => 
-    `- ${item.name} (Size: US ${item.selectedSize}) x${item.quantity} = ${formatPrice(item.price * item.quantity)}`
+    `- ${item.name} (Color: ${item.selectedColor || 'Default'}, Size: US ${item.selectedSize}) x${item.quantity} = ${formatPrice(item.price * item.quantity)}`
   ).join('\n');
   
   const whatsAppMessage = `Hello Solemate, I would like to place an order:\n\n${orderDetails}\n\n*Total: ${formatPrice(cartTotal)}*\n\nPlease advise on delivery.`;
@@ -71,7 +71,7 @@ export function CartDrawer() {
               ) : (
                 <div className="space-y-6">
                   {items.map((item) => (
-                    <div key={`${item.id}-${item.selectedSize}`} className="flex gap-4">
+                    <div key={`${item.id}-${item.selectedSize}-${item.selectedColor}`} className="flex gap-4">
                       <div className="w-24 h-24 rounded-xl bg-zinc-100 overflow-hidden flex-shrink-0">
                         <img
                           src={item.image}
@@ -85,7 +85,10 @@ export function CartDrawer() {
                         <div className="flex justify-between items-start">
                           <div>
                             <h3 className="font-medium text-zinc-900 line-clamp-1">{item.name}</h3>
-                            <p className="text-sm text-zinc-500 mt-0.5">Size: US {item.selectedSize}</p>
+                            <p className="text-sm text-zinc-500 mt-0.5">
+                              {item.selectedColor && <span className="mr-2">Color: {item.selectedColor}</span>}
+                              Size: US {item.selectedSize}
+                            </p>
                           </div>
                           <p className="font-bold text-zinc-900">{formatPrice(item.price)}</p>
                         </div>
@@ -93,7 +96,7 @@ export function CartDrawer() {
                         <div className="mt-auto flex items-center justify-between">
                           <div className="flex items-center border border-zinc-200 rounded-lg">
                             <button
-                              onClick={() => updateQuantity(item.id, item.selectedSize, item.quantity - 1)}
+                              onClick={() => updateQuantity(item.id, item.selectedSize, item.quantity - 1, item.selectedColor)}
                               className="p-1.5 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50 transition-colors"
                             >
                               <Minus className="w-4 h-4" />
@@ -102,14 +105,14 @@ export function CartDrawer() {
                               {item.quantity}
                             </span>
                             <button
-                              onClick={() => updateQuantity(item.id, item.selectedSize, item.quantity + 1)}
+                              onClick={() => updateQuantity(item.id, item.selectedSize, item.quantity + 1, item.selectedColor)}
                               className="p-1.5 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50 transition-colors"
                             >
                               <Plus className="w-4 h-4" />
                             </button>
                           </div>
                           <button
-                            onClick={() => removeFromCart(item.id, item.selectedSize)}
+                            onClick={() => removeFromCart(item.id, item.selectedSize, item.selectedColor)}
                             className="text-sm font-medium text-red-500 hover:text-red-600 transition-colors"
                           >
                             Remove

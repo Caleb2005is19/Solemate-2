@@ -8,9 +8,32 @@ export const products: Product[] = [
     price: 6500,
     originalPrice: 8500,
     image: 'https://images.unsplash.com/photo-1551107696-a4b0c5a0d9a2?auto=format&fit=crop&q=80&w=800',
+    images: [
+      'https://images.unsplash.com/photo-1551107696-a4b0c5a0d9a2?auto=format&fit=crop&q=80&w=800',
+      'https://images.unsplash.com/photo-1514989940723-e8e51635b782?auto=format&fit=crop&q=80&w=800',
+      'https://images.unsplash.com/photo-1516478177764-9fe5bd7e9717?auto=format&fit=crop&q=80&w=800'
+    ],
     category: 'Sneakers',
     gender: 'Men',
     color: 'Red',
+    colors: [
+      {
+        name: 'Red',
+        hex: '#FF0000',
+        images: [
+          'https://images.unsplash.com/photo-1551107696-a4b0c5a0d9a2?auto=format&fit=crop&q=80&w=800',
+          'https://images.unsplash.com/photo-1514989940723-e8e51635b782?auto=format&fit=crop&q=80&w=800'
+        ]
+      },
+      {
+        name: 'Blue',
+        hex: '#0000FF',
+        images: [
+          'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&q=80&w=800',
+          'https://images.unsplash.com/photo-1549298916-b41d501d3772?auto=format&fit=crop&q=80&w=800'
+        ]
+      }
+    ],
     description: 'The iconic Air Jordan 1 Retro High. Premium leather, comfortable cushioning, and classic design details. Perfect for the streets of Nairobi.',
     isNew: true,
     inStock: true,
@@ -22,9 +45,31 @@ export const products: Product[] = [
     brand: 'Nike',
     price: 4500,
     image: 'https://images.unsplash.com/photo-1600185365483-26d7a4cc7519?auto=format&fit=crop&q=80&w=800',
+    images: [
+      'https://images.unsplash.com/photo-1600185365483-26d7a4cc7519?auto=format&fit=crop&q=80&w=800',
+      'https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?auto=format&fit=crop&q=80&w=800'
+    ],
     category: 'Sneakers',
     gender: 'Unisex',
     color: 'White',
+    colors: [
+      {
+        name: 'White',
+        hex: '#FFFFFF',
+        images: [
+          'https://images.unsplash.com/photo-1600185365483-26d7a4cc7519?auto=format&fit=crop&q=80&w=800',
+          'https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?auto=format&fit=crop&q=80&w=800'
+        ]
+      },
+      {
+        name: 'Black',
+        hex: '#000000',
+        images: [
+          'https://images.unsplash.com/photo-1549298916-b41d501d3772?auto=format&fit=crop&q=80&w=800',
+          'https://images.unsplash.com/photo-1525966222134-fcfa99b8ae77?auto=format&fit=crop&q=80&w=800'
+        ]
+      }
+    ],
     description: 'The radiance lives on in the Nike Air Force 1 \'07. Crisp leather, bold colors and the perfect amount of flash.',
     inStock: true,
     sellerId: 'seller-2',

@@ -364,7 +364,7 @@ export function Checkout() {
               
               <div className="space-y-4 mb-6 max-h-96 overflow-y-auto pr-2">
                 {items.map((item) => (
-                  <div key={`${item.id}-${item.selectedSize}`} className="flex gap-4">
+                  <div key={`${item.id}-${item.selectedSize}-${item.selectedColor}`} className="flex gap-4">
                     <div className="w-16 h-16 rounded-lg bg-zinc-100 overflow-hidden flex-shrink-0">
                       <img
                         src={item.image}
@@ -375,7 +375,10 @@ export function Checkout() {
                     </div>
                     <div className="flex-1">
                       <h4 className="font-medium text-zinc-900 text-sm line-clamp-1">{item.name}</h4>
-                      <p className="text-xs text-zinc-500 mt-0.5">Size: {item.selectedSize} | Qty: {item.quantity}</p>
+                      <p className="text-xs text-zinc-500 mt-0.5">
+                        {item.selectedColor && <span className="mr-2">Color: {item.selectedColor}</span>}
+                        Size: {item.selectedSize} | Qty: {item.quantity}
+                      </p>
                       <p className="font-bold text-zinc-900 text-sm mt-1">{formatPrice(item.price)}</p>
                     </div>
                   </div>

@@ -16,6 +16,12 @@ export interface Seller {
   joinedDate: string;
 }
 
+export interface ProductColor {
+  name: string;
+  hex?: string;
+  images: string[];
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -23,9 +29,11 @@ export interface Product {
   price: number;
   originalPrice?: number;
   image: string;
+  images?: string[];
   category: string;
   gender: 'Men' | 'Women' | 'Unisex' | 'Kids';
   color: string;
+  colors?: ProductColor[];
   description: string;
   isNew?: boolean;
   inStock: boolean;
@@ -35,6 +43,7 @@ export interface Product {
 export interface CartItem extends Product {
   quantity: number;
   selectedSize: number;
+  selectedColor?: string;
 }
 
 export type OrderStatus = 'Pending' | 'Processing' | 'Shipped' | 'Delivered' | 'Cancelled';

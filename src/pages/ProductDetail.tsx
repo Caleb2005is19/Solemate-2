@@ -16,7 +16,18 @@ export function ProductDetail() {
   
   const product = products.find(p => p.id === id);
   const [selectedSize, setSelectedSize] = useState<number | null>(null);
+  const [selectedColor, setSelectedColor] = useState<string | null>(product?.color || null);
+  const [activeImage, setActiveImage] = useState<string>(product?.image || '');
   const [error, setError] = useState<string | null>(null);
+
+  // Update active image when color changes
+  const handleColorSelect = (colorName: string) => {
+    setSelectedColor(colorName);
+    const colorData = product?.colors?.find(c => c.name === colorName);
+    if (colorData && colorData.images.length > 0) {
+      setActiveImage(colorData.images[0]);
+    }
+  };
   
   if (!product) {
     return (
@@ -40,10 +51,13 @@ export function ProductDetail() {
       setTimeout(() => setError(null), 3000);
       return;
     }
-    addToCart(product, selectedSize);
+    addToCart(product, selectedSize, selectedColor || undefined);
   };
 
-  const whatsAppUrl = `https://wa.me/254700000000?text=${encodeURIComponent(`Hello Solemate, I would like to order:\n\n*${product?.name}*\nSize: US ${selectedSize || 'Not selected'}\nPrice: ${formatPrice(product?.price || 0)}\n\nPlease confirm availability.`)}`;
+  const whatsAppUrl = `https://wa.me/254700000000?text=${encodeURIComponent(`Hello Solemate, I would like to order:\n\n*${product?.name}*\nColor: ${selectedColor || 'Default'}\nSize: US ${selectedSize || 'Not selected'}\nPrice: ${formatPrice(product?.price || 0)}\n\nPlease confirm availability.`)}`;
+
+  // Get current images based on selected color or general images
+  const currentImages = product.colors?.find(c => c.name === selectedColor)?.images || product.images || [product.image];
 
   return (
     <div className="min-h-screen bg-white pt-8 pb-24">
@@ -62,21 +76,36 @@ export function ProductDetail() {
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.5 }}
-            className="space-y-4 relative"
+            className="space-y-6"
           >
-            <div className="aspect-square rounded-3xl overflow-hidden bg-zinc-100 relative">
+            <div className="aspect-square rounded-3xl overflow-hidden bg-zinc-100 relative shadow-inner">
               <img
-                src={product.image}
+                src={activeImage || product.image}
                 alt={product.name}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover transition-all duration-500"
                 referrerPolicy="no-referrer"
               />
               <button 
                 onClick={() => toggleWishlist(product)}
-                className="absolute top-4 right-4 p-3 bg-white/90 backdrop-blur-sm rounded-full text-zinc-400 hover:text-red-500 transition-colors shadow-sm"
+                className="absolute top-4 right-4 p-3 bg-white/90 backdrop-blur-sm rounded-full text-zinc-400 hover:text-red-500 transition-colors shadow-sm z-10"
               >
                 <Heart className={`w-5 h-5 ${isWishlisted ? 'fill-red-500 text-red-500' : ''}`} />
               </button>
+            </div>
+
+            {/* Thumbnails */}
+            <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+              {currentImages.map((img, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setActiveImage(img)}
+                  className={`flex-shrink-0 w-20 h-20 rounded-xl overflow-hidden border-2 transition-all ${
+                    activeImage === img ? 'border-zinc-900 scale-105' : 'border-transparent opacity-60 hover:opacity-100'
+                  }`}
+                >
+                  <img src={img} alt={`${product.name} ${idx}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                </button>
+              ))}
             </div>
           </motion.div>
 
@@ -87,7 +116,7 @@ export function ProductDetail() {
             transition={{ duration: 0.5, delay: 0.2 }}
             className="flex flex-col"
           >
-            <div className="mb-6">
+            <div className="mb-8">
               <p className="text-orange-500 font-bold tracking-wider uppercase text-sm mb-2">
                 {product.brand} • {product.gender}
               </p>
@@ -95,12 +124,44 @@ export function ProductDetail() {
                 {product.name}
               </h1>
               <div className="flex items-center gap-4">
-                <p className="text-2xl font-bold text-zinc-900">{formatPrice(product.price)}</p>
+                <p className="text-3xl font-bold text-zinc-900">{formatPrice(product.price)}</p>
                 {product.originalPrice && (
-                  <p className="text-lg text-zinc-400 line-through">{formatPrice(product.originalPrice)}</p>
+                  <p className="text-xl text-zinc-400 line-through">{formatPrice(product.originalPrice)}</p>
                 )}
               </div>
             </div>
+
+            {/* Color Selection */}
+            {product.colors && product.colors.length > 0 && (
+              <div className="mb-8">
+                <h3 className="text-sm font-bold text-zinc-900 uppercase tracking-wider mb-4">
+                  Select Color: <span className="text-zinc-500 font-medium">{selectedColor}</span>
+                </h3>
+                <div className="flex flex-wrap gap-3">
+                  {product.colors.map(color => (
+                    <button
+                      key={color.name}
+                      onClick={() => handleColorSelect(color.name)}
+                      className={`group relative p-1 rounded-full border-2 transition-all ${
+                        selectedColor === color.name ? 'border-zinc-900 scale-110' : 'border-transparent hover:border-zinc-200'
+                      }`}
+                      title={color.name}
+                    >
+                      <div 
+                        className="w-8 h-8 rounded-full border border-black/10 shadow-inner"
+                        style={{ backgroundColor: color.hex || '#ccc' }}
+                      />
+                      {selectedColor === color.name && (
+                        <motion.div 
+                          layoutId="color-active"
+                          className="absolute -inset-1 border-2 border-zinc-900 rounded-full"
+                        />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="mb-8">
               <div className="flex justify-between items-center mb-3">
