@@ -103,9 +103,9 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
     try {
       const result = await uploadToCloudinary(file);
       setFormData({ ...formData, image: result.secure_url });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error uploading image:", error);
-      alert("Failed to upload image. Please try again.");
+      alert(error.message || "Failed to upload image. Please check your Cloudinary credentials in AI Studio Secrets.");
     } finally {
       setIsUploadingImage(false);
     }

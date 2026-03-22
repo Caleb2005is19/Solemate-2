@@ -17,14 +17,21 @@ export const uploadToCloudinary = async (file: File): Promise<CloudinaryResponse
 
     // 2. Get signature from server
     const signResponse = await fetch('/api/cloudinary/sign');
-    if (!signResponse.ok) throw new Error('Failed to get Cloudinary signature');
+    if (!signResponse.ok) {
+      const errorText = await signResponse.text();
+      throw new Error(`Failed to get Cloudinary signature: ${errorText}`);
+    }
     const { signature, timestamp, cloudName, apiKey } = await signResponse.json();
+
+    if (!signature || !cloudName || !apiKey) {
+      throw new Error('Cloudinary configuration is missing on the server. Please check your AI Studio Secrets.');
+    }
 
     // 3. Prepare upload data
     const formData = new FormData();
     formData.append('file', compressedFile);
     formData.append('api_key', apiKey);
-    formData.append('timestamp', timestamp);
+    formData.append('timestamp', timestamp.toString());
     formData.append('signature', signature);
     formData.append('folder', 'solemate_products');
 
@@ -36,7 +43,8 @@ export const uploadToCloudinary = async (file: File): Promise<CloudinaryResponse
 
     if (!uploadResponse.ok) {
       const errorData = await uploadResponse.json();
-      throw new Error(errorData.error?.message || 'Upload failed');
+      console.error('Cloudinary API Error:', errorData);
+      throw new Error(errorData.error?.message || `Upload failed with status ${uploadResponse.status}`);
     }
 
     return await uploadResponse.json();

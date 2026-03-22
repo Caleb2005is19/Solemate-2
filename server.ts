@@ -64,17 +64,26 @@ async function startServer() {
 
   // Cloudinary Signature Route
   app.get('/api/cloudinary/sign', (req, res) => {
-    const timestamp = Math.round(new Date().getTime() / 1000);
-    const signature = cloudinary.utils.api_sign_request(
-      { timestamp, folder: 'solemate_products' },
-      process.env.CLOUDINARY_API_SECRET!
-    );
-    res.json({
-      signature,
-      timestamp,
-      cloudName: process.env.VITE_CLOUDINARY_CLOUD_NAME,
-      apiKey: process.env.CLOUDINARY_API_KEY,
-    });
+    try {
+      if (!CLOUDINARY_API_SECRET || !CLOUDINARY_API_KEY || !CLOUDINARY_CLOUD_NAME) {
+        return res.status(500).json({ error: 'Cloudinary credentials are not configured on the server.' });
+      }
+
+      const timestamp = Math.round(new Date().getTime() / 1000);
+      const signature = cloudinary.utils.api_sign_request(
+        { timestamp, folder: 'solemate_products' },
+        CLOUDINARY_API_SECRET
+      );
+      res.json({
+        signature,
+        timestamp,
+        cloudName: CLOUDINARY_CLOUD_NAME,
+        apiKey: CLOUDINARY_API_KEY,
+      });
+    } catch (error) {
+      console.error('Error generating Cloudinary signature:', error);
+      res.status(500).json({ error: 'Failed to generate signature' });
+    }
   });
 
   // API Routes
