@@ -62,7 +62,12 @@ export interface Order {
   };
   items: CartItem[];
   total: number;
+  deliveryFee: number;
   status: OrderStatus;
   date: string;
   paymentMethod: string;
+  mpesaReceipt?: string;
+  paymentStatus?: 'Paid' | 'Failed' | 'Pending';
+  paymentError?: string;
+  verificationMethod?: 'Automatic' | 'Manual';
 }

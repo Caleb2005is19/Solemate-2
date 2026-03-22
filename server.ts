@@ -3,22 +3,29 @@ import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import dotenv from 'dotenv';
 import admin from 'firebase-admin';
+import { getFirestore } from 'firebase-admin/firestore';
 
 dotenv.config();
 
 // Initialize Firebase Admin
+let db: admin.firestore.Firestore;
+
+const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID;
+const databaseId = process.env.VITE_FIREBASE_DATABASE_ID || process.env.FIREBASE_DATABASE_ID || '(default)';
+
 if (!admin.apps.length) {
   try {
     admin.initializeApp({
-      projectId: process.env.VITE_FIREBASE_PROJECT_ID,
+      projectId: projectId,
     });
-    console.log('Firebase Admin initialized');
+    console.log(`Firebase Admin initialized for project: ${projectId || 'default'}`);
   } catch (error) {
     console.error('Error initializing Firebase Admin:', error);
   }
 }
 
-const db = admin.firestore();
+db = getFirestore(databaseId);
+db.settings({ ignoreUndefinedProperties: true });
 
 async function startServer() {
   const app = express();
@@ -121,10 +128,21 @@ async function startServer() {
         transactionMap.set(data.CheckoutRequestID, orderId);
         
         // Also update the order in Firestore with the checkout ID
-        await db.collection('orders').doc(orderId).update({
-          mpesaCheckoutId: data.CheckoutRequestID,
-          status: 'Processing'
-        });
+        try {
+          await db.collection('orders').doc(orderId).set({
+            mpesaCheckoutId: data.CheckoutRequestID,
+            status: 'Processing'
+          }, { merge: true });
+        } catch (fsError: any) {
+          console.error('Firestore Update Error during STK Push:', fsError);
+          if (fsError.message?.includes('PERMISSION_DENIED')) {
+            return res.status(500).json({ 
+              success: false, 
+              error: 'Database permission denied. Please ensure Firebase setup is complete and terms are accepted.' 
+            });
+          }
+          // Continue even if Firestore update fails, as the STK push was successful
+        }
 
         res.json({ success: true, message: 'STK Push initiated', checkoutRequestId: data.CheckoutRequestID });
       } else {
@@ -160,7 +178,8 @@ async function startServer() {
             status: 'Processing',
             paymentStatus: 'Paid',
             mpesaReceipt: mpesaReceipt,
-            paidAt: admin.firestore.FieldValue.serverTimestamp()
+            paidAt: admin.firestore.FieldValue.serverTimestamp(),
+            verificationMethod: 'Automatic'
           });
         } else {
           // Failure
@@ -184,7 +203,8 @@ async function startServer() {
               status: 'Processing',
               paymentStatus: 'Paid',
               mpesaReceipt: mpesaReceipt,
-              paidAt: admin.firestore.FieldValue.serverTimestamp()
+              paidAt: admin.firestore.FieldValue.serverTimestamp(),
+              verificationMethod: 'Automatic'
             });
           } else {
             await orderDoc.ref.update({
@@ -200,6 +220,45 @@ async function startServer() {
     } catch (error) {
       console.error('Callback Error:', error);
       res.status(500).json({ ResultCode: 1, ResultDesc: 'Internal Error' });
+    }
+  });
+
+  // Manual Receipt Verification Route
+  app.post('/api/mpesa/verify-receipt', async (req, res) => {
+    try {
+      const { orderId, receiptCode } = req.body;
+      
+      if (!orderId || !receiptCode) {
+        return res.status(400).json({ error: 'Order ID and Receipt Code are required' });
+      }
+
+      // Basic validation of receipt code (usually 10 chars, starting with S, T, etc.)
+      const cleanReceipt = receiptCode.trim().toUpperCase();
+      if (cleanReceipt.length < 8 || cleanReceipt.length > 15) {
+        return res.status(400).json({ error: 'Invalid M-Pesa receipt code format' });
+      }
+
+      const orderRef = db.collection('orders').doc(orderId);
+      const orderDoc = await orderRef.get();
+
+      if (!orderDoc.exists) {
+        return res.status(404).json({ error: 'Order not found' });
+      }
+
+      // In a real production app, you would verify this code against Safaricom's API
+      // For this prototype, we'll mark it as "Paid" and store the receipt for manual review by the seller
+      await orderRef.update({
+        status: 'Processing',
+        paymentStatus: 'Paid',
+        mpesaReceipt: cleanReceipt,
+        paidAt: admin.firestore.FieldValue.serverTimestamp(),
+        verificationMethod: 'Manual'
+      });
+
+      res.json({ success: true, message: 'Payment receipt submitted for verification' });
+    } catch (error) {
+      console.error('Receipt Verification Error:', error);
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
 
@@ -223,6 +282,15 @@ async function startServer() {
       console.error('Status Check Error:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
+  });
+
+  // API health check
+  app.get("/api/health", (req, res) => {
+    res.json({ 
+      status: "ok",
+      firebase: db ? "initialized" : "not initialized",
+      projectId: process.env.VITE_FIREBASE_PROJECT_ID || "missing"
+    });
   });
 
   // Vite middleware for development

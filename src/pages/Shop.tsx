@@ -5,6 +5,7 @@ import { ProductCard } from '../components/ProductCard';
 import { SlidersHorizontal, X } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useCart } from '../context/CartContext';
+import { SEO } from '../components/SEO';
 
 export function Shop() {
   const { products } = useStore();
@@ -13,12 +14,32 @@ export function Shop() {
   
   const genderParam = searchParams.get('gender') || 'All';
   const showWishlist = searchParams.get('wishlist') === 'true';
-  
+
+  const shopSchema = {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    "name": showWishlist ? "My Wishlist | Solemate.co.ke" : "Shop All Sneakers & Shoes | Solemate.co.ke",
+    "description": "Browse our extensive collection of premium sneakers, boots, and casual shoes. Filter by brand, color, and price to find your perfect pair.",
+    "url": window.location.href,
+    "mainEntity": {
+      "@type": "ItemList",
+      "itemListElement": products.slice(0, 10).map((p, i) => ({
+        "@type": "ListItem",
+        "position": i + 1,
+        "url": `${window.location.origin}/product/${p.id}`,
+        "name": p.name
+      }))
+    }
+  };
+
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [selectedGender, setSelectedGender] = useState<string>(genderParam);
   const [selectedColor, setSelectedColor] = useState<string>('All');
   const [selectedBrand, setSelectedBrand] = useState<string>('All');
   const [maxPrice, setMaxPrice] = useState<number>(50000);
+  const [sortBy, setSortBy] = useState<'Newest' | 'Price: Low to High' | 'Price: High to Low' | 'Discount'>('Newest');
+  const [showOnlySale, setShowOnlySale] = useState(false);
+  const [isSortOpen, setIsSortOpen] = useState(false);
   
   useEffect(() => {
     if (genderParam) {
@@ -59,10 +80,32 @@ export function Shop() {
     filteredProducts = filteredProducts.filter(p => p.brand === selectedBrand);
   }
 
+  if (showOnlySale) {
+    filteredProducts = filteredProducts.filter(p => p.originalPrice && p.originalPrice > p.price);
+  }
+
   filteredProducts = filteredProducts.filter(p => p.price <= maxPrice);
+
+  // Sorting
+  filteredProducts = [...filteredProducts].sort((a, b) => {
+    switch (sortBy) {
+      case 'Price: Low to High': return a.price - b.price;
+      case 'Price: High to Low': return b.price - a.price;
+      case 'Discount': 
+        const discA = a.originalPrice ? (a.originalPrice - a.price) / a.originalPrice : 0;
+        const discB = b.originalPrice ? (b.originalPrice - b.price) / b.originalPrice : 0;
+        return discB - discA;
+      default: return 0; // Newest is default (already sorted by Firestore if we add createdAt, or just default order)
+    }
+  });
 
   return (
     <div className="min-h-screen bg-zinc-50 pt-8 pb-24">
+      <SEO 
+        title={showWishlist ? "My Wishlist" : "Shop All Sneakers & Shoes"} 
+        description="Browse our extensive collection of premium sneakers, boots, and casual shoes. Filter by brand, color, and price to find your perfect pair."
+        schemaData={shopSchema}
+      />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-8">
@@ -140,29 +183,63 @@ export function Shop() {
               </div>
 
               {/* Price Filter */}
-              <div className="flex items-center gap-4 pb-2 sm:pb-0">
-                <span className="text-sm font-bold text-zinc-400 uppercase tracking-wider">Max Price:</span>
-                <input 
-                  type="range" 
-                  min="1000" 
-                  max="50000" 
-                  step="1000"
-                  value={maxPrice}
-                  onChange={(e) => setMaxPrice(Number(e.target.value))}
-                  className="w-32 accent-zinc-900"
-                />
-                <span className="text-sm font-medium text-zinc-700">KSh {maxPrice.toLocaleString()}</span>
+              <div className="flex flex-wrap items-center gap-6">
+                <div className="flex items-center gap-4">
+                  <span className="text-sm font-bold text-zinc-400 uppercase tracking-wider">Max Price:</span>
+                  <input 
+                    type="range" 
+                    min="1000" 
+                    max="50000" 
+                    step="1000"
+                    value={maxPrice}
+                    onChange={(e) => setMaxPrice(Number(e.target.value))}
+                    className="w-32 accent-zinc-900"
+                  />
+                  <span className="text-sm font-medium text-zinc-700">KSh {maxPrice.toLocaleString()}</span>
+                </div>
+                
+                <button 
+                  onClick={() => setShowOnlySale(!showOnlySale)}
+                  className={`px-4 py-2 rounded-full text-sm font-bold transition-all border ${showOnlySale ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-zinc-600 border-zinc-200 hover:border-orange-500'}`}
+                >
+                  🔥 Sale Items
+                </button>
               </div>
             </div>
             
-            <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
+            <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end relative">
               <span className="text-sm text-zinc-500 font-medium">
                 {filteredProducts.length} Results
               </span>
-              <button className="flex items-center gap-2 px-4 py-2 bg-white border border-zinc-200 rounded-lg text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors">
-                <SlidersHorizontal className="w-4 h-4" />
-                Sort
-              </button>
+              <div className="relative">
+                <button 
+                  onClick={() => setIsSortOpen(!isSortOpen)}
+                  className="flex items-center gap-2 px-6 py-3 bg-white border border-zinc-200 rounded-2xl text-sm font-bold text-zinc-900 hover:bg-zinc-50 transition-all shadow-sm"
+                >
+                  <SlidersHorizontal className="w-4 h-4" />
+                  {sortBy}
+                </button>
+                
+                {isSortOpen && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setIsSortOpen(false)}></div>
+                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-2xl border border-zinc-100 py-2 z-20 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                      {(['Newest', 'Price: Low to High', 'Price: High to Low', 'Discount'] as const).map((option) => (
+                        <button
+                          key={option}
+                          onClick={() => {
+                            setSortBy(option);
+                            setIsSortOpen(false);
+                          }}
+                          className={`w-full text-left px-6 py-3 text-sm font-bold transition-colors ${sortBy === option ? 'bg-orange-50 text-orange-600' : 'text-zinc-600 hover:bg-zinc-50'}`}
+                        >
+                          {option}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         )}

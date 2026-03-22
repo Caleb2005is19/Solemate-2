@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from 'motion/react';
 
 export function Navbar() {
   const { cartCount, setIsCartOpen, wishlistItems, searchQuery, setSearchQuery } = useCart();
-  const { currentUser, isAdmin } = useStore();
+  const { currentUser, isAdmin, currentSellerId } = useStore();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -41,7 +41,7 @@ export function Navbar() {
   };
 
   return (
-    <>
+    <header>
       {/* Top Bar */}
       <div className="bg-zinc-900 text-white text-xs sm:text-sm py-2 px-4 text-center flex justify-center items-center gap-4">
         <span>🚚 Free Delivery in Nairobi CBD</span>
@@ -156,6 +156,15 @@ export function Navbar() {
                           My Profile
                         </Link>
 
+                        <Link 
+                          to="/my-orders" 
+                          onClick={() => setIsProfileOpen(false)}
+                          className="flex items-center gap-2 px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-50 transition-colors"
+                        >
+                          <ShoppingBag className="w-4 h-4" />
+                          My Orders
+                        </Link>
+
                         {isAdmin && (
                           <Link 
                             to="/admin" 
@@ -164,6 +173,17 @@ export function Navbar() {
                           >
                             <ShieldCheck className="w-4 h-4" />
                             Admin Portal
+                          </Link>
+                        )}
+
+                        {currentSellerId && (
+                          <Link 
+                            to={`/seller/${currentSellerId}`} 
+                            onClick={() => setIsProfileOpen(false)}
+                            className="flex items-center gap-2 px-4 py-2 text-sm text-orange-600 font-medium hover:bg-orange-50 transition-colors"
+                          >
+                            <ShieldCheck className="w-4 h-4" />
+                            Seller Portal
                           </Link>
                         )}
 
@@ -242,12 +262,20 @@ export function Navbar() {
                 <Link to="/shop?gender=Men" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-md text-base font-medium text-zinc-900 hover:bg-zinc-50 hover:text-orange-500">Men's</Link>
                 <Link to="/shop?gender=Women" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-md text-base font-medium text-zinc-900 hover:bg-zinc-50 hover:text-orange-500">Women's</Link>
                 <Link to="/shop?wishlist=true" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-md text-base font-medium text-zinc-900 hover:bg-zinc-50 hover:text-orange-500">My Wishlist ({wishlistItems.length})</Link>
+                <Link to="/my-orders" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-md text-base font-medium text-zinc-900 hover:bg-zinc-50 hover:text-orange-500">My Orders</Link>
                 <Link to="/profile" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-md text-base font-medium text-zinc-900 hover:bg-zinc-50 hover:text-orange-500">My Profile</Link>
                 
                 {isAdmin && (
                   <>
                     <div className="h-px bg-zinc-200 my-2 mx-3"></div>
                     <Link to="/admin" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-md text-base font-bold text-orange-600 hover:bg-orange-50 uppercase tracking-wider">Admin Portal</Link>
+                  </>
+                )}
+
+                {currentSellerId && (
+                  <>
+                    <div className="h-px bg-zinc-200 my-2 mx-3"></div>
+                    <Link to={`/seller/${currentSellerId}`} onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-md text-base font-bold text-orange-600 hover:bg-orange-50 uppercase tracking-wider">Seller Portal</Link>
                   </>
                 )}
 
@@ -278,6 +306,6 @@ export function Navbar() {
           )}
         </AnimatePresence>
       </nav>
-    </>
+    </header>
   );
 }

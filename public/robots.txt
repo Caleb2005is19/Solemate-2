@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://solemate.co.ke/sitemap.xml

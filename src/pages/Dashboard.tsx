@@ -10,7 +10,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 
 export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
   const { sellerId } = useParams<{ sellerId: string }>();
-  const { products: allProducts, orders: allOrders, sellers, addProduct, updateProduct, deleteProduct, updateOrderStatus, addSeller, updateSeller, deleteSeller, currentUser, isAdmin, loading } = useStore();
+  const { products: allProducts, orders: allOrders, sellers, addProduct, updateProduct, deleteProduct, updateOrderStatus, addSeller, updateSeller, deleteSeller, currentUser, isAdmin, currentSellerId: authorizedSellerId, unreadOrdersCount, markOrdersAsRead, loading } = useStore();
   
   const currentSellerId = role === 'seller' ? sellerId : null;
   const currentSeller = currentSellerId ? sellers.find(s => s.id === currentSellerId) : null;
@@ -33,8 +33,10 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
 
   // Form State
   const [formData, setFormData] = useState<Partial<Product>>({
-    name: '', brand: '', price: 0, image: '', category: 'Sneakers', gender: 'Unisex', color: '', description: '', inStock: true, sellerId: ''
+    name: '', brand: '', price: 0, originalPrice: 0, image: '', images: [], category: 'Sneakers', gender: 'Unisex', color: '', colors: [], description: '', inStock: true, sellerId: ''
   });
+
+  const [newColor, setNewColor] = useState({ name: '', hex: '#000000' });
 
   if (loading) {
     return (
@@ -67,7 +69,7 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
     );
   }
 
-  if (role === 'seller' && (!currentSellerId || !currentSeller)) {
+  if (role === 'seller' && (!currentSellerId || !currentSeller || currentSellerId !== authorizedSellerId)) {
     return (
       <div className="min-h-screen bg-zinc-50 flex items-center justify-center p-4">
         <div className="bg-white p-8 rounded-2xl border border-zinc-200 shadow-sm text-center max-w-md w-full">
@@ -76,8 +78,8 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
           </div>
           <h2 className="text-2xl font-bold text-zinc-900 mb-2">Invalid Seller Link</h2>
           <p className="text-zinc-500 mb-6">
-            This seller link is invalid, has expired, or belongs to a different database. 
-            If you recently redeployed the app, you may need to generate a new link from the Admin Portal.
+            This seller link is invalid, has expired, or belongs to a different account. 
+            Please ensure you are logged in with the correct email address.
           </p>
           <a 
             href="/"
@@ -98,21 +100,47 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
     ? allOrders
     : allOrders.filter(o => o.items.some(item => item.sellerId === currentSellerId));
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, isGallery = false) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
     setIsUploadingImage(true);
     setError(null);
     try {
-      const result = await uploadToCloudinary(file);
-      setFormData({ ...formData, image: result.secure_url });
+      if (isGallery) {
+        const uploadPromises = Array.from(files).map(file => uploadToCloudinary(file));
+        const results = await Promise.all(uploadPromises);
+        const newImages = results.map(r => r.secure_url);
+        setFormData({ ...formData, images: [...(formData.images || []), ...newImages] });
+      } else {
+        const result = await uploadToCloudinary(files[0]);
+        setFormData({ ...formData, image: result.secure_url });
+      }
     } catch (err: any) {
       console.error("Error uploading image:", err);
       setError(err.message || "Failed to upload image. Please check your Cloudinary credentials.");
     } finally {
       setIsUploadingImage(false);
     }
+  };
+
+  const removeGalleryImage = (index: number) => {
+    const newImages = [...(formData.images || [])];
+    newImages.splice(index, 1);
+    setFormData({ ...formData, images: newImages });
+  };
+
+  const addColorVariant = () => {
+    if (!newColor.name) return;
+    const variant = { ...newColor, images: [] };
+    setFormData({ ...formData, colors: [...(formData.colors || []), variant] });
+    setNewColor({ name: '', hex: '#000000' });
+  };
+
+  const removeColorVariant = (index: number) => {
+    const newColors = [...(formData.colors || [])];
+    newColors.splice(index, 1);
+    setFormData({ ...formData, colors: newColors });
   };
 
   const handleSaveProduct = async (e: React.FormEvent) => {
@@ -147,7 +175,7 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
       }
       setIsAddingProduct(false);
       setEditingProduct(null);
-      setFormData({ name: '', brand: '', price: 0, image: '', category: 'Sneakers', gender: 'Unisex', color: '', description: '', inStock: true, sellerId: '' });
+      setFormData({ name: '', brand: '', price: 0, originalPrice: 0, image: '', images: [], category: 'Sneakers', gender: 'Unisex', color: '', colors: [], description: '', inStock: true, sellerId: '' });
       setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
       console.error("Error saving product:", err);
@@ -241,11 +269,19 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
             <Package className="w-5 h-5" /> Products
           </button>
           <button
-            onClick={() => setActiveTab('orders')}
+            onClick={() => {
+              setActiveTab('orders');
+              if (role === 'seller') markOrdersAsRead();
+            }}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${activeTab === 'orders' ? 'bg-orange-500 text-white' : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'}`}
           >
             <ShoppingCart className="w-5 h-5" /> Orders
-            {pendingOrders > 0 && (
+            {role === 'seller' && unreadOrdersCount > 0 && activeTab !== 'orders' && (
+              <span className="ml-auto bg-orange-600 text-white text-[10px] font-black px-2 py-1 rounded-full animate-bounce shadow-lg shadow-orange-600/20">
+                {unreadOrdersCount} NEW
+              </span>
+            )}
+            {role === 'admin' && pendingOrders > 0 && (
               <span className="ml-auto bg-orange-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">{pendingOrders}</span>
             )}
           </button>
@@ -414,7 +450,7 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
             <div className="flex justify-between items-center">
               <h1 className="text-3xl font-bold text-zinc-900">Products</h1>
               <button
-                onClick={() => { setEditingProduct(null); setFormData({ name: '', brand: '', price: 0, image: '', category: 'Sneakers', gender: 'Unisex', color: '', description: '', inStock: true, sellerId: '' }); setIsAddingProduct(true); }}
+                onClick={() => { setEditingProduct(null); setFormData({ name: '', brand: '', price: 0, originalPrice: 0, image: '', category: 'Sneakers', gender: 'Unisex', color: '', description: '', inStock: true, sellerId: '' }); setIsAddingProduct(true); }}
                 className="flex items-center gap-2 bg-zinc-900 text-white px-6 py-3 rounded-2xl hover:bg-zinc-800 transition-all shadow-lg shadow-zinc-200 active:scale-95"
               >
                 <Plus className="w-5 h-5" /> 
@@ -424,7 +460,7 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
 
             {isAddingProduct && (
               <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-                <div className="bg-white rounded-[2rem] w-full max-w-4xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+                <div className="bg-white rounded-[2rem] w-full max-w-5xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
                   <div className="p-6 md:p-8 border-b border-zinc-100 flex justify-between items-center bg-white sticky top-0 z-10">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-orange-100 text-orange-600 rounded-xl flex items-center justify-center">
@@ -450,118 +486,111 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
                         <p className="text-sm font-bold">{error}</p>
                       </div>
                     )}
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                       {/* Left Column: Image Upload */}
-                      <div className="lg:col-span-1 space-y-4">
-                        <label className="block text-sm font-bold text-zinc-900 uppercase tracking-wider">Product Image</label>
-                        <div className="relative group">
-                          <div className={`aspect-square rounded-[2rem] overflow-hidden border-2 border-dashed transition-all flex flex-col items-center justify-center gap-4 ${formData.image ? 'border-zinc-200 bg-zinc-50' : 'border-zinc-300 bg-zinc-50 hover:border-orange-500 hover:bg-orange-50'}`}>
-                            {formData.image ? (
-                              <>
-                                <img src={formData.image} alt="Preview" className="w-full h-full object-cover" />
-                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                  <button 
-                                    type="button"
-                                    onClick={() => setFormData({...formData, image: ''})}
-                                    className="p-3 bg-red-500 text-white rounded-2xl hover:bg-red-600 transition-colors shadow-lg"
-                                  >
-                                    <Trash className="w-5 h-5" />
-                                  </button>
+                      <div className="lg:col-span-4 space-y-6">
+                        <div className="space-y-4">
+                          <label className="block text-sm font-bold text-zinc-900 uppercase tracking-wider">Main Image</label>
+                          <div className="relative group">
+                            <div className={`aspect-square rounded-[2rem] overflow-hidden border-2 border-dashed transition-all flex flex-col items-center justify-center gap-4 ${formData.image ? 'border-zinc-200 bg-zinc-50' : 'border-zinc-300 bg-zinc-50 hover:border-orange-500 hover:bg-orange-50'}`}>
+                              {formData.image ? (
+                                <>
+                                  <img src={formData.image} alt="Preview" className="w-full h-full object-cover" />
+                                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                    <button 
+                                      type="button"
+                                      onClick={() => setFormData({...formData, image: ''})}
+                                      className="p-3 bg-red-500 text-white rounded-2xl hover:bg-red-600 transition-colors shadow-lg"
+                                    >
+                                      <Trash className="w-5 h-5" />
+                                    </button>
+                                  </div>
+                                </>
+                              ) : (
+                                <div className="text-center p-6">
+                                  <div className="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center mx-auto mb-4 text-zinc-400 group-hover:text-orange-500 transition-colors">
+                                    <ImageIcon className="w-8 h-8" />
+                                  </div>
+                                  <p className="text-sm font-bold text-zinc-900 mb-1 text-center">Upload Photo</p>
                                 </div>
-                              </>
-                            ) : (
-                              <div className="text-center p-6">
-                                <div className="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center mx-auto mb-4 text-zinc-400 group-hover:text-orange-500 transition-colors">
-                                  <ImageIcon className="w-8 h-8" />
+                              )}
+                              
+                              {isUploadingImage && (
+                                <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center gap-3">
+                                  <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
                                 </div>
-                                <p className="text-sm font-bold text-zinc-900 mb-1">Upload Photo</p>
-                                <p className="text-xs text-zinc-500">PNG, JPG up to 5MB</p>
-                              </div>
-                            )}
-                            
-                            {isUploadingImage && (
-                              <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center gap-3">
-                                <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
-                                <p className="text-sm font-bold text-orange-600">Uploading...</p>
-                              </div>
-                            )}
+                              )}
+                            </div>
+                            <input 
+                              type="file" 
+                              accept="image/*" 
+                              onChange={(e) => handleImageUpload(e)} 
+                              disabled={isUploadingImage}
+                              className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-not-allowed" 
+                            />
                           </div>
-                          <input 
-                            type="file" 
-                            accept="image/*" 
-                            onChange={handleImageUpload} 
-                            disabled={isUploadingImage}
-                            className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-not-allowed" 
-                          />
                         </div>
-                        <p className="text-xs text-zinc-400 text-center">Tip: High-quality images sell better!</p>
+
+                        <div className="space-y-4">
+                          <label className="block text-sm font-bold text-zinc-900 uppercase tracking-wider">Gallery Images</label>
+                          <div className="grid grid-cols-3 gap-2">
+                            {formData.images?.map((img, idx) => (
+                              <div key={idx} className="relative aspect-square rounded-xl overflow-hidden group">
+                                <img src={img} alt={`Gallery ${idx}`} className="w-full h-full object-cover" />
+                                <button 
+                                  type="button"
+                                  onClick={() => removeGalleryImage(idx)}
+                                  className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </div>
+                            ))}
+                            <label className="aspect-square rounded-xl border-2 border-dashed border-zinc-200 flex items-center justify-center cursor-pointer hover:bg-zinc-50 transition-colors">
+                              <Plus className="w-6 h-6 text-zinc-400" />
+                              <input 
+                                type="file" 
+                                multiple 
+                                accept="image/*" 
+                                onChange={(e) => handleImageUpload(e, true)} 
+                                className="hidden" 
+                              />
+                            </label>
+                          </div>
+                        </div>
                       </div>
 
                       {/* Right Column: Form Fields */}
-                      <div className="lg:col-span-2 space-y-6">
+                      <div className="lg:col-span-8 space-y-8">
                         {/* Basic Info Section */}
-                        <div className="space-y-4">
-                          <div className="flex items-center gap-2 text-zinc-900">
-                            <Info className="w-4 h-4 text-orange-500" />
-                            <h3 className="text-sm font-bold uppercase tracking-wider">Basic Information</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div className="space-y-1">
+                            <label className="text-xs font-bold text-zinc-500 uppercase ml-1">Product Name</label>
+                            <input 
+                              type="text" 
+                              required 
+                              value={formData.name} 
+                              onChange={e => setFormData({...formData, name: e.target.value})} 
+                              className="w-full px-4 py-3 rounded-2xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 outline-none" 
+                            />
                           </div>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="space-y-1">
-                              <label className="text-xs font-bold text-zinc-500 uppercase ml-1">Product Name</label>
-                              <div className="relative">
-                                <Tag className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
-                                <input 
-                                  type="text" 
-                                  required 
-                                  placeholder="e.g. Air Max 270"
-                                  value={formData.name} 
-                                  onChange={e => setFormData({...formData, name: e.target.value})} 
-                                  className="w-full pl-11 pr-4 py-3 rounded-2xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all" 
-                                />
-                              </div>
-                            </div>
-                            <div className="space-y-1">
-                              <label className="text-xs font-bold text-zinc-500 uppercase ml-1">Brand</label>
-                              <div className="relative">
-                                <Box className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
-                                <input 
-                                  type="text" 
-                                  required 
-                                  placeholder="e.g. Nike"
-                                  value={formData.brand} 
-                                  onChange={e => setFormData({...formData, brand: e.target.value})} 
-                                  className="w-full pl-11 pr-4 py-3 rounded-2xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all" 
-                                />
-                              </div>
-                            </div>
+                          <div className="space-y-1">
+                            <label className="text-xs font-bold text-zinc-500 uppercase ml-1">Brand</label>
+                            <input 
+                              type="text" 
+                              required 
+                              value={formData.brand} 
+                              onChange={e => setFormData({...formData, brand: e.target.value})} 
+                              className="w-full px-4 py-3 rounded-2xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 outline-none" 
+                            />
                           </div>
                         </div>
 
-                        {/* Pricing & Category Section */}
-                        <div className="space-y-4">
-                          <div className="flex items-center gap-2 text-zinc-900">
-                            <DollarSign className="w-4 h-4 text-orange-500" />
-                            <h3 className="text-sm font-bold uppercase tracking-wider">Pricing & Category</h3>
-                          </div>
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {role === 'admin' && (
-                              <div className="space-y-1 md:col-span-2 lg:col-span-1">
-                                <label className="text-xs font-bold text-zinc-500 uppercase ml-1">Shop (Seller)</label>
-                                <select 
-                                  required
-                                  value={formData.sellerId} 
-                                  onChange={e => setFormData({...formData, sellerId: e.target.value})} 
-                                  className="w-full px-4 py-3 rounded-2xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 outline-none bg-white font-medium"
-                                >
-                                  <option value="">Select a Shop</option>
-                                  {sellers.map(seller => (
-                                    <option key={seller.id} value={seller.id}>{seller.name}</option>
-                                  ))}
-                                </select>
-                              </div>
-                            )}
+                        {/* Pricing Section */}
+                        <div className="bg-zinc-50 p-6 rounded-3xl border border-zinc-100">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="space-y-1">
-                              <label className="text-xs font-bold text-zinc-500 uppercase ml-1">Price (KES)</label>
+                              <label className="text-xs font-bold text-zinc-500 uppercase ml-1">Sale Price (KES)</label>
                               <input 
                                 type="number" 
                                 required 
@@ -571,64 +600,109 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
                               />
                             </div>
                             <div className="space-y-1">
-                              <label className="text-xs font-bold text-zinc-500 uppercase ml-1">Category</label>
-                              <select 
-                                value={formData.category} 
-                                onChange={e => setFormData({...formData, category: e.target.value})} 
-                                className="w-full px-4 py-3 rounded-2xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 outline-none bg-white font-medium"
-                              >
-                                <option>Sneakers</option>
-                                <option>Lifestyle</option>
-                                <option>Running</option>
-                                <option>Skate</option>
-                              </select>
-                            </div>
-                            <div className="space-y-1">
-                              <label className="text-xs font-bold text-zinc-500 uppercase ml-1">Gender</label>
-                              <select 
-                                value={formData.gender} 
-                                onChange={e => setFormData({...formData, gender: e.target.value as any})} 
-                                className="w-full px-4 py-3 rounded-2xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 outline-none bg-white font-medium"
-                              >
-                                <option>Men</option>
-                                <option>Women</option>
-                                <option>Unisex</option>
-                                <option>Kids</option>
-                              </select>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Details Section */}
-                        <div className="space-y-4">
-                          <div className="flex items-center gap-2 text-zinc-900">
-                            <Package className="w-4 h-4 text-orange-500" />
-                            <h3 className="text-sm font-bold uppercase tracking-wider">Product Details</h3>
-                          </div>
-                          <div className="space-y-4">
-                            <div className="space-y-1">
-                              <label className="text-xs font-bold text-zinc-500 uppercase ml-1">Color</label>
+                              <label className="text-xs font-bold text-zinc-500 uppercase ml-1">Original Price (Optional)</label>
                               <input 
-                                type="text" 
-                                required 
-                                placeholder="e.g. Black/White/Red"
-                                value={formData.color} 
-                                onChange={e => setFormData({...formData, color: e.target.value})} 
+                                type="number" 
+                                value={formData.originalPrice || 0} 
+                                onChange={e => setFormData({...formData, originalPrice: Number(e.target.value)})} 
                                 className="w-full px-4 py-3 rounded-2xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 outline-none" 
                               />
                             </div>
-                            <div className="space-y-1">
-                              <label className="text-xs font-bold text-zinc-500 uppercase ml-1">Description</label>
-                              <textarea 
-                                required 
-                                rows={4} 
-                                placeholder="Describe the product features, materials, and fit..."
-                                value={formData.description} 
-                                onChange={e => setFormData({...formData, description: e.target.value})} 
-                                className="w-full px-4 py-3 rounded-2xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 outline-none resize-none"
-                              ></textarea>
-                            </div>
                           </div>
+                          {formData.originalPrice && formData.originalPrice > (formData.price || 0) && (
+                            <p className="mt-3 text-sm font-bold text-emerald-600 flex items-center gap-2">
+                              <TrendingUp className="w-4 h-4" />
+                              Save {Math.round(((formData.originalPrice - (formData.price || 0)) / formData.originalPrice) * 100)}% off
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Color Variants Manager */}
+                        <div className="space-y-4">
+                          <label className="text-xs font-bold text-zinc-500 uppercase ml-1">Color Variants</label>
+                          <div className="flex flex-wrap gap-3 mb-4">
+                            {formData.colors?.map((c, idx) => (
+                              <div key={idx} className="flex items-center gap-2 px-3 py-2 bg-white border border-zinc-200 rounded-xl shadow-sm group">
+                                <div className="w-4 h-4 rounded-full border border-zinc-100" style={{ backgroundColor: c.hex }}></div>
+                                <span className="text-sm font-bold">{c.name}</span>
+                                <button type="button" onClick={() => removeColorVariant(idx)} className="text-zinc-400 hover:text-red-500">
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="flex gap-3">
+                            <input 
+                              type="text" 
+                              placeholder="Color name (e.g. Black)"
+                              value={newColor.name}
+                              onChange={e => setNewColor({...newColor, name: e.target.value})}
+                              className="flex-1 px-4 py-3 rounded-2xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 outline-none"
+                            />
+                            <input 
+                              type="color" 
+                              value={newColor.hex}
+                              onChange={e => setNewColor({...newColor, hex: e.target.value})}
+                              className="w-14 h-12 p-1 rounded-2xl border border-zinc-200 cursor-pointer"
+                            />
+                            <button 
+                              type="button"
+                              onClick={addColorVariant}
+                              className="px-6 py-3 bg-zinc-900 text-white rounded-2xl font-bold hover:bg-zinc-800"
+                            >
+                              Add
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                          <div className="space-y-1">
+                            <label className="text-xs font-bold text-zinc-500 uppercase ml-1">Category</label>
+                            <select 
+                              value={formData.category} 
+                              onChange={e => setFormData({...formData, category: e.target.value})} 
+                              className="w-full px-4 py-3 rounded-2xl border border-zinc-200 outline-none bg-white font-medium"
+                            >
+                              <option>Sneakers</option>
+                              <option>Lifestyle</option>
+                              <option>Running</option>
+                              <option>Skate</option>
+                            </select>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs font-bold text-zinc-500 uppercase ml-1">Gender</label>
+                            <select 
+                              value={formData.gender} 
+                              onChange={e => setFormData({...formData, gender: e.target.value as any})} 
+                              className="w-full px-4 py-3 rounded-2xl border border-zinc-200 outline-none bg-white font-medium"
+                            >
+                              <option>Men</option>
+                              <option>Women</option>
+                              <option>Unisex</option>
+                              <option>Kids</option>
+                            </select>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs font-bold text-zinc-500 uppercase ml-1">Primary Color</label>
+                            <input 
+                              type="text" 
+                              required 
+                              value={formData.color} 
+                              onChange={e => setFormData({...formData, color: e.target.value})} 
+                              className="w-full px-4 py-3 rounded-2xl border border-zinc-200 outline-none" 
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-xs font-bold text-zinc-500 uppercase ml-1">Description</label>
+                          <textarea 
+                            required 
+                            rows={4} 
+                            value={formData.description} 
+                            onChange={e => setFormData({...formData, description: e.target.value})} 
+                            className="w-full px-4 py-3 rounded-2xl border border-zinc-200 outline-none resize-none"
+                          ></textarea>
                         </div>
 
                         <div className="flex items-center justify-between p-4 bg-zinc-50 rounded-2xl border border-zinc-100">
@@ -638,11 +712,10 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
                               id="inStock" 
                               checked={formData.inStock} 
                               onChange={e => setFormData({...formData, inStock: e.target.checked})} 
-                              className="w-6 h-6 text-orange-500 rounded-lg border-zinc-300 focus:ring-orange-500 cursor-pointer" 
+                              className="w-6 h-6 text-orange-500 rounded-lg border-zinc-300 cursor-pointer" 
                             />
                             <label htmlFor="inStock" className="font-bold text-zinc-900 cursor-pointer">Available in Stock</label>
                           </div>
-                          <p className="text-xs text-zinc-500">Uncheck if the product is currently unavailable</p>
                         </div>
                       </div>
                     </div>
@@ -860,9 +933,19 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
                       </div>
                     </div>
 
-                    <div className="border-t border-zinc-100 pt-4 flex justify-between items-center">
-                      <span className="font-bold text-zinc-900">Total Amount</span>
-                      <span className="text-xl font-black text-orange-500">{formatPrice(viewingOrder.total)}</span>
+                    <div className="border-t border-zinc-100 pt-4 space-y-2">
+                      <div className="flex justify-between items-center text-sm text-zinc-500">
+                        <span>Subtotal</span>
+                        <span>{formatPrice(viewingOrder.total - (viewingOrder.deliveryFee || 0))}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm text-zinc-500">
+                        <span>Delivery Fee</span>
+                        <span>{viewingOrder.deliveryFee === 0 ? 'Free' : formatPrice(viewingOrder.deliveryFee || 0)}</span>
+                      </div>
+                      <div className="border-t border-zinc-100 pt-2 flex justify-between items-center">
+                        <span className="font-bold text-zinc-900">Total Amount</span>
+                        <span className="text-xl font-black text-orange-500">{formatPrice(viewingOrder.total)}</span>
+                      </div>
                     </div>
                   </div>
                 </div>

@@ -4,13 +4,42 @@ import { ArrowRight, ShieldCheck, Truck, Clock } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import { ProductCard } from '../components/ProductCard';
 import { motion } from 'motion/react';
+import { SEO } from '../components/SEO';
 
 export function Home() {
   const { products } = useStore();
   const featuredProducts = products.slice(0, 4);
 
+  const homeSchema = {
+    "@context": "https://schema.org",
+    "@type": "Store",
+    "name": "Solemate.co.ke",
+    "description": "Premium footwear destination in Kenya. Shop the latest sneakers and shoes.",
+    "url": "https://solemate.co.ke",
+    "telephone": "+254700000000",
+    "address": {
+      "@type": "PostalAddress",
+      "streetAddress": "Nairobi CBD",
+      "addressLocality": "Nairobi",
+      "addressCountry": "KE"
+    },
+    "openingHoursSpecification": [
+      {
+        "@type": "OpeningHoursSpecification",
+        "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+        "opens": "08:00",
+        "closes": "20:00"
+      }
+    ]
+  };
+
   return (
     <div className="flex flex-col min-h-screen">
+      <SEO 
+        title="Home" 
+        description="Shop the latest premium sneakers, boots, and casual shoes at Solemate.co.ke. Fast delivery across Kenya, secure M-Pesa payments, and authentic footwear brands."
+        schemaData={homeSchema}
+      />
       {/* Hero Section */}
       <section className="relative h-[80vh] min-h-[600px] flex items-center justify-center overflow-hidden bg-zinc-900">
         <div className="absolute inset-0 z-0">
@@ -178,6 +207,28 @@ export function Home() {
                 </p>
               </div>
             </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* About Section for SEO */}
+      <section className="py-24 bg-zinc-50 border-t border-zinc-100">
+        <div className="max-w-4xl mx-auto px-4 text-center">
+          <h2 className="text-3xl font-bold text-zinc-900 mb-6">Your Trusted Sneaker Shop in Nairobi, Kenya</h2>
+          <div className="space-y-4 text-zinc-600 leading-relaxed">
+            <p>
+              Welcome to <strong>Solemate.co.ke</strong>, the ultimate destination for authentic sneakers and premium footwear in Kenya. 
+              We specialize in bringing you the latest trends from top global brands, ensuring that every step you take is a statement of style and quality.
+            </p>
+            <p>
+              Whether you're looking for the newest <strong>Air Jordans</strong>, classic <strong>Nike Air Force 1s</strong>, or comfortable <strong>Adidas Yeezys</strong>, 
+              our curated collection has something for every sneakerhead. We pride ourselves on offering 100% authentic products with fast, reliable delivery 
+              across Nairobi and the rest of Kenya.
+            </p>
+            <p>
+              At Solemate, we understand the hustle. That's why we offer <strong>Pay on Delivery</strong> within Nairobi, allowing you to inspect your kicks 
+              before making a payment. Join thousands of satisfied customers who have found their perfect pair with us.
+            </p>
           </div>
         </div>
       </section>

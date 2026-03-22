@@ -5,6 +5,7 @@ import { useCart } from '../context/CartContext';
 import { ArrowLeft, Star, Truck, ShieldCheck, ArrowRight, MessageCircle, Heart, ShoppingBag } from 'lucide-react';
 import { motion } from 'motion/react';
 import { formatPrice } from '../utils';
+import { SEO } from '../components/SEO';
 
 const SIZES = [7, 7.5, 8, 8.5, 9, 9.5, 10, 10.5, 11, 11.5, 12, 13];
 
@@ -20,15 +21,6 @@ export function ProductDetail() {
   const [activeImage, setActiveImage] = useState<string>(product?.image || '');
   const [error, setError] = useState<string | null>(null);
 
-  // Update active image when color changes
-  const handleColorSelect = (colorName: string) => {
-    setSelectedColor(colorName);
-    const colorData = product?.colors?.find(c => c.name === colorName);
-    if (colorData && colorData.images.length > 0) {
-      setActiveImage(colorData.images[0]);
-    }
-  };
-  
   if (!product) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-zinc-50 px-4">
@@ -43,7 +35,49 @@ export function ProductDetail() {
     );
   }
 
+  const productSchema = {
+    "@context": "https://schema.org/",
+    "@type": "Product",
+    "name": product.name,
+    "image": [product.image, ...(product.images || [])],
+    "description": product.description,
+    "sku": product.id,
+    "brand": {
+      "@type": "Brand",
+      "name": product.brand
+    },
+    "offers": {
+      "@type": "Offer",
+      "url": window.location.href,
+      "priceCurrency": "KES",
+      "price": product.price,
+      "itemCondition": "https://schema.org/NewCondition",
+      "availability": product.inStock ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+      "shippingDetails": {
+        "@type": "OfferShippingDetails",
+        "shippingRate": {
+          "@type": "MonetaryAmount",
+          "value": 0,
+          "currency": "KES"
+        },
+        "shippingDestination": {
+          "@type": "DefinedRegion",
+          "addressCountry": "KE"
+        }
+      }
+    }
+  };
+
   const isWishlisted = isInWishlist(product.id);
+
+  // Update active image when color changes
+  const handleColorSelect = (colorName: string) => {
+    setSelectedColor(colorName);
+    const colorData = product?.colors?.find(c => c.name === colorName);
+    if (colorData && colorData.images.length > 0) {
+      setActiveImage(colorData.images[0]);
+    }
+  };
 
   const handleAddToCart = () => {
     if (!selectedSize) {
@@ -61,6 +95,13 @@ export function ProductDetail() {
 
   return (
     <div className="min-h-screen bg-white pt-8 pb-24">
+      <SEO 
+        title={product.name} 
+        description={`${product.brand} ${product.name} - ${product.description.slice(0, 150)}...`}
+        ogImage={product.image}
+        ogType="product"
+        schemaData={productSchema}
+      />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Breadcrumb */}
         <button

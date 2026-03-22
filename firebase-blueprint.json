@@ -70,9 +70,13 @@
         },
         "items": { "type": "array", "description": "List of products in the order" },
         "total": { "type": "number", "description": "Total order amount" },
+        "deliveryFee": { "type": "number", "description": "Delivery fee for the order" },
         "status": { "type": "string", "enum": ["Pending", "Processing", "Shipped", "Delivered", "Cancelled"], "description": "Current order status" },
         "date": { "type": "string", "format": "date-time", "description": "Date and time the order was placed" },
-        "paymentMethod": { "type": "string", "description": "Payment method used" }
+        "paymentMethod": { "type": "string", "description": "Payment method used" },
+        "mpesaReceipt": { "type": "string", "description": "M-Pesa receipt code" },
+        "paymentStatus": { "type": "string", "enum": ["Paid", "Failed", "Pending"], "description": "Payment status" },
+        "verificationMethod": { "type": "string", "enum": ["Automatic", "Manual"], "description": "How the payment was verified" }
       },
       "required": ["id", "customerInfo", "items", "total", "status", "date", "paymentMethod"]
     }

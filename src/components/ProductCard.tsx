@@ -15,15 +15,15 @@ export function ProductCard({ product }: ProductCardProps) {
   const isWishlisted = isInWishlist(product.id);
 
   return (
-    <motion.div
+    <motion.article
       whileHover={{ y: -5 }}
       className="group relative flex flex-col bg-white rounded-2xl overflow-hidden border border-zinc-100 shadow-sm hover:shadow-md transition-all duration-300"
     >
       <div className="relative aspect-square overflow-hidden bg-zinc-100">
-        <Link to={`/product/${product.id}`}>
+        <Link to={`/product/${product.id}`} aria-label={`View details for ${product.name}`}>
           <img
             src={product.image}
-            alt={product.name}
+            alt={`${product.brand} ${product.name} - ${product.gender} Footwear`}
             className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500"
             referrerPolicy="no-referrer"
           />
@@ -36,9 +36,9 @@ export function ProductCard({ product }: ProductCardProps) {
               New
             </div>
           )}
-          {product.originalPrice && (
-            <div className="bg-zinc-900 text-white px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider shadow-sm">
-              Sale
+          {product.originalPrice && product.originalPrice > product.price && (
+            <div className="bg-orange-500 text-white px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider shadow-sm">
+              -{Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)}%
             </div>
           )}
         </div>
@@ -73,6 +73,6 @@ export function ProductCard({ product }: ProductCardProps) {
           )}
         </div>
       </div>
-    </motion.div>
+    </motion.article>
   );
 }

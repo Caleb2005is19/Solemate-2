@@ -4,51 +4,6 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // ===============================================================
-    // Assumed Data Model
-    // ===============================================================
-    //
-    // Collection: users
-    // Document ID: {userId}
-    // Fields:
-    //   - email: string (required)
-    //   - role: string (required, 'admin' or 'seller')
-    //
-    // Collection: sellers
-    // Document ID: {sellerId}
-    // Fields:
-    //   - name: string (required)
-    //   - email: string (required)
-    //   - status: string (required)
-    //   - joinedDate: string (required)
-    //
-    // Collection: products
-    // Document ID: {productId}
-    // Fields:
-    //   - name: string (required)
-    //   - brand: string (required)
-    //   - price: number (required)
-    //   - image: string (required)
-    //   - category: string (required)
-    //   - gender: string (required)
-    //   - color: string (required)
-    //   - description: string (required)
-    //   - inStock: boolean (required)
-    //   - sellerId: string (required)
-    //
-    // Collection: orders
-    // Document ID: {orderId}
-    // Fields:
-    //   - customerInfo: map (required)
-    //   - items: list (required)
-    //   - total: number (required)
-    //   - status: string (required)
-    //   - date: string (required)
-    //   - paymentMethod: string (required)
-    //   - userId: string (optional, for tracking customer orders)
-    //
-    // ===============================================================
-
-    // ===============================================================
     // Helper Functions
     // ===============================================================
     
@@ -66,7 +21,12 @@ service cloud.firestore {
     }
 
     function isSeller(sellerId) {
-      return isAuthenticated() && request.auth.uid == sellerId;
+      return isAuthenticated() && 
+        (
+          request.auth.uid == sellerId || 
+          (exists(/databases/$(database)/documents/sellers/$(sellerId)) && 
+           get(/databases/$(database)/documents/sellers/$(sellerId)).data.email.lower() == request.auth.token.email.lower())
+        );
     }
 
     function isOrderOwner(orderData) {
@@ -90,9 +50,12 @@ service cloud.firestore {
 
     function isValidUser(data) {
       return hasRequiredFields(['email', 'displayName']) &&
-             data.email is string &&
-             data.displayName is string &&
-             (!('role' in data) || data.role in ['admin', 'seller', 'client']);
+             data.email is string && data.email.size() < 256 &&
+             data.displayName is string && data.displayName.size() < 100 &&
+             (!('role' in data) || data.role in ['admin', 'seller', 'client']) &&
+             (!('phone' in data) || (data.phone is string && data.phone.size() < 20)) &&
+             (!('location' in data) || (data.location is string && data.location.size() < 500)) &&
+             (!('city' in data) || (data.city is string && data.city.size() < 100));
     }
 
     function isValidSeller(data) {
@@ -106,14 +69,17 @@ service cloud.firestore {
 
     function isValidProduct(data) {
       return hasRequiredFields(['name', 'brand', 'price', 'image', 'category', 'gender', 'color', 'description', 'inStock', 'sellerId']) &&
-             hasOnlyAllowedFields(['name', 'brand', 'price', 'image', 'category', 'gender', 'color', 'description', 'inStock', 'sellerId', 'id', 'isNew']) &&
+             hasOnlyAllowedFields(['name', 'brand', 'price', 'originalPrice', 'image', 'images', 'category', 'gender', 'color', 'colors', 'description', 'inStock', 'sellerId', 'id', 'isNew']) &&
              data.name is string && data.name.size() > 0 && data.name.size() < 200 &&
              data.brand is string &&
              data.price is number && data.price >= 0 &&
+             (!('originalPrice' in data) || (data.originalPrice is number && data.originalPrice >= 0)) &&
              data.image is string &&
+             (!('images' in data) || data.images is list) &&
              data.category is string &&
              data.gender in ['Men', 'Women', 'Unisex', 'Kids'] &&
              data.color is string &&
+             (!('colors' in data) || data.colors is list) &&
              data.description is string && data.description.size() < 2000 &&
              data.inStock is bool &&
              data.sellerId is string;
@@ -121,12 +87,19 @@ service cloud.firestore {
 
     function isValidOrder(data) {
       return hasRequiredFields(['customerInfo', 'items', 'total', 'status', 'date', 'paymentMethod']) &&
+             hasOnlyAllowedFields(['customerInfo', 'items', 'total', 'status', 'date', 'paymentMethod', 'userId', 'sellerIds', 'id', 'deliveryFee', 'mpesaCheckoutId', 'paymentStatus', 'mpesaReceipt', 'paymentError', 'paidAt', 'verificationMethod']) &&
              data.customerInfo is map &&
+             data.customerInfo.keys().hasAll(['firstName', 'lastName', 'email', 'phone', 'location', 'city']) &&
              data.items is list &&
              data.total is number && data.total >= 0 &&
+             (!('deliveryFee' in data) || (data.deliveryFee is number && data.deliveryFee >= 0)) &&
              data.status in ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled'] &&
              data.date is string &&
-             data.paymentMethod is string;
+             data.paymentMethod is string &&
+             (!('mpesaCheckoutId' in data) || data.mpesaCheckoutId is string) &&
+             (!('paymentStatus' in data) || data.paymentStatus in ['Paid', 'Failed', 'Pending']) &&
+             (!('mpesaReceipt' in data) || (data.mpesaReceipt is string && data.mpesaReceipt.size() < 20)) &&
+             (!('verificationMethod' in data) || data.verificationMethod in ['Automatic', 'Manual']);
     }
 
     // ===============================================================
@@ -135,7 +108,6 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
-      // A user can create their own initial profile
       allow create: if isAuthenticated() && request.auth.uid == userId && isValidUser(request.resource.data);
       allow update: if isAuthenticated() && (request.auth.uid == userId || isAdmin()) && isValidUser(request.resource.data);
       allow delete: if isAdmin();
@@ -156,11 +128,8 @@ service cloud.firestore {
     }
 
     match /orders/{orderId} {
-      // Only admins or the customer who placed the order can read it
       allow read: if isAdmin() || isOrderOwner(resource.data);
-      // Anyone can place an order (even guests, but we prefer tracking if logged in)
       allow create: if isValidOrder(request.resource.data);
-      // Only admins can update order status
       allow update: if isAdmin() && isValidOrder(request.resource.data);
       allow delete: if isAdmin();
     }

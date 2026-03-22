@@ -69,6 +69,9 @@ interface StoreContextType {
   userProfile: UserProfile | null;
   updateUserProfile: (profile: Partial<UserProfile>) => Promise<void>;
   isAdmin: boolean;
+  currentSellerId: string | null;
+  unreadOrdersCount: number;
+  markOrdersAsRead: () => void;
   loading: boolean;
 }
 
@@ -81,7 +84,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [currentSellerId, setCurrentSellerId] = useState<string | null>(null);
+  const [unreadOrdersCount, setUnreadOrdersCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [lastReadTimestamp, setLastReadTimestamp] = useState<number>(() => {
+    const saved = localStorage.getItem('lastReadOrders');
+    return saved ? parseInt(saved) : Date.now();
+  });
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -132,6 +141,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const slrs: Seller[] = [];
       snapshot.forEach(doc => slrs.push({ id: doc.id, ...doc.data() } as Seller));
       setSellers(slrs);
+      
+      // Update currentSellerId if user is logged in
+      if (currentUser) {
+        const seller = slrs.find(s => s.email.toLowerCase() === currentUser.email?.toLowerCase());
+        if (seller) {
+          setCurrentSellerId(seller.id);
+        } else {
+          setCurrentSellerId(null);
+        }
+      }
+
       setLoading(false);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'sellers');
@@ -142,7 +162,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       unsubProducts();
       unsubSellers();
     };
-  }, []);
+  }, [currentUser]);
 
   useEffect(() => {
     if (!currentUser) {
@@ -170,10 +190,26 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       // Sort by date descending locally
       ords.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       setOrders(ords);
+
+      // Calculate unread orders for sellers
+      if (currentSellerId) {
+        const unread = ords.filter(o => 
+          o.sellerIds?.includes(currentSellerId) && 
+          new Date(o.date).getTime() > lastReadTimestamp
+        ).length;
+        setUnreadOrdersCount(unread);
+      }
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'orders'));
 
     return () => unsubOrders();
-  }, [currentUser, isAdmin]);
+  }, [currentUser, isAdmin, currentSellerId, lastReadTimestamp]);
+
+  const markOrdersAsRead = () => {
+    const now = Date.now();
+    setLastReadTimestamp(now);
+    localStorage.setItem('lastReadOrders', now.toString());
+    setUnreadOrdersCount(0);
+  };
 
   const addProduct = async (p: Product) => {
     try {
@@ -204,7 +240,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       // Extract unique seller IDs from items
       const sellerIds = Array.from(new Set(o.items.map(item => item.sellerId).filter(Boolean)));
       const orderWithSellers = { ...o, sellerIds };
-      await setDoc(doc(db, 'orders', o.id), orderWithSellers);
+      await setDoc(doc(db, 'orders', o.id), stripUndefined(orderWithSellers));
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, `orders/${o.id}`);
     }
@@ -257,7 +293,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       products, addProduct, updateProduct, deleteProduct, 
       orders, addOrder, updateOrderStatus,
       sellers, addSeller, updateSeller, deleteSeller,
-      currentUser, userProfile, updateUserProfile, isAdmin,
+      currentUser, userProfile, updateUserProfile, isAdmin, currentSellerId,
+      unreadOrdersCount, markOrdersAsRead,
       loading
     }}>
       {children}

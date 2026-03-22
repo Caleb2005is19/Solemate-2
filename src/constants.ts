@@ -1,0 +1,15 @@
+export const DELIVERY_AREAS = [
+  { name: 'Nairobi CBD', fee: 0 },
+  { name: 'Westlands', fee: 200 },
+  { name: 'Kilimani / Lavington', fee: 200 },
+  { name: 'Karen / Langata', fee: 350 },
+  { name: 'South C / South B', fee: 250 },
+  { name: 'Eastlands (Donholm, Buruburu)', fee: 300 },
+  { name: 'Thika Road (Roysambu, Kasarani)', fee: 300 },
+  { name: 'Kiambu Road', fee: 350 },
+  { name: 'Mombasa', fee: 500 },
+  { name: 'Kisumu', fee: 500 },
+  { name: 'Nakuru', fee: 400 },
+  { name: 'Eldoret', fee: 500 },
+  { name: 'Other (Fargo Courier)', fee: 600 },
+];

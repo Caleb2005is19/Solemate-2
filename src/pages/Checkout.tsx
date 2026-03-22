@@ -1,27 +1,71 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useCart } from '../context/CartContext';
 import { useStore } from '../context/StoreContext';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Truck } from 'lucide-react';
 import { motion } from 'motion/react';
 import { formatPrice } from '../utils';
+import { DELIVERY_AREAS } from '../constants';
+import { SEO } from '../components/SEO';
 
 export function Checkout() {
   const { items, cartTotal, cartCount, clearCart } = useCart();
-  const { addOrder, currentUser } = useStore();
+  const { addOrder, currentUser, userProfile } = useStore();
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'mpesa' | 'card'>('mpesa');
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [showMpesaModal, setShowMpesaModal] = useState(false);
   const [mpesaStatus, setMpesaStatus] = useState<'waiting' | 'success' | 'failed'>('waiting');
+  const mpesaStatusRef = React.useRef(mpesaStatus);
+
+  useEffect(() => {
+    mpesaStatusRef.current = mpesaStatus;
+  }, [mpesaStatus]);
+  
+  const [selectedCity, setSelectedCity] = useState(userProfile?.city || 'Nairobi CBD');
+  const [deliveryFee, setDeliveryFee] = useState(0);
+
+  // Auto-fill form state
+  const [formData, setFormData] = useState({
+    email: '',
+    phone: '',
+    firstName: '',
+    lastName: '',
+    location: '',
+  });
+
+  useEffect(() => {
+    if (userProfile) {
+      setFormData({
+        email: userProfile.email || '',
+        phone: userProfile.phone || '',
+        firstName: userProfile.displayName?.split(' ')[0] || '',
+        lastName: userProfile.displayName?.split(' ').slice(1).join(' ') || '',
+        location: userProfile.location || '',
+      });
+      if (userProfile.city) {
+        setSelectedCity(userProfile.city);
+      }
+    }
+  }, [userProfile]);
+
+  useEffect(() => {
+    const area = DELIVERY_AREAS.find(a => a.name === selectedCity);
+    setDeliveryFee(area ? area.fee : 0);
+  }, [selectedCity]);
+
+  const finalTotal = cartTotal + deliveryFee;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const formData = new FormData(e.target as HTMLFormElement);
-    const phone = formData.get('phone') as string;
+    const form = e.target as HTMLFormElement;
+    const fData = new FormData(form);
+    const phone = fData.get('phone') as string;
     
     const orderId = Math.random().toString(36).substr(2, 9);
+
+    const sellerIds = Array.from(new Set(items.map(item => item.sellerId).filter(Boolean) as string[]));
 
     if (paymentMethod === 'mpesa') {
       setIsProcessing(true);
@@ -32,17 +76,20 @@ export function Checkout() {
         await addOrder({
           id: orderId,
           userId: currentUser?.uid,
+          sellerIds,
           customerInfo: {
-            firstName: formData.get('firstName') as string,
-            lastName: formData.get('lastName') as string,
-            email: formData.get('email') as string,
+            firstName: fData.get('firstName') as string,
+            lastName: fData.get('lastName') as string,
+            email: fData.get('email') as string,
             phone,
-            location: formData.get('location') as string,
-            city: formData.get('city') as string,
+            location: fData.get('location') as string,
+            city: selectedCity,
           },
           items: [...items],
-          total: cartTotal,
+          total: finalTotal,
+          deliveryFee,
           status: 'Pending',
+          paymentStatus: 'Pending',
           date: new Date().toISOString(),
           paymentMethod,
         });
@@ -51,7 +98,7 @@ export function Checkout() {
         const response = await fetch('/api/mpesa/stkpush', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone, amount: cartTotal, orderId }),
+          body: JSON.stringify({ phone, amount: finalTotal, orderId }),
         });
 
         const data = await response.json();
@@ -92,15 +139,15 @@ export function Checkout() {
           }
         }, 3000);
 
-        // Stop polling after 60 seconds (timeout)
+        // Stop polling after 120 seconds (timeout)
         setTimeout(() => {
           clearInterval(pollInterval);
-          if (mpesaStatus === 'waiting') {
+          if (mpesaStatusRef.current === 'waiting') {
             setShowMpesaModal(false);
             setIsProcessing(false);
             setPaymentError('Payment timeout. Please check your phone or try again.');
           }
-        }, 60000);
+        }, 120000);
 
       } catch (err: any) {
         console.error('M-Pesa Error:', err);
@@ -112,24 +159,29 @@ export function Checkout() {
     }
     
     // For Card/COD, complete immediately
-    completeOrder(formData, orderId, phone);
+    completeOrder(fData, orderId, phone);
   };
 
-  const completeOrder = (formData: FormData, orderId: string, phone: string) => {
+  const completeOrder = (fData: FormData, orderId: string, phone: string) => {
+    const sellerIds = Array.from(new Set(items.map(item => item.sellerId).filter(Boolean) as string[]));
+    
     addOrder({
       id: orderId,
       userId: currentUser?.uid,
+      sellerIds,
       customerInfo: {
-        firstName: formData.get('firstName') as string,
-        lastName: formData.get('lastName') as string,
-        email: formData.get('email') as string,
+        firstName: fData.get('firstName') as string,
+        lastName: fData.get('lastName') as string,
+        email: fData.get('email') as string,
         phone,
-        location: formData.get('location') as string,
-        city: formData.get('city') as string,
+        location: fData.get('location') as string,
+        city: selectedCity,
       },
       items: [...items],
-      total: cartTotal,
+      total: finalTotal,
+      deliveryFee,
       status: 'Pending',
+      paymentStatus: 'Pending',
       date: new Date().toISOString(),
       paymentMethod,
     });
@@ -142,22 +194,49 @@ export function Checkout() {
 
   if (isSubmitted) {
     return (
-      <div className="min-h-[80vh] flex flex-col items-center justify-center px-4 text-center">
+      <div className="min-h-[80vh] flex flex-col items-center justify-center px-4 text-center relative overflow-hidden">
+        {/* Celebration Particles */}
+        {[...Array(12)].map((_, i) => (
+          <motion.div
+            key={i}
+            initial={{ 
+              top: '50%', 
+              left: '50%', 
+              scale: 0,
+              rotate: 0,
+              opacity: 1 
+            }}
+            animate={{ 
+              top: `${Math.random() * 100}%`, 
+              left: `${Math.random() * 100}%`,
+              scale: [0, 1.5, 0],
+              rotate: 360,
+              opacity: [0, 1, 0]
+            }}
+            transition={{ 
+              duration: 2 + Math.random() * 2,
+              repeat: Infinity,
+              delay: Math.random() * 2
+            }}
+            className={`absolute w-3 h-3 rounded-full ${['bg-orange-500', 'bg-green-500', 'bg-blue-500', 'bg-yellow-500'][i % 4]}`}
+          />
+        ))}
+
         <motion.div
           initial={{ scale: 0.8, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ type: 'spring', damping: 15 }}
-          className="w-24 h-24 bg-green-100 text-green-500 rounded-full flex items-center justify-center mb-6"
+          className="w-24 h-24 bg-green-100 text-green-500 rounded-full flex items-center justify-center mb-6 relative z-10"
         >
           <CheckCircle2 className="w-12 h-12" />
         </motion.div>
-        <h1 className="text-4xl font-black text-zinc-900 mb-4">Order Confirmed!</h1>
-        <p className="text-lg text-zinc-500 max-w-md mx-auto mb-8">
+        <h1 className="text-4xl font-black text-zinc-900 mb-4 relative z-10">Order Confirmed!</h1>
+        <p className="text-lg text-zinc-500 max-w-md mx-auto mb-8 relative z-10">
           Thank you for shopping with Solemate.co.ke. Your order has been received and our team will contact you shortly for delivery.
         </p>
         <Link
           to="/shop"
-          className="px-8 py-4 bg-zinc-900 text-white rounded-full font-bold hover:bg-zinc-800 transition-colors"
+          className="px-8 py-4 bg-zinc-900 text-white rounded-full font-bold hover:bg-zinc-800 transition-colors relative z-10"
         >
           Continue Shopping
         </Link>
@@ -181,6 +260,10 @@ export function Checkout() {
 
   return (
     <div className="min-h-screen bg-zinc-50 py-12">
+      <SEO 
+        title="Checkout - Secure Payment | Solemate.co.ke"
+        description="Securely complete your purchase at Solemate.co.ke. We offer M-Pesa and card payments with fast delivery across Kenya."
+      />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
           <Link
@@ -209,7 +292,8 @@ export function Checkout() {
                         id="email"
                         name="email"
                         required
-                        defaultValue={currentUser?.email || ''}
+                        value={formData.email}
+                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                         className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all"
                         placeholder="you@example.com"
                       />
@@ -221,6 +305,8 @@ export function Checkout() {
                         id="phone"
                         name="phone"
                         required
+                        value={formData.phone}
+                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                         className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all"
                         placeholder="07XX XXX XXX"
                       />
@@ -239,7 +325,8 @@ export function Checkout() {
                         id="firstName"
                         name="firstName"
                         required
-                        defaultValue={currentUser?.displayName?.split(' ')[0] || ''}
+                        value={formData.firstName}
+                        onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
                         className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all"
                       />
                     </div>
@@ -250,7 +337,8 @@ export function Checkout() {
                         id="lastName"
                         name="lastName"
                         required
-                        defaultValue={currentUser?.displayName?.split(' ').slice(1).join(' ') || ''}
+                        value={formData.lastName}
+                        onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
                         className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all"
                       />
                     </div>
@@ -261,6 +349,8 @@ export function Checkout() {
                         id="location"
                         name="location"
                         required
+                        value={formData.location}
+                        onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                         className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all"
                         placeholder="e.g. Kilimani, Yaya Centre"
                       />
@@ -271,14 +361,13 @@ export function Checkout() {
                         id="city"
                         name="city"
                         required
+                        value={selectedCity}
+                        onChange={(e) => setSelectedCity(e.target.value)}
                         className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all bg-white"
                       >
-                        <option value="Nairobi">Nairobi</option>
-                        <option value="Mombasa">Mombasa</option>
-                        <option value="Kisumu">Kisumu</option>
-                        <option value="Nakuru">Nakuru</option>
-                        <option value="Eldoret">Eldoret</option>
-                        <option value="Other">Other (Specify in notes)</option>
+                        {DELIVERY_AREAS.map(area => (
+                          <option key={area.name} value={area.name}>{area.name} (KSh {area.fee})</option>
+                        ))}
                       </select>
                     </div>
                   </div>
@@ -320,7 +409,7 @@ export function Checkout() {
                         <h3 className="text-lg font-bold text-green-900">Lipa na M-Pesa Online</h3>
                       </div>
                       <p className="text-green-800 text-sm mb-4 leading-relaxed">
-                        We will send an M-Pesa prompt to your phone number. Enter your PIN to complete the payment of <strong>{formatPrice(cartTotal)}</strong>.
+                        We will send an M-Pesa prompt to your phone number. Enter your PIN to complete the payment of <strong>{formatPrice(finalTotal)}</strong>.
                       </p>
                       {paymentError && (
                         <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-xl text-sm font-medium">
@@ -391,12 +480,17 @@ export function Checkout() {
                   <span className="font-medium text-zinc-900">{formatPrice(cartTotal)}</span>
                 </div>
                 <div className="flex justify-between text-sm text-zinc-500">
-                  <span>Delivery (Nairobi)</span>
-                  <span className="font-medium text-green-500">Free</span>
+                  <div className="flex items-center gap-1">
+                    <Truck className="w-3 h-3" />
+                    <span>Delivery ({selectedCity})</span>
+                  </div>
+                  <span className={`font-medium ${deliveryFee === 0 ? 'text-green-500' : 'text-zinc-900'}`}>
+                    {deliveryFee === 0 ? 'Free' : formatPrice(deliveryFee)}
+                  </span>
                 </div>
                 <div className="border-t border-zinc-100 pt-4 mt-4 flex justify-between items-center">
                   <span className="font-bold text-zinc-900">Total</span>
-                  <span className="text-2xl font-black text-zinc-900">{formatPrice(cartTotal)}</span>
+                  <span className="text-2xl font-black text-zinc-900">{formatPrice(finalTotal)}</span>
                 </div>
               </div>
             </div>
@@ -419,7 +513,7 @@ export function Checkout() {
                 </div>
                 <h3 className="text-xl font-bold text-zinc-900 mb-2">Check your phone</h3>
                 <p className="text-zinc-500 mb-6">
-                  We've sent an M-Pesa prompt to your phone. Please enter your PIN to complete the payment of <strong>{formatPrice(cartTotal)}</strong>.
+                  We've sent an M-Pesa prompt to your phone. Please enter your PIN to complete the payment of <strong>{formatPrice(finalTotal)}</strong>.
                 </p>
                 <div className="text-sm text-zinc-400 animate-pulse">Waiting for payment...</div>
               </>
