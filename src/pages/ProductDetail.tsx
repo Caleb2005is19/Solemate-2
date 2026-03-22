@@ -16,6 +16,7 @@ export function ProductDetail() {
   
   const product = products.find(p => p.id === id);
   const [selectedSize, setSelectedSize] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
   
   if (!product) {
     return (
@@ -35,16 +36,14 @@ export function ProductDetail() {
 
   const handleAddToCart = () => {
     if (!selectedSize) {
-      alert('Please select a size first.');
+      setError('Please select a size first.');
+      setTimeout(() => setError(null), 3000);
       return;
     }
     addToCart(product, selectedSize);
   };
 
-  const handleWhatsAppOrder = () => {
-    const message = `Hello Solemate, I would like to order:\n\n*${product.name}*\nSize: US ${selectedSize || 'Not selected'}\nPrice: ${formatPrice(product.price)}\n\nPlease confirm availability.`;
-    window.open(`https://wa.me/254700000000?text=${encodeURIComponent(message)}`, '_blank');
-  };
+  const whatsAppUrl = `https://wa.me/254700000000?text=${encodeURIComponent(`Hello Solemate, I would like to order:\n\n*${product?.name}*\nSize: US ${selectedSize || 'Not selected'}\nPrice: ${formatPrice(product?.price || 0)}\n\nPlease confirm availability.`)}`;
 
   return (
     <div className="min-h-screen bg-white pt-8 pb-24">
@@ -125,8 +124,8 @@ export function ProductDetail() {
                   </button>
                 ))}
               </div>
-              {!selectedSize && (
-                <p className="text-sm text-red-500 mt-2 font-medium">Please select a size to continue</p>
+              {error && (
+                <p className="text-sm text-red-500 mt-2 font-bold animate-pulse">{error}</p>
               )}
             </div>
 
@@ -139,13 +138,15 @@ export function ProductDetail() {
                 <ShoppingBag className="w-5 h-5" />
               </button>
               
-              <button
-                onClick={handleWhatsAppOrder}
+              <a
+                href={whatsAppUrl}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="w-full py-4 px-8 bg-[#25D366] text-white rounded-2xl font-bold text-lg hover:bg-[#20bd5a] transition-all shadow-lg shadow-[#25D366]/20 flex items-center justify-center gap-2"
               >
                 Order via WhatsApp
                 <MessageCircle className="w-5 h-5" />
-              </button>
+              </a>
             </div>
 
             <div className="prose prose-zinc mb-8">

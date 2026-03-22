@@ -2,25 +2,23 @@ import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import dotenv from 'dotenv';
-
-import { v2 as cloudinary } from 'cloudinary';
+import admin from 'firebase-admin';
 
 dotenv.config();
 
-// Cloudinary Configuration
-const CLOUDINARY_CLOUD_NAME = process.env.VITE_CLOUDINARY_CLOUD_NAME;
-const CLOUDINARY_API_KEY = process.env.CLOUDINARY_API_KEY;
-const CLOUDINARY_API_SECRET = process.env.CLOUDINARY_API_SECRET;
-
-if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_API_KEY || !CLOUDINARY_API_SECRET) {
-  console.warn('Cloudinary credentials missing. Image uploads will not work.');
+// Initialize Firebase Admin
+if (!admin.apps.length) {
+  try {
+    admin.initializeApp({
+      projectId: process.env.VITE_FIREBASE_PROJECT_ID,
+    });
+    console.log('Firebase Admin initialized');
+  } catch (error) {
+    console.error('Error initializing Firebase Admin:', error);
+  }
 }
 
-cloudinary.config({
-  cloud_name: CLOUDINARY_CLOUD_NAME,
-  api_key: CLOUDINARY_API_KEY,
-  api_secret: CLOUDINARY_API_SECRET,
-});
+const db = admin.firestore();
 
 async function startServer() {
   const app = express();
@@ -62,37 +60,17 @@ async function startServer() {
     }
   };
 
-  // Cloudinary Signature Route
-  app.get('/api/cloudinary/sign', (req, res) => {
-    try {
-      if (!CLOUDINARY_API_SECRET || !CLOUDINARY_API_KEY || !CLOUDINARY_CLOUD_NAME) {
-        return res.status(500).json({ error: 'Cloudinary credentials are not configured on the server.' });
-      }
+  // Store transaction mapping (CheckoutRequestID -> OrderID)
+  // In a real app, you might use a database for this
+  const transactionMap = new Map<string, string>();
 
-      const timestamp = Math.round(new Date().getTime() / 1000);
-      const signature = cloudinary.utils.api_sign_request(
-        { timestamp, folder: 'solemate_products' },
-        CLOUDINARY_API_SECRET
-      );
-      res.json({
-        signature,
-        timestamp,
-        cloudName: CLOUDINARY_CLOUD_NAME,
-        apiKey: CLOUDINARY_API_KEY,
-      });
-    } catch (error) {
-      console.error('Error generating Cloudinary signature:', error);
-      res.status(500).json({ error: 'Failed to generate signature' });
-    }
-  });
-
-  // API Routes
+  // M-Pesa STK Push
   app.post('/api/mpesa/stkpush', async (req, res) => {
     try {
       const { phone, amount, orderId } = req.body;
       
-      if (!phone || !amount) {
-        return res.status(400).json({ error: 'Phone and amount are required' });
+      if (!phone || !amount || !orderId) {
+        return res.status(400).json({ error: 'Phone, amount, and orderId are required' });
       }
 
       // Format phone number to 254...
@@ -101,6 +79,8 @@ async function startServer() {
         formattedPhone = `254${formattedPhone.substring(1)}`;
       } else if (formattedPhone.startsWith('+')) {
         formattedPhone = formattedPhone.substring(1);
+      } else if (formattedPhone.startsWith('7') || formattedPhone.startsWith('1')) {
+        formattedPhone = `254${formattedPhone}`;
       }
 
       const token = await getOAuthToken();
@@ -116,13 +96,13 @@ async function startServer() {
         Password: password,
         Timestamp: timestamp,
         TransactionType: 'CustomerPayBillOnline',
-        Amount: Math.ceil(amount), // M-Pesa requires integer amounts
+        Amount: Math.ceil(amount),
         PartyA: formattedPhone,
         PartyB: SHORTCODE,
         PhoneNumber: formattedPhone,
         CallBackURL: callbackUrl,
-        AccountReference: `Order ${orderId || '123'}`,
-        TransactionDesc: 'Payment for Sneakers',
+        AccountReference: orderId,
+        TransactionDesc: `Payment for Order ${orderId}`,
       };
 
       const response = await fetch(`${getBaseUrl()}/mpesa/stkpush/v1/processrequest`, {
@@ -137,9 +117,18 @@ async function startServer() {
       const data = await response.json();
       
       if (data.ResponseCode === '0') {
-        res.json({ success: true, message: 'STK Push initiated successfully', data });
+        // Map the checkout request ID to the order ID
+        transactionMap.set(data.CheckoutRequestID, orderId);
+        
+        // Also update the order in Firestore with the checkout ID
+        await db.collection('orders').doc(orderId).update({
+          mpesaCheckoutId: data.CheckoutRequestID,
+          status: 'Processing'
+        });
+
+        res.json({ success: true, message: 'STK Push initiated', checkoutRequestId: data.CheckoutRequestID });
       } else {
-        res.status(400).json({ success: false, error: data.errorMessage || 'Failed to initiate STK push', data });
+        res.status(400).json({ success: false, error: data.CustomerMessage || 'Failed to initiate STK push' });
       }
     } catch (error) {
       console.error('STK Push Error:', error);
@@ -148,13 +137,92 @@ async function startServer() {
   });
 
   // Callback Route
-  app.post('/api/mpesa/callback', (req, res) => {
-    console.log('M-Pesa Callback Received:', JSON.stringify(req.body, null, 2));
-    
-    // Here you would typically update the order status in Firestore
-    // based on req.body.Body.stkCallback.ResultCode (0 means success)
-    
-    res.json({ ResultCode: 0, ResultDesc: 'Accepted' });
+  app.post('/api/mpesa/callback', async (req, res) => {
+    try {
+      const callbackData = req.body.Body.stkCallback;
+      const checkoutRequestId = callbackData.CheckoutRequestID;
+      const resultCode = callbackData.ResultCode;
+      const resultDesc = callbackData.ResultDesc;
+
+      console.log(`M-Pesa Callback for ${checkoutRequestId}: ${resultDesc} (${resultCode})`);
+
+      const orderId = transactionMap.get(checkoutRequestId);
+      
+      if (orderId) {
+        const orderRef = db.collection('orders').doc(orderId);
+        
+        if (resultCode === 0) {
+          // Success
+          const metadata = callbackData.CallbackMetadata.Item;
+          const mpesaReceipt = metadata.find((item: any) => item.Name === 'MpesaReceiptNumber')?.Value;
+          
+          await orderRef.update({
+            status: 'Processing',
+            paymentStatus: 'Paid',
+            mpesaReceipt: mpesaReceipt,
+            paidAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+        } else {
+          // Failure
+          await orderRef.update({
+            status: 'Cancelled',
+            paymentStatus: 'Failed',
+            paymentError: resultDesc
+          });
+        }
+        
+        transactionMap.delete(checkoutRequestId);
+      } else {
+        // If not in map, try finding by field in Firestore
+        const ordersSnapshot = await db.collection('orders').where('mpesaCheckoutId', '==', checkoutRequestId).limit(1).get();
+        if (!ordersSnapshot.empty) {
+          const orderDoc = ordersSnapshot.docs[0];
+          if (resultCode === 0) {
+            const metadata = callbackData.CallbackMetadata.Item;
+            const mpesaReceipt = metadata.find((item: any) => item.Name === 'MpesaReceiptNumber')?.Value;
+            await orderDoc.ref.update({
+              status: 'Processing',
+              paymentStatus: 'Paid',
+              mpesaReceipt: mpesaReceipt,
+              paidAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+          } else {
+            await orderDoc.ref.update({
+              status: 'Cancelled',
+              paymentStatus: 'Failed',
+              paymentError: resultDesc
+            });
+          }
+        }
+      }
+
+      res.json({ ResultCode: 0, ResultDesc: 'Accepted' });
+    } catch (error) {
+      console.error('Callback Error:', error);
+      res.status(500).json({ ResultCode: 1, ResultDesc: 'Internal Error' });
+    }
+  });
+
+  // Status Check Route
+  app.get('/api/mpesa/status/:orderId', async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      const orderDoc = await db.collection('orders').doc(orderId).get();
+      
+      if (!orderDoc.exists) {
+        return res.status(404).json({ error: 'Order not found' });
+      }
+
+      const orderData = orderDoc.data();
+      res.json({ 
+        status: orderData?.status, 
+        paymentStatus: orderData?.paymentStatus,
+        paymentError: orderData?.paymentError
+      });
+    } catch (error) {
+      console.error('Status Check Error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
   });
 
   // Vite middleware for development
@@ -172,15 +240,11 @@ async function startServer() {
     });
   }
 
-  // Only listen if not in a serverless environment (like Vercel)
-  if (!process.env.VERCEL) {
-    app.listen(PORT, "0.0.0.0", () => {
-      console.log(`Server running on http://localhost:${PORT}`);
-    });
-  }
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
 
   return app;
 }
 
-const appPromise = startServer();
-export default appPromise;
+startServer();

@@ -5,6 +5,7 @@ export interface UserProfile {
   phone?: string;
   location?: string;
   city?: string;
+  role?: 'admin' | 'seller' | 'client';
 }
 
 export interface Seller {

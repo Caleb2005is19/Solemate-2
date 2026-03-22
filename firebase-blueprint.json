@@ -1,117 +1,98 @@
 {
   "entities": {
-    "User": {
-      "title": "User",
-      "description": "A user of the application, typically an admin or seller.",
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "User account information and preferences",
       "type": "object",
       "properties": {
-        "email": {
-          "type": "string",
-          "format": "email",
-          "description": "The user's email address."
-        },
-        "role": {
-          "type": "string",
-          "enum": ["admin", "seller"],
-          "description": "The user's role."
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time"
-        }
+        "id": { "type": "string", "description": "Unique identifier for the user" },
+        "email": { "type": "string", "format": "email", "description": "User's email address" },
+        "displayName": { "type": "string", "description": "User's display name" },
+        "phone": { "type": "string", "description": "User's phone number" },
+        "location": { "type": "string", "description": "User's delivery location" },
+        "city": { "type": "string", "description": "User's city" }
       },
-      "required": ["email", "role"]
+      "required": ["id", "email", "displayName"]
     },
     "Seller": {
       "title": "Seller",
-      "description": "A seller profile.",
+      "description": "Information about a seller in the marketplace",
       "type": "object",
       "properties": {
-        "name": {
-          "type": "string"
-        },
-        "email": {
-          "type": "string",
-          "format": "email"
-        },
-        "status": {
-          "type": "string",
-          "enum": ["Active", "Suspended"]
-        },
-        "joinedDate": {
-          "type": "string"
-        }
+        "id": { "type": "string", "description": "Unique identifier for the seller" },
+        "name": { "type": "string", "description": "Seller's business name" },
+        "email": { "type": "string", "format": "email", "description": "Seller's contact email" },
+        "status": { "type": "string", "enum": ["Active", "Suspended"], "description": "Current status of the seller" },
+        "joinedDate": { "type": "string", "format": "date", "description": "Date the seller joined" }
       },
-      "required": ["name", "email", "status", "joinedDate"]
+      "required": ["id", "name", "email", "status", "joinedDate"]
     },
     "Product": {
       "title": "Product",
-      "description": "A sneaker product.",
+      "description": "Footwear product details",
       "type": "object",
       "properties": {
-        "name": { "type": "string" },
-        "brand": { "type": "string" },
-        "price": { "type": "number" },
-        "originalPrice": { "type": "number" },
-        "image": { "type": "string" },
-        "category": { "type": "string" },
-        "gender": { "type": "string", "enum": ["Men", "Women", "Unisex", "Kids"] },
-        "color": { "type": "string" },
-        "description": { "type": "string" },
-        "isNew": { "type": "boolean" },
-        "inStock": { "type": "boolean" },
-        "sellerId": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "id": { "type": "string", "description": "Unique identifier for the product" },
+        "name": { "type": "string", "description": "Product name" },
+        "brand": { "type": "string", "description": "Product brand" },
+        "price": { "type": "number", "description": "Current price of the product" },
+        "originalPrice": { "type": "number", "description": "Original price before discount" },
+        "image": { "type": "string", "description": "URL to the product image" },
+        "category": { "type": "string", "description": "Product category" },
+        "gender": { "type": "string", "enum": ["Men", "Women", "Unisex", "Kids"], "description": "Target gender" },
+        "color": { "type": "string", "description": "Product color" },
+        "description": { "type": "string", "description": "Product description" },
+        "isNew": { "type": "boolean", "description": "Whether the product is new" },
+        "inStock": { "type": "boolean", "description": "Whether the product is in stock" },
+        "sellerId": { "type": "string", "description": "ID of the seller who owns this product" }
       },
-      "required": ["name", "brand", "price", "image", "category", "gender", "color", "description", "inStock"]
+      "required": ["id", "name", "brand", "price", "image", "category", "gender", "color", "description", "inStock"]
     },
     "Order": {
       "title": "Order",
-      "description": "A customer order.",
+      "description": "Customer order details",
       "type": "object",
       "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the order" },
+        "userId": { "type": "string", "description": "ID of the customer who placed the order" },
+        "sellerIds": { "type": "array", "items": { "type": "string" }, "description": "IDs of the sellers involved in the order" },
         "customerInfo": {
           "type": "object",
           "properties": {
             "firstName": { "type": "string" },
             "lastName": { "type": "string" },
-            "email": { "type": "string" },
+            "email": { "type": "string", "format": "email" },
             "phone": { "type": "string" },
             "location": { "type": "string" },
             "city": { "type": "string" }
           },
           "required": ["firstName", "lastName", "email", "phone", "location", "city"]
         },
-        "items": {
-          "type": "array",
-          "items": {
-            "type": "object"
-          }
-        },
-        "total": { "type": "number" },
-        "status": { "type": "string", "enum": ["Pending", "Processing", "Shipped", "Delivered", "Cancelled"] },
-        "date": { "type": "string" },
-        "paymentMethod": { "type": "string" }
+        "items": { "type": "array", "description": "List of products in the order" },
+        "total": { "type": "number", "description": "Total order amount" },
+        "status": { "type": "string", "enum": ["Pending", "Processing", "Shipped", "Delivered", "Cancelled"], "description": "Current order status" },
+        "date": { "type": "string", "format": "date-time", "description": "Date and time the order was placed" },
+        "paymentMethod": { "type": "string", "description": "Payment method used" }
       },
-      "required": ["customerInfo", "items", "total", "status", "date", "paymentMethod"]
+      "required": ["id", "customerInfo", "items", "total", "status", "date", "paymentMethod"]
     }
   },
   "firestore": {
     "/users/{userId}": {
-      "schema": { "$ref": "#/entities/User" },
-      "description": "Stores user roles and profiles."
+      "schema": "UserProfile",
+      "description": "User profiles"
     },
     "/sellers/{sellerId}": {
-      "schema": { "$ref": "#/entities/Seller" },
-      "description": "Stores seller profiles."
+      "schema": "Seller",
+      "description": "Seller information"
     },
     "/products/{productId}": {
-      "schema": { "$ref": "#/entities/Product" },
-      "description": "Stores all products."
+      "schema": "Product",
+      "description": "Product catalog"
     },
     "/orders/{orderId}": {
-      "schema": { "$ref": "#/entities/Order" },
-      "description": "Stores all customer orders."
+      "schema": "Order",
+      "description": "Customer orders"
     }
   }
 }

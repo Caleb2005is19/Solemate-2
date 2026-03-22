@@ -26,20 +26,89 @@ export function Checkout() {
     if (paymentMethod === 'mpesa') {
       setIsProcessing(true);
       setPaymentError(null);
-      setShowMpesaModal(true);
-      setMpesaStatus('waiting');
-
-      // Simulate M-Pesa STK Push delay and user entering PIN
-      setTimeout(() => {
-        setMpesaStatus('success');
-        
-        // After showing success for 1.5s, complete the order
-        setTimeout(() => {
-          completeOrder(formData, orderId, phone);
-        }, 1500);
-      }, 5000);
       
-      return; // Stop here, completeOrder will be called after simulation
+      try {
+        // 1. Create the order first in Pending state
+        await addOrder({
+          id: orderId,
+          userId: currentUser?.uid,
+          customerInfo: {
+            firstName: formData.get('firstName') as string,
+            lastName: formData.get('lastName') as string,
+            email: formData.get('email') as string,
+            phone,
+            location: formData.get('location') as string,
+            city: formData.get('city') as string,
+          },
+          items: [...items],
+          total: cartTotal,
+          status: 'Pending',
+          date: new Date().toISOString(),
+          paymentMethod,
+        });
+
+        // 2. Initiate STK Push
+        const response = await fetch('/api/mpesa/stkpush', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone, amount: cartTotal, orderId }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to initiate M-Pesa payment');
+        }
+
+        setShowMpesaModal(true);
+        setMpesaStatus('waiting');
+
+        // 3. Start polling for status
+        const pollInterval = setInterval(async () => {
+          try {
+            const statusRes = await fetch(`/api/mpesa/status/${orderId}`);
+            const statusData = await statusRes.json();
+
+            if (statusData.paymentStatus === 'Paid') {
+              clearInterval(pollInterval);
+              setMpesaStatus('success');
+              setTimeout(() => {
+                clearCart();
+                setIsProcessing(false);
+                setShowMpesaModal(false);
+                setIsSubmitted(true);
+              }, 2000);
+            } else if (statusData.paymentStatus === 'Failed') {
+              clearInterval(pollInterval);
+              setMpesaStatus('failed');
+              setPaymentError(statusData.paymentError || 'Payment failed');
+              setTimeout(() => {
+                setShowMpesaModal(false);
+                setIsProcessing(false);
+              }, 3000);
+            }
+          } catch (err) {
+            console.error('Polling error:', err);
+          }
+        }, 3000);
+
+        // Stop polling after 60 seconds (timeout)
+        setTimeout(() => {
+          clearInterval(pollInterval);
+          if (mpesaStatus === 'waiting') {
+            setShowMpesaModal(false);
+            setIsProcessing(false);
+            setPaymentError('Payment timeout. Please check your phone or try again.');
+          }
+        }, 60000);
+
+      } catch (err: any) {
+        console.error('M-Pesa Error:', err);
+        setPaymentError(err.message || 'An error occurred during payment initiation');
+        setIsProcessing(false);
+      }
+      
+      return;
     }
     
     // For Card/COD, complete immediately

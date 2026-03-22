@@ -92,7 +92,7 @@ service cloud.firestore {
       return hasRequiredFields(['email', 'displayName']) &&
              data.email is string &&
              data.displayName is string &&
-             (!('role' in data) || data.role in ['admin', 'seller']);
+             (!('role' in data) || data.role in ['admin', 'seller', 'client']);
     }
 
     function isValidSeller(data) {
@@ -134,10 +134,10 @@ service cloud.firestore {
     // ===============================================================
 
     match /users/{userId} {
-      allow read: if request.auth.uid == userId || isAdmin();
-      // Only admins can create/update users, or a user can create their own initial profile
-      allow create: if (request.auth.uid == userId || isAdmin()) && isValidUser(request.resource.data);
-      allow update: if (request.auth.uid == userId || isAdmin()) && isValidUser(request.resource.data);
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      // A user can create their own initial profile
+      allow create: if isAuthenticated() && request.auth.uid == userId && isValidUser(request.resource.data);
+      allow update: if isAuthenticated() && (request.auth.uid == userId || isAdmin()) && isValidUser(request.resource.data);
       allow delete: if isAdmin();
     }
 

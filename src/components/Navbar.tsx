@@ -12,20 +12,23 @@ export function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
   const handleLogin = async () => {
+    setError(null);
     try {
       await loginWithGoogle();
-    } catch (error: any) {
-      console.error("Login failed:", error);
-      if (error.code === 'auth/operation-not-allowed') {
-        alert("Google Sign-In is not enabled in your Firebase project. Please enable it in the Firebase Console (Authentication > Sign-in method).");
-      } else if (error.code === 'auth/unauthorized-domain') {
-        alert("This domain is not authorized for Google Sign-In. Please add your Vercel domain to the 'Authorized domains' list in the Firebase Console (Authentication > Settings).");
+    } catch (err: any) {
+      console.error("Login failed:", err);
+      if (err.code === 'auth/operation-not-allowed') {
+        setError("Google Sign-In is not enabled. Please check Firebase Console.");
+      } else if (err.code === 'auth/unauthorized-domain') {
+        setError("This domain is not authorized for Google Sign-In.");
       } else {
-        alert("Failed to sign in with Google. Please try again.");
+        setError("Failed to sign in with Google. Please try again.");
       }
+      setTimeout(() => setError(null), 5000);
     }
   };
 
@@ -49,6 +52,18 @@ export function Navbar() {
       </div>
       
       <nav className="sticky top-0 z-40 w-full bg-white/90 backdrop-blur-md border-b border-zinc-200 shadow-sm">
+        <AnimatePresence>
+          {error && (
+            <motion.div 
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="bg-rose-500 text-white text-xs py-2 px-4 text-center font-bold"
+            >
+              {error}
+            </motion.div>
+          )}
+        </AnimatePresence>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             {/* Mobile menu button */}

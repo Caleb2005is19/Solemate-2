@@ -15,27 +15,20 @@ export const uploadToCloudinary = async (file: File): Promise<CloudinaryResponse
     };
     const compressedFile = await imageCompression(file, options);
 
-    // 2. Get signature from server
-    const signResponse = await fetch('/api/cloudinary/sign');
-    if (!signResponse.ok) {
-      const errorText = await signResponse.text();
-      throw new Error(`Failed to get Cloudinary signature: ${errorText}`);
-    }
-    const { signature, timestamp, cloudName, apiKey } = await signResponse.json();
+    const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || (process.env as any).VITE_CLOUDINARY_CLOUD_NAME;
+    const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || (process.env as any).VITE_CLOUDINARY_UPLOAD_PRESET;
 
-    if (!signature || !cloudName || !apiKey) {
-      throw new Error('Cloudinary configuration is missing on the server. Please check your AI Studio Secrets.');
+    if (!cloudName || !uploadPreset) {
+      throw new Error('Cloudinary configuration is missing. Please set VITE_CLOUDINARY_CLOUD_NAME and VITE_CLOUDINARY_UPLOAD_PRESET in your AI Studio Secrets.');
     }
 
-    // 3. Prepare upload data
+    // 2. Prepare upload data for unsigned upload
     const formData = new FormData();
     formData.append('file', compressedFile);
-    formData.append('api_key', apiKey);
-    formData.append('timestamp', timestamp.toString());
-    formData.append('signature', signature);
+    formData.append('upload_preset', uploadPreset);
     formData.append('folder', 'solemate_products');
 
-    // 4. Upload to Cloudinary
+    // 3. Upload to Cloudinary
     const uploadResponse = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
       method: 'POST',
       body: formData

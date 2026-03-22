@@ -8,14 +8,12 @@ import { formatPrice } from '../utils';
 export function CartDrawer() {
   const { isCartOpen, setIsCartOpen, items, updateQuantity, removeFromCart, cartTotal } = useCart();
 
-  const handleWhatsAppCheckout = () => {
-    const orderDetails = items.map(item => 
-      `- ${item.name} (Size: US ${item.selectedSize}) x${item.quantity} = ${formatPrice(item.price * item.quantity)}`
-    ).join('\n');
-    
-    const message = `Hello Solemate, I would like to place an order:\n\n${orderDetails}\n\n*Total: ${formatPrice(cartTotal)}*\n\nPlease advise on delivery.`;
-    window.open(`https://wa.me/254700000000?text=${encodeURIComponent(message)}`, '_blank');
-  };
+  const orderDetails = items.map(item => 
+    `- ${item.name} (Size: US ${item.selectedSize}) x${item.quantity} = ${formatPrice(item.price * item.quantity)}`
+  ).join('\n');
+  
+  const whatsAppMessage = `Hello Solemate, I would like to place an order:\n\n${orderDetails}\n\n*Total: ${formatPrice(cartTotal)}*\n\nPlease advise on delivery.`;
+  const whatsAppUrl = `https://wa.me/254700000000?text=${encodeURIComponent(whatsAppMessage)}`;
 
   return (
     <AnimatePresence>
@@ -141,13 +139,15 @@ export function CartDrawer() {
                   >
                     Secure Checkout
                   </Link>
-                  <button
-                    onClick={handleWhatsAppCheckout}
+                  <a
+                    href={whatsAppUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="w-full flex items-center justify-center gap-2 py-3.5 px-8 bg-[#25D366] text-white rounded-xl font-bold text-base hover:bg-[#20bd5a] transition-colors shadow-sm shadow-[#25D366]/20"
                   >
                     <MessageCircle className="w-5 h-5" />
                     Order via WhatsApp
-                  </button>
+                  </a>
                 </div>
               </div>
             )}

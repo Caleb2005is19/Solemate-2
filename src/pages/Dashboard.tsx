@@ -20,6 +20,9 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [viewingOrder, setViewingOrder] = useState<Order | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [productToDelete, setProductToDelete] = useState<string | null>(null);
   
   const [isAddingSeller, setIsAddingSeller] = useState(false);
   const [editingSeller, setEditingSeller] = useState<Seller | null>(null);
@@ -30,7 +33,7 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
 
   // Form State
   const [formData, setFormData] = useState<Partial<Product>>({
-    name: '', brand: '', price: 0, image: '', category: 'Sneakers', gender: 'Unisex', color: '', description: '', inStock: true
+    name: '', brand: '', price: 0, image: '', category: 'Sneakers', gender: 'Unisex', color: '', description: '', inStock: true, sellerId: ''
   });
 
   if (loading) {
@@ -100,36 +103,69 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
     if (!file) return;
 
     setIsUploadingImage(true);
+    setError(null);
     try {
       const result = await uploadToCloudinary(file);
       setFormData({ ...formData, image: result.secure_url });
-    } catch (error: any) {
-      console.error("Error uploading image:", error);
-      alert(error.message || "Failed to upload image. Please check your Cloudinary credentials in AI Studio Secrets.");
+    } catch (err: any) {
+      console.error("Error uploading image:", err);
+      setError(err.message || "Failed to upload image. Please check your Cloudinary credentials.");
     } finally {
       setIsUploadingImage(false);
     }
   };
 
-  const handleSaveProduct = (e: React.FormEvent) => {
+  const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
     if (!formData.image) {
-      alert("Please upload an image for the product.");
+      setError("Please upload an image for the product.");
       return;
     }
-    if (editingProduct) {
-      updateProduct(editingProduct.id, formData);
-    } else {
-      addProduct({
+    try {
+      const productData: any = {
         ...formData,
-        id: Math.random().toString(36).substr(2, 9),
-        isNew: true,
-        sellerId: role === 'seller' ? currentSellerId : undefined,
-      } as Product);
+        id: editingProduct ? editingProduct.id : Math.random().toString(36).substr(2, 9),
+        isNew: !editingProduct,
+      };
+
+      if (role === 'seller' && currentSellerId) {
+        productData.sellerId = currentSellerId;
+      } else if (role === 'admin' && formData.sellerId) {
+        productData.sellerId = formData.sellerId;
+      } else if (role === 'admin' && !formData.sellerId) {
+        setError("Please select a shop (seller) for this product.");
+        return;
+      }
+
+      if (editingProduct) {
+        await updateProduct(editingProduct.id, productData);
+        setSuccess("Product updated successfully!");
+      } else {
+        await addProduct(productData as Product);
+        setSuccess("Product created successfully!");
+      }
+      setIsAddingProduct(false);
+      setEditingProduct(null);
+      setFormData({ name: '', brand: '', price: 0, image: '', category: 'Sneakers', gender: 'Unisex', color: '', description: '', inStock: true, sellerId: '' });
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err: any) {
+      console.error("Error saving product:", err);
+      setError(err.message || "Failed to save product.");
     }
-    setIsAddingProduct(false);
-    setEditingProduct(null);
-    setFormData({ name: '', brand: '', price: 0, image: '', category: 'Sneakers', gender: 'Unisex', color: '', description: '', inStock: true });
+  };
+
+  const confirmDelete = async () => {
+    if (!productToDelete) return;
+    try {
+      await deleteProduct(productToDelete);
+      setSuccess("Product deleted successfully!");
+      setProductToDelete(null);
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err: any) {
+      console.error("Error deleting product:", err);
+      setError("Failed to delete product.");
+    }
   };
 
   const openEdit = (p: Product) => {
@@ -237,6 +273,44 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
 
       {/* Main Content */}
       <div className="flex-1 p-6 md:p-10 overflow-y-auto">
+        {success && (
+          <div className="fixed top-6 right-6 z-[100] animate-in slide-in-from-right duration-300">
+            <div className="bg-emerald-500 text-white px-6 py-4 rounded-2xl shadow-xl flex items-center gap-3">
+              <Check className="w-5 h-5" />
+              <p className="font-bold">{success}</p>
+              <button onClick={() => setSuccess(null)} className="ml-2 hover:bg-white/20 rounded-lg p-1 transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {productToDelete && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+            <div className="bg-white rounded-[2rem] w-full max-w-md shadow-2xl p-8 animate-in fade-in zoom-in duration-200">
+              <div className="w-16 h-16 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                <Trash className="w-8 h-8" />
+              </div>
+              <h2 className="text-2xl font-black text-zinc-900 text-center mb-2">Delete Product?</h2>
+              <p className="text-zinc-500 text-center mb-8">This action cannot be undone. Are you sure you want to remove this product from your store?</p>
+              <div className="flex gap-4">
+                <button 
+                  onClick={() => setProductToDelete(null)}
+                  className="flex-1 py-4 rounded-2xl font-bold text-zinc-600 hover:bg-zinc-100 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={confirmDelete}
+                  className="flex-1 py-4 bg-rose-500 text-white rounded-2xl font-black hover:bg-rose-600 transition-all shadow-lg shadow-rose-200 active:scale-95"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {activeTab === 'overview' && (
           <div className="space-y-6">
             <h1 className="text-3xl font-bold text-zinc-900">Dashboard Overview</h1>
@@ -340,7 +414,7 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
             <div className="flex justify-between items-center">
               <h1 className="text-3xl font-bold text-zinc-900">Products</h1>
               <button
-                onClick={() => { setEditingProduct(null); setFormData({ name: '', brand: '', price: 0, image: '', category: 'Sneakers', gender: 'Unisex', color: '', description: '', inStock: true }); setIsAddingProduct(true); }}
+                onClick={() => { setEditingProduct(null); setFormData({ name: '', brand: '', price: 0, image: '', category: 'Sneakers', gender: 'Unisex', color: '', description: '', inStock: true, sellerId: '' }); setIsAddingProduct(true); }}
                 className="flex items-center gap-2 bg-zinc-900 text-white px-6 py-3 rounded-2xl hover:bg-zinc-800 transition-all shadow-lg shadow-zinc-200 active:scale-95"
               >
                 <Plus className="w-5 h-5" /> 
@@ -369,7 +443,13 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
                     </button>
                   </div>
 
-                  <form onSubmit={handleSaveProduct} className="p-6 md:p-8 space-y-8 max-h-[70vh] overflow-y-auto">
+                  <form id="product-form" onSubmit={handleSaveProduct} className="p-6 md:p-8 space-y-8 max-h-[70vh] overflow-y-auto">
+                    {error && (
+                      <div className="bg-rose-50 border border-rose-100 text-rose-600 p-4 rounded-2xl flex items-center gap-3 animate-in fade-in duration-200">
+                        <X className="w-5 h-5 flex-shrink-0" />
+                        <p className="text-sm font-bold">{error}</p>
+                      </div>
+                    )}
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                       {/* Left Column: Image Upload */}
                       <div className="lg:col-span-1 space-y-4">
@@ -463,7 +543,23 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
                             <DollarSign className="w-4 h-4 text-orange-500" />
                             <h3 className="text-sm font-bold uppercase tracking-wider">Pricing & Category</h3>
                           </div>
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {role === 'admin' && (
+                              <div className="space-y-1 md:col-span-2 lg:col-span-1">
+                                <label className="text-xs font-bold text-zinc-500 uppercase ml-1">Shop (Seller)</label>
+                                <select 
+                                  required
+                                  value={formData.sellerId} 
+                                  onChange={e => setFormData({...formData, sellerId: e.target.value})} 
+                                  className="w-full px-4 py-3 rounded-2xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 outline-none bg-white font-medium"
+                                >
+                                  <option value="">Select a Shop</option>
+                                  {sellers.map(seller => (
+                                    <option key={seller.id} value={seller.id}>{seller.name}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            )}
                             <div className="space-y-1">
                               <label className="text-xs font-bold text-zinc-500 uppercase ml-1">Price (KES)</label>
                               <input 
@@ -561,7 +657,8 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
                       Cancel
                     </button>
                     <button 
-                      onClick={handleSaveProduct}
+                      type="submit"
+                      form="product-form"
                       disabled={isUploadingImage}
                       className="px-12 py-3 bg-orange-500 text-white rounded-2xl font-black hover:bg-orange-600 transition-all shadow-lg shadow-orange-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
@@ -641,7 +738,7 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
                                 <Edit className="w-5 h-5"/>
                               </button>
                               <button 
-                                onClick={() => { if(window.confirm('Are you sure you want to delete this product?')) deleteProduct(p.id); }} 
+                                onClick={() => setProductToDelete(p.id)} 
                                 className="p-3 text-zinc-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all"
                                 title="Delete Product"
                               >

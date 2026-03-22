@@ -43,6 +43,16 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
   throw new Error(JSON.stringify(errInfo));
 }
 
+function stripUndefined(obj: any) {
+  const newObj = { ...obj };
+  Object.keys(newObj).forEach(key => {
+    if (newObj[key] === undefined) {
+      delete newObj[key];
+    }
+  });
+  return newObj;
+}
+
 interface StoreContextType {
   products: Product[];
   addProduct: (p: Product) => Promise<void>;
@@ -89,6 +99,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               id: user.uid,
               email: user.email || '',
               displayName: user.displayName || '',
+              role: 'client'
             };
             await setDoc(docRef, newProfile);
             setUserProfile(newProfile);
@@ -166,7 +177,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const addProduct = async (p: Product) => {
     try {
-      await setDoc(doc(db, 'products', p.id), p);
+      await setDoc(doc(db, 'products', p.id), stripUndefined(p));
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, `products/${p.id}`);
     }
@@ -174,7 +185,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   
   const updateProduct = async (id: string, updates: Partial<Product>) => {
     try {
-      await updateDoc(doc(db, 'products', id), updates);
+      await updateDoc(doc(db, 'products', id), stripUndefined(updates));
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `products/${id}`);
     }
