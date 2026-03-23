@@ -5,6 +5,7 @@ import { StoreProvider } from './context/StoreContext';
 import { Navbar } from './components/Navbar';
 import { CartDrawer } from './components/CartDrawer';
 import { Footer } from './components/Footer';
+import ScrollToTop from './components/ScrollToTop';
 import { Home } from './pages/Home';
 import { Shop } from './pages/Shop';
 import { ProductDetail } from './pages/ProductDetail';
@@ -18,6 +19,7 @@ export default function App() {
     <StoreProvider>
       <CartProvider>
         <Router>
+          <ScrollToTop />
           <div className="min-h-screen bg-white font-sans text-zinc-900 selection:bg-orange-500/30">
             <Navbar />
             <CartDrawer />
