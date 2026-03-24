@@ -8,6 +8,7 @@ import { formatPrice } from '../utils';
 import { SEO } from '../components/SEO';
 import { ProductCard } from '../components/ProductCard';
 import { RecentlyViewed } from '../components/RecentlyViewed';
+import { ImageZoom } from '../components/ImageZoom';
 import { Product } from '../types';
 import { ShoppingCart, X, Info } from 'lucide-react';
 
@@ -271,11 +272,10 @@ export function ProductDetail() {
             className="space-y-6"
           >
             <div className="aspect-square rounded-3xl overflow-hidden bg-zinc-100 relative shadow-inner">
-              <img
+              <ImageZoom
                 src={activeImage || product.image}
                 alt={product.name}
-                className="w-full h-full object-cover transition-all duration-500"
-                referrerPolicy="no-referrer"
+                className="w-full h-full"
               />
               <button 
                 onClick={() => toggleWishlist(product)}

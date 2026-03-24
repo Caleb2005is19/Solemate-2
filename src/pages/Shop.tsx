@@ -10,6 +10,7 @@ import { Product } from '../types';
 import { formatPrice } from '../utils';
 import { ShoppingBag, Heart, Star, ChevronRight, ChevronLeft } from 'lucide-react';
 import { RecentlyViewed } from '../components/RecentlyViewed';
+import { ImageZoom } from '../components/ImageZoom';
 
 export function Shop() {
   const { products } = useStore();
@@ -322,11 +323,10 @@ export function Shop() {
 
                 {/* Left: Image Gallery */}
                 <div className="w-full md:w-1/2 bg-zinc-100 relative group/gallery">
-                  <img 
+                  <ImageZoom 
                     src={(quickViewProduct.colors?.find(c => c.name === quickViewColor)?.images || quickViewProduct.images || [quickViewProduct.image])[activeImageIndex]} 
                     alt={quickViewProduct.name}
-                    className="w-full h-full object-cover"
-                    referrerPolicy="no-referrer"
+                    className="w-full h-full"
                   />
                   
                   {/* Gallery Navigation */}

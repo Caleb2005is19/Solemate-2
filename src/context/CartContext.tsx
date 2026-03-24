@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
 import { CartItem, Product } from '../types';
 
 interface CartContextType {
@@ -52,16 +52,20 @@ export function CartProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('recently_viewed', JSON.stringify(recentlyViewed));
   }, [recentlyViewed]);
 
-  const addToRecentlyViewed = (product: Product) => {
+  const addToRecentlyViewed = useCallback((product: Product) => {
     setRecentlyViewed((prev) => {
+      // If the product is already at the front, don't update state to avoid unnecessary re-renders
+      if (prev.length > 0 && prev[0].id === product.id) {
+        return prev;
+      }
       // Remove if already exists to move to front
       const filtered = prev.filter(p => p.id !== product.id);
       // Add to front and limit to 10
       return [product, ...filtered].slice(0, 10);
     });
-  };
+  }, []);
 
-  const addToCart = (product: Product, size: number, color?: string) => {
+  const addToCart = useCallback((product: Product, size: number, color?: string) => {
     const colorData = product.colors?.find(c => c.name === color);
     const itemImage = (colorData && colorData.images.length > 0) ? colorData.images[0] : product.image;
 
@@ -81,15 +85,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
       return [...prev, { ...product, image: itemImage, quantity: 1, selectedSize: size, selectedColor: color }];
     });
     setIsCartOpen(true);
-  };
+  }, []);
 
-  const removeFromCart = (id: string, size: number, color?: string) => {
+  const removeFromCart = useCallback((id: string, size: number, color?: string) => {
     setItems((prev) => prev.filter((item) => 
       !(item.id === id && item.selectedSize === size && item.selectedColor === color)
     ));
-  };
+  }, []);
 
-  const updateQuantity = (id: string, size: number, quantity: number, color?: string) => {
+  const updateQuantity = useCallback((id: string, size: number, quantity: number, color?: string) => {
     if (quantity < 1) {
       removeFromCart(id, size, color);
       return;
@@ -101,25 +105,25 @@ export function CartProvider({ children }: { children: ReactNode }) {
           : item
       )
     );
-  };
+  }, [removeFromCart]);
 
-  const clearCart = () => setItems([]);
+  const clearCart = useCallback(() => setItems([]), []);
 
-  const toggleWishlist = (product: Product) => {
+  const toggleWishlist = useCallback((product: Product) => {
     setWishlistItems((prev) => {
       if (prev.find(item => item.id === product.id)) {
         return prev.filter(item => item.id !== product.id);
       }
       return [...prev, product];
     });
-  };
+  }, []);
 
-  const isInWishlist = (id: string) => {
+  const isInWishlist = useCallback((id: string) => {
     return wishlistItems.some(item => item.id === id);
-  };
+  }, [wishlistItems]);
 
-  const cartTotal = items.reduce((total, item) => total + item.price * item.quantity, 0);
-  const cartCount = items.reduce((count, item) => count + item.quantity, 0);
+  const cartTotal = useMemo(() => items.reduce((total, item) => total + item.price * item.quantity, 0), [items]);
+  const cartCount = useMemo(() => items.reduce((count, item) => count + item.quantity, 0), [items]);
 
   return (
     <CartContext.Provider

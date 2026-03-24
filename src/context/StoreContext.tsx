@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
 import { Product, Order, OrderStatus, Seller, UserProfile } from '../types';
 import { db, auth } from '../firebase';
 import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, getDoc, query, where, Query, or } from 'firebase/firestore';
@@ -204,38 +204,38 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return () => unsubOrders();
   }, [currentUser, isAdmin, currentSellerId, lastReadTimestamp]);
 
-  const markOrdersAsRead = () => {
+  const markOrdersAsRead = useCallback(() => {
     const now = Date.now();
     setLastReadTimestamp(now);
     localStorage.setItem('lastReadOrders', now.toString());
     setUnreadOrdersCount(0);
-  };
+  }, []);
 
-  const addProduct = async (p: Product) => {
+  const addProduct = useCallback(async (p: Product) => {
     try {
       await setDoc(doc(db, 'products', p.id), stripUndefined(p));
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, `products/${p.id}`);
     }
-  };
+  }, []);
   
-  const updateProduct = async (id: string, updates: Partial<Product>) => {
+  const updateProduct = useCallback(async (id: string, updates: Partial<Product>) => {
     try {
       await updateDoc(doc(db, 'products', id), stripUndefined(updates));
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `products/${id}`);
     }
-  };
+  }, []);
     
-  const deleteProduct = async (id: string) => {
+  const deleteProduct = useCallback(async (id: string) => {
     try {
       await deleteDoc(doc(db, 'products', id));
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `products/${id}`);
     }
-  };
+  }, []);
 
-  const addOrder = async (o: Order) => {
+  const addOrder = useCallback(async (o: Order) => {
     try {
       // Extract unique seller IDs from items
       const sellerIds = Array.from(new Set(o.items.map(item => item.sellerId).filter(Boolean)));
@@ -244,41 +244,41 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, `orders/${o.id}`);
     }
-  };
+  }, []);
   
-  const updateOrderStatus = async (id: string, status: OrderStatus) => {
+  const updateOrderStatus = useCallback(async (id: string, status: OrderStatus) => {
     try {
       await updateDoc(doc(db, 'orders', id), { status });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `orders/${id}`);
     }
-  };
+  }, []);
 
-  const addSeller = async (s: Seller) => {
+  const addSeller = useCallback(async (s: Seller) => {
     try {
       await setDoc(doc(db, 'sellers', s.id), s);
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, `sellers/${s.id}`);
     }
-  };
+  }, []);
   
-  const updateSeller = async (id: string, updates: Partial<Seller>) => {
+  const updateSeller = useCallback(async (id: string, updates: Partial<Seller>) => {
     try {
       await updateDoc(doc(db, 'sellers', id), updates);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `sellers/${id}`);
     }
-  };
+  }, []);
     
-  const deleteSeller = async (id: string) => {
+  const deleteSeller = useCallback(async (id: string) => {
     try {
       await deleteDoc(doc(db, 'sellers', id));
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `sellers/${id}`);
     }
-  };
+  }, []);
 
-  const updateUserProfile = async (profile: Partial<UserProfile>) => {
+  const updateUserProfile = useCallback(async (profile: Partial<UserProfile>) => {
     if (!currentUser) return;
     try {
       await updateDoc(doc(db, 'users', currentUser.uid), profile);
@@ -286,7 +286,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `users/${currentUser.uid}`);
     }
-  };
+  }, [currentUser]);
 
   return (
     <StoreContext.Provider value={{ 
