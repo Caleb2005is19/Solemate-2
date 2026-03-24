@@ -1,13 +1,12 @@
 import React, { useState } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
-import { LayoutDashboard, Package, ShoppingCart, Plus, Edit, Trash, Check, X, Users, Link as LinkIcon, LogOut, Upload, TrendingUp, Image as ImageIcon, DollarSign, Tag, Info, Box } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, Plus, Edit, Trash, Check, X, Users, Link as LinkIcon, LogOut, Upload, TrendingUp, Image as ImageIcon, DollarSign, Tag, Info, Box, Printer } from 'lucide-react';
 import { Product, OrderStatus, Order, Seller } from '../types';
 import { formatPrice } from '../utils';
 import { loginWithGoogle, logout } from '../firebase';
 import { uploadToCloudinary } from '../services/cloudinaryService';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
-import { ImageWithSkeleton } from '../components/ImageWithSkeleton';
 
 export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
   const { sellerId } = useParams<{ sellerId: string }>();
@@ -230,6 +229,231 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
     navigator.clipboard.writeText(url);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const handlePrintInvoice = (order: Order) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const itemsHtml = order.items.map(item => `
+      <tr>
+        <td style="padding: 12px; border-bottom: 1px solid #eee;">
+          <div style="font-weight: bold;">${item.name}</div>
+          <div style="font-size: 12px; color: #666;">Size: ${item.selectedSize}</div>
+        </td>
+        <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>
+        <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: right;">${formatPrice(item.price)}</td>
+        <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: right;">${formatPrice(item.price * item.quantity)}</td>
+      </tr>
+    `).join('');
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Invoice #${order.id}</title>
+          <style>
+            body { font-family: sans-serif; color: #333; line-height: 1.5; padding: 40px; }
+            .header { display: flex; justify-content: space-between; margin-bottom: 40px; border-bottom: 2px solid #f97316; padding-bottom: 20px; }
+            .logo { font-size: 24px; font-weight: bold; color: #f97316; }
+            .invoice-info { text-align: right; }
+            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-bottom: 40px; }
+            .section-title { font-size: 12px; font-weight: bold; text-transform: uppercase; color: #999; margin-bottom: 10px; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 40px; }
+            th { text-align: left; padding: 12px; background: #f9fafb; border-bottom: 1px solid #eee; font-size: 12px; text-transform: uppercase; color: #666; }
+            .totals { margin-left: auto; width: 300px; }
+            .total-row { display: flex; justify-content: space-between; padding: 8px 0; }
+            .total-row.grand { border-top: 2px solid #eee; margin-top: 10px; padding-top: 10px; font-weight: bold; font-size: 18px; color: #f97316; }
+            .footer { margin-top: 60px; text-align: center; font-size: 12px; color: #999; border-top: 1px solid #eee; padding-top: 20px; }
+            @media print {
+              body { padding: 0; }
+              .no-print { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="logo">Solemate.co.ke</div>
+            <div class="invoice-info">
+              <div style="font-weight: bold; font-size: 20px;">INVOICE</div>
+              <div>Order ID: #${order.id}</div>
+              <div>Date: ${new Date(order.date).toLocaleDateString()}</div>
+            </div>
+          </div>
+
+          <div class="grid">
+            <div>
+              <div class="section-title">Bill To</div>
+              <div style="font-weight: bold;">${order.customerInfo.firstName} ${order.customerInfo.lastName}</div>
+              <div>${order.customerInfo.email}</div>
+              <div>${order.customerInfo.phone}</div>
+            </div>
+            <div>
+              <div class="section-title">Shipping Address</div>
+              <div>${order.customerInfo.location}</div>
+              <div>${order.customerInfo.city}</div>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Item Description</th>
+                <th style="text-align: center;">Qty</th>
+                <th style="text-align: right;">Price</th>
+                <th style="text-align: right;">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+            </tbody>
+          </table>
+
+          <div class="totals">
+            <div class="total-row">
+              <span>Subtotal</span>
+              <span>${formatPrice(order.total - (order.deliveryFee || 0))}</span>
+            </div>
+            <div class="total-row">
+              <span>Delivery Fee</span>
+              <span>${order.deliveryFee === 0 ? 'Free' : formatPrice(order.deliveryFee || 0)}</span>
+            </div>
+            <div class="total-row grand">
+              <span>Total Amount</span>
+              <span>${formatPrice(order.total)}</span>
+            </div>
+          </div>
+
+          <div class="footer">
+            <p>Thank you for shopping with Solemate.co.ke!</p>
+            <p>For any inquiries, please contact us at +254 700 000 000</p>
+          </div>
+
+          <script>
+            window.onload = () => {
+              window.print();
+              setTimeout(() => window.close(), 500);
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
+  const handlePrintAllInvoices = () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const allInvoicesHtml = orders.map(order => {
+      const itemsHtml = order.items.map(item => `
+        <tr>
+          <td style="padding: 12px; border-bottom: 1px solid #eee;">
+            <div style="font-weight: bold;">${item.name}</div>
+            <div style="font-size: 12px; color: #666;">Size: ${item.selectedSize}</div>
+          </td>
+          <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>
+          <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: right;">${formatPrice(item.price)}</td>
+          <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: right;">${formatPrice(item.price * item.quantity)}</td>
+        </tr>
+      `).join('');
+
+      return `
+        <div class="invoice-page">
+          <div class="header">
+            <div class="logo">Solemate.co.ke</div>
+            <div class="invoice-info">
+              <div style="font-weight: bold; font-size: 20px;">INVOICE</div>
+              <div>Order ID: #${order.id}</div>
+              <div>Date: ${new Date(order.date).toLocaleDateString()}</div>
+            </div>
+          </div>
+
+          <div class="grid">
+            <div>
+              <div class="section-title">Bill To</div>
+              <div style="font-weight: bold;">${order.customerInfo.firstName} ${order.customerInfo.lastName}</div>
+              <div>${order.customerInfo.email}</div>
+              <div>${order.customerInfo.phone}</div>
+            </div>
+            <div>
+              <div class="section-title">Shipping Address</div>
+              <div>${order.customerInfo.location}</div>
+              <div>${order.customerInfo.city}</div>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Item Description</th>
+                <th style="text-align: center;">Qty</th>
+                <th style="text-align: right;">Price</th>
+                <th style="text-align: right;">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+            </tbody>
+          </table>
+
+          <div class="totals">
+            <div class="total-row">
+              <span>Subtotal</span>
+              <span>${formatPrice(order.total - (order.deliveryFee || 0))}</span>
+            </div>
+            <div class="total-row">
+              <span>Delivery Fee</span>
+              <span>${order.deliveryFee === 0 ? 'Free' : formatPrice(order.deliveryFee || 0)}</span>
+            </div>
+            <div class="total-row grand">
+              <span>Total Amount</span>
+              <span>${formatPrice(order.total)}</span>
+            </div>
+          </div>
+
+          <div class="footer">
+            <p>Thank you for shopping with Solemate.co.ke!</p>
+            <p>For any inquiries, please contact us at +254 700 000 000</p>
+          </div>
+        </div>
+      `;
+    }).join('<div style="page-break-after: always;"></div>');
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Bulk Invoices</title>
+          <style>
+            body { font-family: sans-serif; color: #333; line-height: 1.5; padding: 0; margin: 0; }
+            .invoice-page { padding: 40px; }
+            .header { display: flex; justify-content: space-between; margin-bottom: 40px; border-bottom: 2px solid #f97316; padding-bottom: 20px; }
+            .logo { font-size: 24px; font-weight: bold; color: #f97316; }
+            .invoice-info { text-align: right; }
+            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-bottom: 40px; }
+            .section-title { font-size: 12px; font-weight: bold; text-transform: uppercase; color: #999; margin-bottom: 10px; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 40px; }
+            th { text-align: left; padding: 12px; background: #f9fafb; border-bottom: 1px solid #eee; font-size: 12px; text-transform: uppercase; color: #666; }
+            .totals { margin-left: auto; width: 300px; }
+            .total-row { display: flex; justify-content: space-between; padding: 8px 0; }
+            .total-row.grand { border-top: 2px solid #eee; margin-top: 10px; padding-top: 10px; font-weight: bold; font-size: 18px; color: #f97316; }
+            .footer { margin-top: 60px; text-align: center; font-size: 12px; color: #999; border-top: 1px solid #eee; padding-top: 20px; }
+            @media print {
+              .invoice-page { padding: 0; }
+            }
+          </style>
+        </head>
+        <body>
+          ${allInvoicesHtml}
+          <script>
+            window.onload = () => {
+              window.print();
+              setTimeout(() => window.close(), 500);
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
   };
 
   const totalRevenue = orders.reduce((sum, o) => sum + o.total, 0);
@@ -496,7 +720,7 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
                             <div className={`aspect-square rounded-[2rem] overflow-hidden border-2 border-dashed transition-all flex flex-col items-center justify-center gap-4 ${formData.image ? 'border-zinc-200 bg-zinc-50' : 'border-zinc-300 bg-zinc-50 hover:border-orange-500 hover:bg-orange-50'}`}>
                               {formData.image ? (
                                 <>
-                                  <ImageWithSkeleton src={formData.image} alt="Preview" className="w-full h-full object-cover" />
+                                  <img src={formData.image} alt="Preview" className="w-full h-full object-cover" />
                                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                     <button 
                                       type="button"
@@ -537,7 +761,7 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
                           <div className="grid grid-cols-3 gap-2">
                             {formData.images?.map((img, idx) => (
                               <div key={idx} className="relative aspect-square rounded-xl overflow-hidden group">
-                                <ImageWithSkeleton src={img} alt={`Gallery ${idx}`} className="w-full h-full object-cover" />
+                                <img src={img} alt={`Gallery ${idx}`} className="w-full h-full object-cover" />
                                 <button 
                                   type="button"
                                   onClick={() => removeGalleryImage(idx)}
@@ -781,7 +1005,7 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
                         <tr key={p.id} className="border-b border-zinc-50 hover:bg-zinc-50/50 transition-colors group">
                           <td className="p-6 flex items-center gap-4">
                             <div className="w-14 h-14 rounded-2xl overflow-hidden border border-zinc-100 bg-zinc-50 flex-shrink-0">
-                              <ImageWithSkeleton src={p.image} alt={p.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                              <img src={p.image} alt={p.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                             </div>
                             <div>
                               <p className="font-black text-zinc-900">{p.name}</p>
@@ -832,7 +1056,18 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
 
         {activeTab === 'orders' && (
           <div className="space-y-6">
-            <h1 className="text-3xl font-bold text-zinc-900">Orders</h1>
+            <div className="flex justify-between items-center">
+              <h1 className="text-3xl font-bold text-zinc-900">Orders</h1>
+              {orders.length > 0 && (
+                <button
+                  onClick={handlePrintAllInvoices}
+                  className="flex items-center gap-2 bg-white text-zinc-900 border border-zinc-200 px-4 py-2 rounded-xl hover:bg-zinc-50 transition-colors font-bold shadow-sm"
+                >
+                  <Printer className="w-4 h-4" />
+                  Print All Invoices
+                </button>
+              )}
+            </div>
             <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
@@ -878,7 +1113,16 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
                           </select>
                         </td>
                         <td className="p-4 text-sm">
-                          <button onClick={() => setViewingOrder(o)} className="text-orange-500 font-medium hover:underline">View Details</button>
+                          <div className="flex items-center gap-3">
+                            <button onClick={() => setViewingOrder(o)} className="text-orange-500 font-medium hover:underline">View Details</button>
+                            <button 
+                              onClick={() => handlePrintInvoice(o)}
+                              className="p-2 text-zinc-400 hover:text-zinc-900 transition-colors"
+                              title="Print Invoice"
+                            >
+                              <Printer className="w-4 h-4" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -892,7 +1136,16 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
               <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
                 <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
                   <div className="p-6 border-b border-zinc-100 flex justify-between items-center sticky top-0 bg-white">
-                    <h2 className="text-xl font-bold text-zinc-900">Order #{viewingOrder.id}</h2>
+                    <div className="flex items-center gap-4">
+                      <h2 className="text-xl font-bold text-zinc-900">Order #{viewingOrder.id}</h2>
+                      <button 
+                        onClick={() => handlePrintInvoice(viewingOrder)}
+                        className="flex items-center gap-2 px-3 py-1.5 bg-zinc-100 text-zinc-600 rounded-lg text-xs font-bold hover:bg-zinc-200 transition-colors"
+                      >
+                        <Printer className="w-4 h-4" />
+                        Print Invoice
+                      </button>
+                    </div>
                     <button onClick={() => setViewingOrder(null)} className="p-2 hover:bg-zinc-100 rounded-full transition-colors">
                       <X className="w-5 h-5" />
                     </button>
@@ -921,7 +1174,7 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
                       <div className="space-y-4">
                         {viewingOrder.items.map((item, idx) => (
                           <div key={idx} className="flex items-center gap-4 p-4 bg-zinc-50 rounded-xl">
-                            <ImageWithSkeleton src={item.image} alt={item.name} className="w-16 h-16 object-cover rounded-lg" />
+                            <img src={item.image} alt={item.name} className="w-16 h-16 object-cover rounded-lg" />
                             <div className="flex-1">
                               <h4 className="font-bold text-zinc-900">{item.name}</h4>
                               <p className="text-sm text-zinc-500">Size: {item.selectedSize} | Qty: {item.quantity}</p>
