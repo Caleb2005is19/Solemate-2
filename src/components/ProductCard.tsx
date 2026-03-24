@@ -2,11 +2,9 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Product } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
-import { Heart, Eye, ShoppingCart } from 'lucide-react';
+import { Heart, Eye, ShoppingCart, Link as LinkIcon, Check } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { formatPrice } from '../utils';
-
-import { ImageWithSkeleton } from './ImageWithSkeleton';
 
 interface ProductCardProps {
   product: Product;
@@ -17,6 +15,15 @@ export function ProductCard({ product, onQuickView }: ProductCardProps) {
   const { toggleWishlist, isInWishlist, addToCart } = useCart();
   const isWishlisted = isInWishlist(product.id);
   const [isHovered, setIsHovered] = React.useState(false);
+  const [copied, setCopied] = React.useState(false);
+
+  const handleCopyLink = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const url = `${window.location.origin}/product/${product.id}`;
+    navigator.clipboard.writeText(url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   return (
     <motion.article
@@ -27,11 +34,11 @@ export function ProductCard({ product, onQuickView }: ProductCardProps) {
     >
       <div className="relative aspect-[4/5] overflow-hidden bg-zinc-100">
         <Link to={`/product/${product.id}`} aria-label={`View details for ${product.name}`} className="block h-full">
-          <ImageWithSkeleton
+          <img
             src={product.image}
             alt={`${product.brand} ${product.name}`}
             className="object-cover w-full h-full group-hover:scale-110 transition-transform duration-700 ease-out"
-            containerClassName="h-full"
+            referrerPolicy="no-referrer"
           />
           {/* Overlay on hover */}
           <div className="absolute inset-0 bg-black/5 group-hover:bg-black/20 transition-colors duration-300" />
@@ -75,6 +82,16 @@ export function ProductCard({ product, onQuickView }: ProductCardProps) {
             className="p-2.5 bg-white/90 backdrop-blur-md rounded-full text-zinc-400 hover:text-orange-500 hover:scale-110 transition-all duration-300 shadow-lg sm:opacity-0 sm:group-hover:opacity-100 sm:translate-x-4 sm:group-hover:translate-x-0"
           >
             <Eye className="w-4 h-4" />
+          </button>
+
+          <button 
+            onClick={handleCopyLink}
+            className={`p-2.5 bg-white/90 backdrop-blur-md rounded-full transition-all duration-300 shadow-lg sm:opacity-0 sm:group-hover:opacity-100 sm:translate-x-4 sm:group-hover:translate-x-0 ${
+              copied ? 'text-green-500' : 'text-zinc-400 hover:text-blue-500 hover:scale-110'
+            }`}
+            title="Copy product link"
+          >
+            {copied ? <Check className="w-4 h-4" /> : <LinkIcon className="w-4 h-4" />}
           </button>
         </div>
 

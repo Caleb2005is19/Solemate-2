@@ -18,6 +18,8 @@ interface CartContextType {
   
   searchQuery: string;
   setSearchQuery: (query: string) => void;
+  recentlyViewed: Product[];
+  addToRecentlyViewed: (product: Product) => void;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -32,6 +34,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const saved = localStorage.getItem('wishlist_items');
     return saved ? JSON.parse(saved) : [];
   });
+  const [recentlyViewed, setRecentlyViewed] = useState<Product[]>(() => {
+    const saved = localStorage.getItem('recently_viewed');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
@@ -41,6 +47,19 @@ export function CartProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     localStorage.setItem('wishlist_items', JSON.stringify(wishlistItems));
   }, [wishlistItems]);
+
+  useEffect(() => {
+    localStorage.setItem('recently_viewed', JSON.stringify(recentlyViewed));
+  }, [recentlyViewed]);
+
+  const addToRecentlyViewed = (product: Product) => {
+    setRecentlyViewed((prev) => {
+      // Remove if already exists to move to front
+      const filtered = prev.filter(p => p.id !== product.id);
+      // Add to front and limit to 10
+      return [product, ...filtered].slice(0, 10);
+    });
+  };
 
   const addToCart = (product: Product, size: number, color?: string) => {
     const colorData = product.colors?.find(c => c.name === color);
@@ -118,7 +137,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
         toggleWishlist,
         isInWishlist,
         searchQuery,
-        setSearchQuery
+        setSearchQuery,
+        recentlyViewed,
+        addToRecentlyViewed
       }}
     >
       {children}

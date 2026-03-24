@@ -2,14 +2,14 @@ import React, { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
 import { useCart } from '../context/CartContext';
-import { ArrowLeft, Star, Truck, ShieldCheck, ArrowRight, MessageCircle, Heart, ShoppingBag, ChevronRight, ChevronLeft, Shirt, Layers, Watch, Glasses } from 'lucide-react';
+import { ArrowLeft, Star, Truck, ShieldCheck, ArrowRight, MessageCircle, Heart, ShoppingBag, ChevronRight, ChevronLeft, Shirt, Layers, Watch, Glasses, Link as LinkIcon, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { formatPrice } from '../utils';
 import { SEO } from '../components/SEO';
 import { ProductCard } from '../components/ProductCard';
+import { RecentlyViewed } from '../components/RecentlyViewed';
 import { Product } from '../types';
 import { ShoppingCart, X, Info } from 'lucide-react';
-import { ImageWithSkeleton } from '../components/ImageWithSkeleton';
 
 const SIZES = [7, 7.5, 8, 8.5, 9, 9.5, 10, 10.5, 11, 11.5, 12, 13];
 
@@ -139,7 +139,7 @@ export function ProductDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { products } = useStore();
-  const { addToCart, toggleWishlist, isInWishlist } = useCart();
+  const { addToCart, toggleWishlist, isInWishlist, addToRecentlyViewed } = useCart();
   
   const product = products.find(p => p.id === id);
   const [selectedSize, setSelectedSize] = useState<number | null>(null);
@@ -150,6 +150,14 @@ export function ProductDetail() {
   const [qvSize, setQvSize] = useState<number | null>(null);
   const [qvColor, setQvColor] = useState<string | null>(null);
   const [qvImageIndex, setQvImageIndex] = useState(0);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyLink = () => {
+    const url = window.location.href;
+    navigator.clipboard.writeText(url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   // Reset state when product changes
   React.useEffect(() => {
@@ -159,8 +167,9 @@ export function ProductDetail() {
       setSelectedSize(null);
       setError(null);
       window.scrollTo(0, 0);
+      addToRecentlyViewed(product);
     }
-  }, [id, product]);
+  }, [id, product, addToRecentlyViewed]);
 
   if (!product) {
     return (
@@ -262,11 +271,11 @@ export function ProductDetail() {
             className="space-y-6"
           >
             <div className="aspect-square rounded-3xl overflow-hidden bg-zinc-100 relative shadow-inner">
-              <ImageWithSkeleton
+              <img
                 src={activeImage || product.image}
                 alt={product.name}
                 className="w-full h-full object-cover transition-all duration-500"
-                containerClassName="h-full"
+                referrerPolicy="no-referrer"
               />
               <button 
                 onClick={() => toggleWishlist(product)}
@@ -286,7 +295,7 @@ export function ProductDetail() {
                     activeImage === img ? 'border-zinc-900 scale-105' : 'border-transparent opacity-60 hover:opacity-100'
                   }`}
                 >
-                  <ImageWithSkeleton src={img} alt={`${product.name} ${idx}`} className="w-full h-full object-cover" containerClassName="h-full" />
+                  <img src={img} alt={`${product.name} ${idx}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                 </button>
               ))}
             </div>
@@ -303,9 +312,29 @@ export function ProductDetail() {
               <p className="text-orange-500 font-bold tracking-wider uppercase text-sm mb-2">
                 {product.brand} • {product.gender}
               </p>
-              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-zinc-900 tracking-tight mb-4">
-                {product.name}
-              </h1>
+              <div className="flex items-center justify-between gap-4 mb-4">
+                <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-zinc-900 tracking-tight">
+                  {product.name}
+                </h1>
+                <button 
+                  onClick={handleCopyLink}
+                  className={`flex-shrink-0 p-3 rounded-2xl transition-all duration-300 border ${
+                    copied 
+                      ? 'bg-green-50 text-green-600 border-green-100' 
+                      : 'bg-zinc-50 text-zinc-400 border-zinc-100 hover:text-blue-500 hover:bg-white hover:shadow-md'
+                  }`}
+                  title="Copy product link"
+                >
+                  {copied ? (
+                    <div className="flex items-center gap-2">
+                      <Check className="w-5 h-5" />
+                      <span className="text-xs font-bold uppercase tracking-widest">Copied</span>
+                    </div>
+                  ) : (
+                    <LinkIcon className="w-5 h-5" />
+                  )}
+                </button>
+              </div>
               <div className="flex items-center gap-4">
                 <p className="text-3xl font-bold text-zinc-900">{formatPrice(product.price)}</p>
                 {product.originalPrice && (
@@ -555,11 +584,11 @@ export function ProductDetail() {
 
                 {/* Left: Image Gallery */}
                 <div className="w-full md:w-1/2 bg-zinc-100 relative group/gallery">
-                  <ImageWithSkeleton 
+                  <img 
                     src={(quickViewProduct.colors?.find(c => c.name === qvColor)?.images || quickViewProduct.images || [quickViewProduct.image])[qvImageIndex]} 
                     alt={quickViewProduct.name}
                     className="w-full h-full object-cover"
-                    containerClassName="h-full"
+                    referrerPolicy="no-referrer"
                   />
                   
                   {/* Gallery Navigation */}
@@ -675,6 +704,10 @@ export function ProductDetail() {
             </div>
           )}
         </AnimatePresence>
+      </div>
+
+      <div className="mt-20">
+        <RecentlyViewed />
       </div>
     </div>
   );

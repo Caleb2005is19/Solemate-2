@@ -232,229 +232,316 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
   };
 
   const handlePrintInvoice = (order: Order) => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
+    if (!order) return;
+    
+    try {
+      const printWindow = window.open('', '_blank', 'width=800,height=600');
+      if (!printWindow) {
+        alert('Popup blocked! Please allow popups for Solemate.co.ke to print invoices.');
+        return;
+      }
 
-    const itemsHtml = order.items.map(item => `
-      <tr>
-        <td style="padding: 12px; border-bottom: 1px solid #eee;">
-          <div style="font-weight: bold;">${item.name}</div>
-          <div style="font-size: 12px; color: #666;">Size: ${item.selectedSize}</div>
-        </td>
-        <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>
-        <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: right;">${formatPrice(item.price)}</td>
-        <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: right;">${formatPrice(item.price * item.quantity)}</td>
-      </tr>
-    `).join('');
+      // Defensive data extraction
+      const customerInfo = order.customerInfo || { firstName: '', lastName: '', email: '', phone: '', location: '', city: '' };
+      const firstName = customerInfo.firstName || '';
+      const lastName = customerInfo.lastName || '';
+      const email = customerInfo.email || '';
+      const phone = customerInfo.phone || '';
+      const location = customerInfo.location || '';
+      const city = customerInfo.city || '';
+      const items = order.items || [];
+      const total = order.total || 0;
+      const deliveryFee = order.deliveryFee || 0;
+      const orderId = order.id || 'N/A';
+      const orderDate = order.date ? new Date(order.date).toLocaleDateString() : 'N/A';
 
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Invoice #${order.id}</title>
-          <style>
-            body { font-family: sans-serif; color: #333; line-height: 1.5; padding: 40px; }
-            .header { display: flex; justify-content: space-between; margin-bottom: 40px; border-bottom: 2px solid #f97316; padding-bottom: 20px; }
-            .logo { font-size: 24px; font-weight: bold; color: #f97316; }
-            .invoice-info { text-align: right; }
-            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-bottom: 40px; }
-            .section-title { font-size: 12px; font-weight: bold; text-transform: uppercase; color: #999; margin-bottom: 10px; }
-            table { width: 100%; border-collapse: collapse; margin-bottom: 40px; }
-            th { text-align: left; padding: 12px; background: #f9fafb; border-bottom: 1px solid #eee; font-size: 12px; text-transform: uppercase; color: #666; }
-            .totals { margin-left: auto; width: 300px; }
-            .total-row { display: flex; justify-content: space-between; padding: 8px 0; }
-            .total-row.grand { border-top: 2px solid #eee; margin-top: 10px; padding-top: 10px; font-weight: bold; font-size: 18px; color: #f97316; }
-            .footer { margin-top: 60px; text-align: center; font-size: 12px; color: #999; border-top: 1px solid #eee; padding-top: 20px; }
-            @media print {
-              body { padding: 0; }
-              .no-print { display: none; }
-            }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <div class="logo">Solemate.co.ke</div>
-            <div class="invoice-info">
-              <div style="font-weight: bold; font-size: 20px;">INVOICE</div>
-              <div>Order ID: #${order.id}</div>
-              <div>Date: ${new Date(order.date).toLocaleDateString()}</div>
+      const itemsHtml = items.map(item => {
+        const itemPrice = Number(item.price) || 0;
+        const itemQty = Number(item.quantity) || 0;
+        return `
+          <tr>
+            <td style="padding: 12px; border-bottom: 1px solid #eee;">
+              <div style="font-weight: bold;">${item.name || 'Unknown Item'}</div>
+              <div style="font-size: 12px; color: #666;">Size: ${item.selectedSize || 'N/A'}</div>
+            </td>
+            <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: center;">${itemQty}</td>
+            <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: right;">${formatPrice(itemPrice)}</td>
+            <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: right;">${formatPrice(itemPrice * itemQty)}</td>
+          </tr>
+        `;
+      }).join('');
+
+      const content = `
+        <!DOCTYPE html>
+        <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Invoice #${orderId}</title>
+            <style>
+              body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #333; line-height: 1.5; padding: 40px; margin: 0; }
+              .header { display: flex; justify-content: space-between; margin-bottom: 40px; border-bottom: 2px solid #f97316; padding-bottom: 20px; }
+              .logo { font-size: 24px; font-weight: bold; color: #f97316; }
+              .invoice-info { text-align: right; }
+              .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-bottom: 40px; }
+              .section-title { font-size: 12px; font-weight: bold; text-transform: uppercase; color: #999; margin-bottom: 10px; }
+              table { width: 100%; border-collapse: collapse; margin-bottom: 40px; }
+              th { text-align: left; padding: 12px; background: #f9fafb; border-bottom: 1px solid #eee; font-size: 12px; text-transform: uppercase; color: #666; }
+              .totals { margin-left: auto; width: 300px; }
+              .total-row { display: flex; justify-content: space-between; padding: 8px 0; }
+              .total-row.grand { border-top: 2px solid #eee; margin-top: 10px; padding-top: 10px; font-weight: bold; font-size: 18px; color: #f97316; }
+              .footer { margin-top: 60px; text-align: center; font-size: 12px; color: #999; border-top: 1px solid #eee; padding-top: 20px; }
+              @media print {
+                body { padding: 0; }
+                .no-print { display: none; }
+              }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <div class="logo">Solemate.co.ke</div>
+              <div class="invoice-info">
+                <div style="font-weight: bold; font-size: 20px;">INVOICE</div>
+                <div>Order ID: #${orderId}</div>
+                <div>Date: ${orderDate}</div>
+              </div>
             </div>
-          </div>
 
-          <div class="grid">
-            <div>
-              <div class="section-title">Bill To</div>
-              <div style="font-weight: bold;">${order.customerInfo.firstName} ${order.customerInfo.lastName}</div>
-              <div>${order.customerInfo.email}</div>
-              <div>${order.customerInfo.phone}</div>
+            <div class="grid">
+              <div>
+                <div class="section-title">Bill To</div>
+                <div style="font-weight: bold;">${firstName} ${lastName}</div>
+                <div>${email}</div>
+                <div>${phone}</div>
+              </div>
+              <div>
+                <div class="section-title">Shipping Address</div>
+                <div>${location}</div>
+                <div>${city}</div>
+              </div>
             </div>
-            <div>
-              <div class="section-title">Shipping Address</div>
-              <div>${order.customerInfo.location}</div>
-              <div>${order.customerInfo.city}</div>
-            </div>
-          </div>
 
-          <table>
-            <thead>
-              <tr>
-                <th>Item Description</th>
-                <th style="text-align: center;">Qty</th>
-                <th style="text-align: right;">Price</th>
-                <th style="text-align: right;">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${itemsHtml}
-            </tbody>
-          </table>
+            <table>
+              <thead>
+                <tr>
+                  <th>Item Description</th>
+                  <th style="text-align: center;">Qty</th>
+                  <th style="text-align: right;">Price</th>
+                  <th style="text-align: right;">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${itemsHtml}
+              </tbody>
+            </table>
 
-          <div class="totals">
-            <div class="total-row">
-              <span>Subtotal</span>
-              <span>${formatPrice(order.total - (order.deliveryFee || 0))}</span>
+            <div class="totals">
+              <div class="total-row">
+                <span>Subtotal</span>
+                <span>${formatPrice(total - deliveryFee)}</span>
+              </div>
+              <div class="total-row">
+                <span>Delivery Fee</span>
+                <span>${deliveryFee === 0 ? 'Free' : formatPrice(deliveryFee)}</span>
+              </div>
+              <div class="total-row grand">
+                <span>Total Amount</span>
+                <span>${formatPrice(total)}</span>
+              </div>
             </div>
-            <div class="total-row">
-              <span>Delivery Fee</span>
-              <span>${order.deliveryFee === 0 ? 'Free' : formatPrice(order.deliveryFee || 0)}</span>
-            </div>
-            <div class="total-row grand">
-              <span>Total Amount</span>
-              <span>${formatPrice(order.total)}</span>
-            </div>
-          </div>
 
-          <div class="footer">
-            <p>Thank you for shopping with Solemate.co.ke!</p>
-            <p>For any inquiries, please contact us at +254 700 000 000</p>
-          </div>
+            <div class="footer">
+              <p>Thank you for shopping with Solemate.co.ke!</p>
+              <p>For any inquiries, please contact us at +254 700 000 000</p>
+            </div>
 
-          <script>
-            window.onload = () => {
-              window.print();
-              setTimeout(() => window.close(), 500);
-            };
-          </script>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
+            <script>
+              function startPrint() {
+                if (window.print_started) return;
+                window.print_started = true;
+                setTimeout(() => {
+                  window.print();
+                  window.close();
+                }, 500);
+              }
+              window.onload = startPrint;
+              // Fallback for browsers where onload might not fire
+              setTimeout(startPrint, 2000);
+            </script>
+          </body>
+        </html>
+      `;
+
+      printWindow.document.open();
+      printWindow.document.write(content);
+      printWindow.document.close();
+    } catch (err) {
+      console.error('Printing error:', err);
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      alert(`There was a problem with the printing: ${errorMsg}. Please try again.`);
+    }
   };
 
   const handlePrintAllInvoices = () => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
+    if (!orders || orders.length === 0) {
+      alert('No orders to print.');
+      return;
+    }
 
-    const allInvoicesHtml = orders.map(order => {
-      const itemsHtml = order.items.map(item => `
-        <tr>
-          <td style="padding: 12px; border-bottom: 1px solid #eee;">
-            <div style="font-weight: bold;">${item.name}</div>
-            <div style="font-size: 12px; color: #666;">Size: ${item.selectedSize}</div>
-          </td>
-          <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>
-          <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: right;">${formatPrice(item.price)}</td>
-          <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: right;">${formatPrice(item.price * item.quantity)}</td>
-        </tr>
-      `).join('');
+    try {
+      const printWindow = window.open('', '_blank', 'width=800,height=600');
+      if (!printWindow) {
+        alert('Popup blocked! Please allow popups for Solemate.co.ke to print invoices.');
+        return;
+      }
 
-      return `
-        <div class="invoice-page">
-          <div class="header">
-            <div class="logo">Solemate.co.ke</div>
-            <div class="invoice-info">
-              <div style="font-weight: bold; font-size: 20px;">INVOICE</div>
-              <div>Order ID: #${order.id}</div>
-              <div>Date: ${new Date(order.date).toLocaleDateString()}</div>
+      const allInvoicesHtml = orders.map(order => {
+        const customerInfo = order.customerInfo || { firstName: '', lastName: '', email: '', phone: '', location: '', city: '' };
+        const firstName = customerInfo.firstName || '';
+        const lastName = customerInfo.lastName || '';
+        const email = customerInfo.email || '';
+        const phone = customerInfo.phone || '';
+        const location = customerInfo.location || '';
+        const city = customerInfo.city || '';
+        const items = order.items || [];
+        const total = order.total || 0;
+        const deliveryFee = order.deliveryFee || 0;
+        const orderId = order.id || 'N/A';
+        const orderDate = order.date ? new Date(order.date).toLocaleDateString() : 'N/A';
+
+        const itemsHtml = items.map(item => {
+          const itemPrice = Number(item.price) || 0;
+          const itemQty = Number(item.quantity) || 0;
+          return `
+            <tr>
+              <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                <div style="font-weight: bold;">${item.name || 'Unknown Item'}</div>
+                <div style="font-size: 12px; color: #666;">Size: ${item.selectedSize || 'N/A'}</div>
+              </td>
+              <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: center;">${itemQty}</td>
+              <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: right;">${formatPrice(itemPrice)}</td>
+              <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: right;">${formatPrice(itemPrice * itemQty)}</td>
+            </tr>
+          `;
+        }).join('');
+
+        return `
+          <div class="invoice-page">
+            <div class="header">
+              <div class="logo">Solemate.co.ke</div>
+              <div class="invoice-info">
+                <div style="font-weight: bold; font-size: 20px;">INVOICE</div>
+                <div>Order ID: #${orderId}</div>
+                <div>Date: ${orderDate}</div>
+              </div>
+            </div>
+
+            <div class="grid">
+              <div>
+                <div class="section-title">Bill To</div>
+                <div style="font-weight: bold;">${firstName} ${lastName}</div>
+                <div>${email}</div>
+                <div>${phone}</div>
+              </div>
+              <div>
+                <div class="section-title">Shipping Address</div>
+                <div>${location}</div>
+                <div>${city}</div>
+              </div>
+            </div>
+
+            <table>
+              <thead>
+                <tr>
+                  <th>Item Description</th>
+                  <th style="text-align: center;">Qty</th>
+                  <th style="text-align: right;">Price</th>
+                  <th style="text-align: right;">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${itemsHtml}
+              </tbody>
+            </table>
+
+            <div class="totals">
+              <div class="total-row">
+                <span>Subtotal</span>
+                <span>${formatPrice(total - deliveryFee)}</span>
+              </div>
+              <div class="total-row">
+                <span>Delivery Fee</span>
+                <span>${deliveryFee === 0 ? 'Free' : formatPrice(deliveryFee)}</span>
+              </div>
+              <div class="total-row grand">
+                <span>Total Amount</span>
+                <span>${formatPrice(total)}</span>
+              </div>
+            </div>
+
+            <div class="footer">
+              <p>Thank you for shopping with Solemate.co.ke!</p>
+              <p>For any inquiries, please contact us at +254 700 000 000</p>
             </div>
           </div>
+        `;
+      }).join('<div style="page-break-after: always;"></div>');
 
-          <div class="grid">
-            <div>
-              <div class="section-title">Bill To</div>
-              <div style="font-weight: bold;">${order.customerInfo.firstName} ${order.customerInfo.lastName}</div>
-              <div>${order.customerInfo.email}</div>
-              <div>${order.customerInfo.phone}</div>
-            </div>
-            <div>
-              <div class="section-title">Shipping Address</div>
-              <div>${order.customerInfo.location}</div>
-              <div>${order.customerInfo.city}</div>
-            </div>
-          </div>
-
-          <table>
-            <thead>
-              <tr>
-                <th>Item Description</th>
-                <th style="text-align: center;">Qty</th>
-                <th style="text-align: right;">Price</th>
-                <th style="text-align: right;">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${itemsHtml}
-            </tbody>
-          </table>
-
-          <div class="totals">
-            <div class="total-row">
-              <span>Subtotal</span>
-              <span>${formatPrice(order.total - (order.deliveryFee || 0))}</span>
-            </div>
-            <div class="total-row">
-              <span>Delivery Fee</span>
-              <span>${order.deliveryFee === 0 ? 'Free' : formatPrice(order.deliveryFee || 0)}</span>
-            </div>
-            <div class="total-row grand">
-              <span>Total Amount</span>
-              <span>${formatPrice(order.total)}</span>
-            </div>
-          </div>
-
-          <div class="footer">
-            <p>Thank you for shopping with Solemate.co.ke!</p>
-            <p>For any inquiries, please contact us at +254 700 000 000</p>
-          </div>
-        </div>
+      const content = `
+        <!DOCTYPE html>
+        <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Bulk Invoices</title>
+            <style>
+              body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #333; line-height: 1.5; padding: 0; margin: 0; }
+              .invoice-page { padding: 40px; }
+              .header { display: flex; justify-content: space-between; margin-bottom: 40px; border-bottom: 2px solid #f97316; padding-bottom: 20px; }
+              .logo { font-size: 24px; font-weight: bold; color: #f97316; }
+              .invoice-info { text-align: right; }
+              .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-bottom: 40px; }
+              .section-title { font-size: 12px; font-weight: bold; text-transform: uppercase; color: #999; margin-bottom: 10px; }
+              table { width: 100%; border-collapse: collapse; margin-bottom: 40px; }
+              th { text-align: left; padding: 12px; background: #f9fafb; border-bottom: 1px solid #eee; font-size: 12px; text-transform: uppercase; color: #666; }
+              .totals { margin-left: auto; width: 300px; }
+              .total-row { display: flex; justify-content: space-between; padding: 8px 0; }
+              .total-row.grand { border-top: 2px solid #eee; margin-top: 10px; padding-top: 10px; font-weight: bold; font-size: 18px; color: #f97316; }
+              .footer { margin-top: 60px; text-align: center; font-size: 12px; color: #999; border-top: 1px solid #eee; padding-top: 20px; }
+              @media print {
+                .invoice-page { padding: 0; }
+              }
+            </style>
+          </head>
+          <body>
+            ${allInvoicesHtml}
+            <script>
+              function startPrint() {
+                if (window.print_started) return;
+                window.print_started = true;
+                setTimeout(() => {
+                  window.print();
+                  window.close();
+                }, 500);
+              }
+              window.onload = startPrint;
+              setTimeout(startPrint, 2000);
+            </script>
+          </body>
+        </html>
       `;
-    }).join('<div style="page-break-after: always;"></div>');
 
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Bulk Invoices</title>
-          <style>
-            body { font-family: sans-serif; color: #333; line-height: 1.5; padding: 0; margin: 0; }
-            .invoice-page { padding: 40px; }
-            .header { display: flex; justify-content: space-between; margin-bottom: 40px; border-bottom: 2px solid #f97316; padding-bottom: 20px; }
-            .logo { font-size: 24px; font-weight: bold; color: #f97316; }
-            .invoice-info { text-align: right; }
-            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-bottom: 40px; }
-            .section-title { font-size: 12px; font-weight: bold; text-transform: uppercase; color: #999; margin-bottom: 10px; }
-            table { width: 100%; border-collapse: collapse; margin-bottom: 40px; }
-            th { text-align: left; padding: 12px; background: #f9fafb; border-bottom: 1px solid #eee; font-size: 12px; text-transform: uppercase; color: #666; }
-            .totals { margin-left: auto; width: 300px; }
-            .total-row { display: flex; justify-content: space-between; padding: 8px 0; }
-            .total-row.grand { border-top: 2px solid #eee; margin-top: 10px; padding-top: 10px; font-weight: bold; font-size: 18px; color: #f97316; }
-            .footer { margin-top: 60px; text-align: center; font-size: 12px; color: #999; border-top: 1px solid #eee; padding-top: 20px; }
-            @media print {
-              .invoice-page { padding: 0; }
-            }
-          </style>
-        </head>
-        <body>
-          ${allInvoicesHtml}
-          <script>
-            window.onload = () => {
-              window.print();
-              setTimeout(() => window.close(), 500);
-            };
-          </script>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
+      printWindow.document.open();
+      printWindow.document.write(content);
+      printWindow.document.close();
+    } catch (err) {
+      console.error('Printing error:', err);
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      alert(`There was a problem with the printing: ${errorMsg}. Please try again.`);
+    }
   };
+
+
 
   const totalRevenue = orders.reduce((sum, o) => sum + o.total, 0);
   const pendingOrders = orders.filter(o => o.status === 'Pending').length;
