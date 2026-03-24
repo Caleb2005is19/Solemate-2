@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
 import { useCart } from '../context/CartContext';
-import { ArrowLeft, Star, Truck, ShieldCheck, ArrowRight, MessageCircle, Heart, ShoppingBag } from 'lucide-react';
+import { ArrowLeft, Star, Truck, ShieldCheck, ArrowRight, MessageCircle, Heart, ShoppingBag, ChevronRight } from 'lucide-react';
 import { motion } from 'motion/react';
 import { formatPrice } from '../utils';
 import { SEO } from '../components/SEO';
@@ -103,13 +103,14 @@ export function ProductDetail() {
         schemaData={productSchema}
       />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Breadcrumb */}
-        <button
-          onClick={() => navigate(-1)}
-          className="flex items-center gap-2 text-sm font-medium text-zinc-500 hover:text-zinc-900 mb-8 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" /> Back
-        </button>
+        {/* Breadcrumbs */}
+        <nav className="flex items-center gap-2 text-sm font-medium text-zinc-500 mb-8 overflow-x-auto whitespace-nowrap scrollbar-hide py-1">
+          <Link to="/" className="hover:text-orange-500 transition-colors">Home</Link>
+          <ChevronRight className="w-4 h-4 text-zinc-300 flex-shrink-0" />
+          <Link to="/shop" className="hover:text-orange-500 transition-colors">Shop</Link>
+          <ChevronRight className="w-4 h-4 text-zinc-300 flex-shrink-0" />
+          <span className="text-zinc-900 truncate max-w-[200px] sm:max-w-none">{product.name}</span>
+        </nav>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20">
           {/* Image Gallery */}

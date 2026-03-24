@@ -3,14 +3,22 @@ import { useSearchParams } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
 import { ProductCard } from '../components/ProductCard';
 import { SlidersHorizontal, X } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { useCart } from '../context/CartContext';
 import { SEO } from '../components/SEO';
+import { Product } from '../types';
+import { formatPrice } from '../utils';
+import { ShoppingBag, Heart, Star, ChevronRight, ChevronLeft } from 'lucide-react';
 
 export function Shop() {
   const { products } = useStore();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { searchQuery, setSearchQuery, wishlistItems } = useCart();
+  const { searchQuery, setSearchQuery, wishlistItems, addToCart, toggleWishlist, isInWishlist } = useCart();
+  
+  const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
+  const [selectedSize, setSelectedSize] = useState<number | null>(null);
+  const [quickViewColor, setQuickViewColor] = useState<string | null>(null);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
   
   const genderParam = searchParams.get('gender') || 'All';
   const showWishlist = searchParams.get('wishlist') === 'true';
@@ -253,7 +261,15 @@ export function Shop() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.4, delay: index * 0.05 }}
             >
-              <ProductCard product={product} />
+              <ProductCard 
+                product={product} 
+                onQuickView={(p) => {
+                  setQuickViewProduct(p);
+                  setSelectedSize(null);
+                  setQuickViewColor(p.color || null);
+                  setActiveImageIndex(0);
+                }} 
+              />
             </motion.div>
           ))}
         </div>
@@ -278,6 +294,154 @@ export function Shop() {
             </button>
           </div>
         )}
+
+        {/* Quick View Modal */}
+        <AnimatePresence>
+          {quickViewProduct && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setQuickViewProduct(null)}
+                className="absolute inset-0 bg-zinc-900/60 backdrop-blur-sm"
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                className="relative w-full max-w-4xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col md:flex-row max-h-[90vh]"
+              >
+                <button 
+                  onClick={() => setQuickViewProduct(null)}
+                  className="absolute top-4 right-4 p-2 bg-white/80 backdrop-blur-md rounded-full text-zinc-400 hover:text-zinc-900 z-10 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+
+                {/* Left: Image Gallery */}
+                <div className="w-full md:w-1/2 bg-zinc-100 relative group/gallery">
+                  <img 
+                    src={(quickViewProduct.colors?.find(c => c.name === quickViewColor)?.images || quickViewProduct.images || [quickViewProduct.image])[activeImageIndex]} 
+                    alt={quickViewProduct.name}
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                  
+                  {/* Gallery Navigation */}
+                  {(quickViewProduct.images?.length || 0) > 1 && (
+                    <>
+                      <button 
+                        onClick={() => setActiveImageIndex(prev => (prev === 0 ? (quickViewProduct.images?.length || 1) - 1 : prev - 1))}
+                        className="absolute left-4 top-1/2 -translate-y-1/2 p-2 bg-white/80 rounded-full opacity-0 group-hover/gallery:opacity-100 transition-opacity"
+                      >
+                        <ChevronLeft className="w-5 h-5" />
+                      </button>
+                      <button 
+                        onClick={() => setActiveImageIndex(prev => (prev === (quickViewProduct.images?.length || 1) - 1 ? 0 : prev + 1))}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 p-2 bg-white/80 rounded-full opacity-0 group-hover/gallery:opacity-100 transition-opacity"
+                      >
+                        <ChevronRight className="w-5 h-5" />
+                      </button>
+                    </>
+                  )}
+                </div>
+
+                {/* Right: Product Info */}
+                <div className="w-full md:w-1/2 p-6 sm:p-8 overflow-y-auto">
+                  <div className="mb-6">
+                    <p className="text-xs font-black text-orange-500 uppercase tracking-widest mb-1">{quickViewProduct.brand}</p>
+                    <h2 className="text-2xl font-black text-zinc-900 leading-tight mb-2">{quickViewProduct.name}</h2>
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl font-black text-zinc-900">{formatPrice(quickViewProduct.price)}</span>
+                      {quickViewProduct.originalPrice && (
+                        <span className="text-lg text-zinc-400 line-through font-medium">{formatPrice(quickViewProduct.originalPrice)}</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Color Selection */}
+                  {quickViewProduct.colors && quickViewProduct.colors.length > 0 && (
+                    <div className="mb-6">
+                      <h4 className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-3">Color: <span className="text-zinc-900">{quickViewColor}</span></h4>
+                      <div className="flex gap-2">
+                        {quickViewProduct.colors.map((c, i) => (
+                          <button
+                            key={i}
+                            onClick={() => {
+                              setQuickViewColor(c.name);
+                              setActiveImageIndex(0);
+                            }}
+                            className={`w-8 h-8 rounded-full border-2 transition-all ${quickViewColor === c.name ? 'border-zinc-900 scale-110' : 'border-transparent hover:border-zinc-200'}`}
+                            style={{ backgroundColor: c.hex || '#ccc' }}
+                            title={c.name}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Size Selection */}
+                  <div className="mb-8">
+                    <div className="flex justify-between items-center mb-3">
+                      <h4 className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Select Size (US)</h4>
+                    </div>
+                    <div className="grid grid-cols-4 gap-2">
+                      {[7, 8, 9, 10, 11, 12].map(size => (
+                        <button
+                          key={size}
+                          onClick={() => setSelectedSize(size)}
+                          className={`py-2 rounded-xl text-xs font-bold transition-all border ${
+                            selectedSize === size
+                              ? 'bg-zinc-900 text-white border-zinc-900 shadow-lg'
+                              : 'bg-white text-zinc-900 border-zinc-200 hover:border-zinc-900'
+                          }`}
+                        >
+                          {size}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => {
+                        if (!selectedSize) return alert('Please select a size');
+                        addToCart(quickViewProduct, selectedSize, quickViewColor || undefined);
+                        setQuickViewProduct(null);
+                      }}
+                      className="flex-1 py-4 bg-zinc-900 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-orange-500 transition-colors shadow-xl flex items-center justify-center gap-2"
+                    >
+                      <ShoppingBag className="w-4 h-4" />
+                      Add to Cart
+                    </button>
+                    <button
+                      onClick={() => toggleWishlist(quickViewProduct)}
+                      className={`p-4 rounded-2xl border transition-all ${
+                        isInWishlist(quickViewProduct.id)
+                          ? 'bg-red-50 text-red-500 border-red-100'
+                          : 'bg-zinc-50 text-zinc-400 border-zinc-100 hover:text-red-500'
+                      }`}
+                    >
+                      <Heart className={`w-5 h-5 ${isInWishlist(quickViewProduct.id) ? 'fill-current' : ''}`} />
+                    </button>
+                  </div>
+
+                  <button 
+                    onClick={() => {
+                      setQuickViewProduct(null);
+                      // Navigate to full product page
+                      window.location.href = `/product/${quickViewProduct.id}`;
+                    }}
+                    className="w-full mt-4 text-center text-xs font-bold text-zinc-400 hover:text-zinc-900 uppercase tracking-widest transition-colors"
+                  >
+                    View Full Details
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
