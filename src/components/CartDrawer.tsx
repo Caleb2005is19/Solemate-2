@@ -4,6 +4,7 @@ import { useCart } from '../context/CartContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { Link } from 'react-router-dom';
 import { formatPrice } from '../utils';
+import { ImageWithSkeleton } from './ImageWithSkeleton';
 
 export function CartDrawer() {
   const { isCartOpen, setIsCartOpen, items, updateQuantity, removeFromCart, cartTotal } = useCart();
@@ -73,11 +74,11 @@ export function CartDrawer() {
                   {items.map((item) => (
                     <div key={`${item.id}-${item.selectedSize}-${item.selectedColor}`} className="flex gap-4">
                       <div className="w-24 h-24 rounded-xl bg-zinc-100 overflow-hidden flex-shrink-0">
-                        <img
+                        <ImageWithSkeleton
                           src={item.image}
                           alt={item.name}
                           className="w-full h-full object-cover"
-                          referrerPolicy="no-referrer"
+                          containerClassName="h-full"
                         />
                       </div>
                       

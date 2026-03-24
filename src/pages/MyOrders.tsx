@@ -4,6 +4,7 @@ import { ShoppingBag, Package, ChevronRight, MapPin, Phone, Clock, CheckCircle2,
 import { formatPrice } from '../utils';
 import { Navigate } from 'react-router-dom';
 import { OrderStatus } from '../types';
+import { ImageWithSkeleton } from '../components/ImageWithSkeleton';
 
 export function MyOrders() {
   const { currentUser, userProfile, orders, loading } = useStore();
@@ -117,7 +118,7 @@ export function MyOrders() {
                 >
                   <div className="flex items-center gap-6">
                     <div className="w-16 h-16 bg-zinc-50 rounded-2xl overflow-hidden border border-zinc-100 flex-shrink-0">
-                      <img 
+                      <ImageWithSkeleton 
                         src={order.items[0].image} 
                         alt={order.items[0].name} 
                         className="w-full h-full object-cover"
@@ -166,7 +167,7 @@ export function MyOrders() {
                           {order.items.map((item, idx) => (
                             <div key={idx} className="flex items-center gap-4 p-4 bg-zinc-50 rounded-2xl border border-zinc-100">
                               <div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0">
-                                <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                                <ImageWithSkeleton src={item.image} alt={item.name} className="w-full h-full object-cover" />
                               </div>
                               <div className="flex-1 min-w-0">
                                 <p className="font-bold text-zinc-900 truncate">{item.name}</p>

@@ -41,7 +41,7 @@ export function Navbar() {
   };
 
   return (
-    <header>
+    <header className="sticky top-0 z-50 w-full">
       {/* Top Bar */}
       <div className="bg-zinc-900 text-white text-xs sm:text-sm py-2 px-4 text-center flex justify-center items-center gap-4">
         <span>🚚 Free Delivery in Nairobi CBD</span>
@@ -51,7 +51,7 @@ export function Navbar() {
         <span className="flex items-center gap-1"><Phone className="w-3 h-3"/> +254 700 000 000</span>
       </div>
       
-      <nav className="sticky top-0 z-40 w-full bg-white/90 backdrop-blur-md border-b border-zinc-200 shadow-sm">
+      <nav className="w-full bg-white/90 backdrop-blur-md border-b border-zinc-200 shadow-sm">
         <AnimatePresence>
           {error && (
             <motion.div 

@@ -6,6 +6,8 @@ import { Heart, Eye, ShoppingCart } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { formatPrice } from '../utils';
 
+import { ImageWithSkeleton } from './ImageWithSkeleton';
+
 interface ProductCardProps {
   product: Product;
   onQuickView?: (product: Product) => void;
@@ -25,11 +27,11 @@ export function ProductCard({ product, onQuickView }: ProductCardProps) {
     >
       <div className="relative aspect-[4/5] overflow-hidden bg-zinc-100">
         <Link to={`/product/${product.id}`} aria-label={`View details for ${product.name}`} className="block h-full">
-          <img
+          <ImageWithSkeleton
             src={product.image}
             alt={`${product.brand} ${product.name}`}
             className="object-cover w-full h-full group-hover:scale-110 transition-transform duration-700 ease-out"
-            referrerPolicy="no-referrer"
+            containerClassName="h-full"
           />
           {/* Overlay on hover */}
           <div className="absolute inset-0 bg-black/5 group-hover:bg-black/20 transition-colors duration-300" />

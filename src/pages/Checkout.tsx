@@ -7,6 +7,7 @@ import { motion } from 'motion/react';
 import { formatPrice } from '../utils';
 import { DELIVERY_AREAS } from '../constants';
 import { SEO } from '../components/SEO';
+import { ImageWithSkeleton } from '../components/ImageWithSkeleton';
 
 export function Checkout() {
   const { items, cartTotal, cartCount, clearCart } = useCart();
@@ -455,11 +456,11 @@ export function Checkout() {
                 {items.map((item) => (
                   <div key={`${item.id}-${item.selectedSize}-${item.selectedColor}`} className="flex gap-4">
                     <div className="w-16 h-16 rounded-lg bg-zinc-100 overflow-hidden flex-shrink-0">
-                      <img
+                      <ImageWithSkeleton
                         src={item.image}
                         alt={item.name}
                         className="w-full h-full object-cover"
-                        referrerPolicy="no-referrer"
+                        containerClassName="h-full"
                       />
                     </div>
                     <div className="flex-1">

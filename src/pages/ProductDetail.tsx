@@ -2,12 +2,138 @@ import React, { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
 import { useCart } from '../context/CartContext';
-import { ArrowLeft, Star, Truck, ShieldCheck, ArrowRight, MessageCircle, Heart, ShoppingBag, ChevronRight } from 'lucide-react';
-import { motion } from 'motion/react';
+import { ArrowLeft, Star, Truck, ShieldCheck, ArrowRight, MessageCircle, Heart, ShoppingBag, ChevronRight, ChevronLeft, Shirt, Layers, Watch, Glasses } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { formatPrice } from '../utils';
 import { SEO } from '../components/SEO';
+import { ProductCard } from '../components/ProductCard';
+import { Product } from '../types';
+import { ShoppingCart, X, Info } from 'lucide-react';
+import { ImageWithSkeleton } from '../components/ImageWithSkeleton';
 
 const SIZES = [7, 7.5, 8, 8.5, 9, 9.5, 10, 10.5, 11, 11.5, 12, 13];
+
+const getStyleAdvice = (product: Product) => {
+  const category = product.category.toLowerCase();
+  
+  if (category.includes('basketball') || category.includes('high')) {
+    return {
+      vibe: "Urban Streetwear",
+      description: "A bold, court-inspired look that dominates the streets.",
+      tips: [
+        "Pair with tapered joggers to highlight the high-top silhouette.",
+        "Go for an oversized graphic hoodie for that relaxed urban feel.",
+        "Add a matching snapback cap to complete the aesthetic."
+      ],
+      items: [
+        { name: "Tapered Joggers", icon: Shirt },
+        { name: "Oversized Hoodie", icon: Layers },
+        { name: "Snapback Cap", icon: Watch }
+      ]
+    };
+  }
+  
+  if (category.includes('run') || category.includes('sport') || category.includes('train')) {
+    return {
+      vibe: "Modern Athleisure",
+      description: "Where performance meets everyday comfort and style.",
+      tips: [
+        "Perfect with tech-fleece pants or high-performance leggings.",
+        "Keep it sleek with a moisture-wicking quarter-zip pullover.",
+        "Minimalist accessories like a sports watch work best here."
+      ],
+      items: [
+        { name: "Tech Fleece", icon: Shirt },
+        { name: "Performance Tee", icon: Layers },
+        { name: "Sports Watch", icon: Watch }
+      ]
+    };
+  }
+  
+  if (category.includes('boot') || category.includes('leather')) {
+    return {
+      vibe: "Rugged & Refined",
+      description: "A sophisticated look that's built for durability and character.",
+      tips: [
+        "Elevate with dark-wash selvedge denim and a leather jacket.",
+        "Works beautifully with a heavy-knit sweater in earthy tones.",
+        "Classic aviator sunglasses add a touch of timeless cool."
+      ],
+      items: [
+        { name: "Selvedge Denim", icon: Shirt },
+        { name: "Leather Jacket", icon: Layers },
+        { name: "Aviators", icon: Glasses }
+      ]
+    };
+  }
+
+  if (category.includes('skate')) {
+    return {
+      vibe: "Skate Culture",
+      description: "A laid-back, durable aesthetic that's ready for any session.",
+      tips: [
+        "Pair with baggy cargo pants or loose-fit work trousers.",
+        "A classic boxy tee and an open flannel shirt is the way to go.",
+        "Don't forget a durable canvas belt and a beanie."
+      ],
+      items: [
+        { name: "Cargo Pants", icon: Shirt },
+        { name: "Boxy Tee", icon: Layers },
+        { name: "Beanie", icon: Watch }
+      ]
+    };
+  }
+
+  if (category.includes('outdoor') || category.includes('hike') || category.includes('trail')) {
+    return {
+      vibe: "Adventure Ready",
+      description: "Functional and rugged, designed for the great outdoors.",
+      tips: [
+        "Style with utility pants or water-resistant hiking shorts.",
+        "Layer with a technical windbreaker or a fleece vest.",
+        "A sturdy backpack and a wide-brim hat are essential."
+      ],
+      items: [
+        { name: "Utility Pants", icon: Shirt },
+        { name: "Windbreaker", icon: Layers },
+        { name: "Wide-Brim Hat", icon: Watch }
+      ]
+    };
+  }
+
+  if (category.includes('lifestyle') || category.includes('fashion')) {
+    return {
+      vibe: "High-Street Chic",
+      description: "A trend-forward look that blends luxury with street style.",
+      tips: [
+        "Contrast with tailored trousers for a high-low fashion mix.",
+        "A long-line trench coat or a puffer jacket adds drama.",
+        "Statement jewelry and designer shades complete the look."
+      ],
+      items: [
+        { name: "Tailored Pants", icon: Shirt },
+        { name: "Trench Coat", icon: Layers },
+        { name: "Statement Shades", icon: Glasses }
+      ]
+    };
+  }
+
+  // Default: Casual/Sneakers
+  return {
+    vibe: "Effortless Casual",
+    description: "The versatile daily driver for a clean, laid-back appearance.",
+    tips: [
+      "Classic look with slim-fit chinos or well-fitted blue jeans.",
+      "Layer a simple white tee under an unbuttoned flannel shirt.",
+      "Keep it simple with a canvas tote or a minimalist backpack."
+    ],
+    items: [
+      { name: "Slim Chinos", icon: Shirt },
+      { name: "Flannel Shirt", icon: Layers },
+      { name: "Minimalist Bag", icon: Watch }
+    ]
+  };
+};
 
 export function ProductDetail() {
   const { id } = useParams<{ id: string }>();
@@ -20,6 +146,21 @@ export function ProductDetail() {
   const [selectedColor, setSelectedColor] = useState<string | null>(product?.color || null);
   const [activeImage, setActiveImage] = useState<string>(product?.image || '');
   const [error, setError] = useState<string | null>(null);
+  const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
+  const [qvSize, setQvSize] = useState<number | null>(null);
+  const [qvColor, setQvColor] = useState<string | null>(null);
+  const [qvImageIndex, setQvImageIndex] = useState(0);
+
+  // Reset state when product changes
+  React.useEffect(() => {
+    if (product) {
+      setActiveImage(product.image);
+      setSelectedColor(product.color || null);
+      setSelectedSize(null);
+      setError(null);
+      window.scrollTo(0, 0);
+    }
+  }, [id, product]);
 
   if (!product) {
     return (
@@ -121,11 +262,11 @@ export function ProductDetail() {
             className="space-y-6"
           >
             <div className="aspect-square rounded-3xl overflow-hidden bg-zinc-100 relative shadow-inner">
-              <img
+              <ImageWithSkeleton
                 src={activeImage || product.image}
                 alt={product.name}
                 className="w-full h-full object-cover transition-all duration-500"
-                referrerPolicy="no-referrer"
+                containerClassName="h-full"
               />
               <button 
                 onClick={() => toggleWishlist(product)}
@@ -145,7 +286,7 @@ export function ProductDetail() {
                     activeImage === img ? 'border-zinc-900 scale-105' : 'border-transparent opacity-60 hover:opacity-100'
                   }`}
                 >
-                  <img src={img} alt={`${product.name} ${idx}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  <ImageWithSkeleton src={img} alt={`${product.name} ${idx}`} className="w-full h-full object-cover" containerClassName="h-full" />
                 </button>
               ))}
             </div>
@@ -281,6 +422,259 @@ export function ProductDetail() {
             </div>
           </motion.div>
         </div>
+
+        {/* Minimalist Style Guide Section */}
+        <section className="mt-24 pt-16 border-t border-zinc-100">
+          <div className="max-w-4xl">
+            <div className="flex items-center gap-3 mb-8">
+              <div className="w-10 h-10 rounded-full bg-orange-500/10 flex items-center justify-center text-orange-500">
+                <Shirt className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-black text-zinc-900 tracking-tight">Style Guide</h2>
+                <p className="text-sm text-zinc-500 font-medium">How to wear your new {product.brand}s</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-lg font-bold text-zinc-900 mb-2">
+                    The <span className="text-orange-500">{getStyleAdvice(product).vibe}</span> Vibe
+                  </h3>
+                  <p className="text-zinc-600 leading-relaxed">
+                    {getStyleAdvice(product).description}
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  {getStyleAdvice(product).tips.map((tip, idx) => (
+                    <div key={idx} className="flex gap-3">
+                      <span className="text-orange-500 font-black text-sm">0{idx + 1}</span>
+                      <p className="text-sm text-zinc-600 font-medium">{tip}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-zinc-50 rounded-3xl p-8">
+                <h4 className="text-xs font-black text-zinc-400 uppercase tracking-widest mb-6">Essential Pairings</h4>
+                <div className="grid grid-cols-3 gap-4">
+                  {getStyleAdvice(product).items.map((item, idx) => (
+                    <div key={idx} className="flex flex-col items-center text-center gap-3">
+                      <div className="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center text-zinc-400 group-hover:text-orange-500 transition-colors">
+                        <item.icon className="w-6 h-6" />
+                      </div>
+                      <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-tight">{item.name}</span>
+                    </div>
+                  ))}
+                </div>
+                
+                <div className="mt-8 pt-6 border-t border-zinc-200">
+                  <h4 className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-3">Color Palette</h4>
+                  <div className="flex gap-2">
+                    {['#18181b', '#3f3f46', '#71717a', '#f97316'].map((color, i) => (
+                      <div 
+                        key={i} 
+                        className="w-6 h-6 rounded-full border border-zinc-200"
+                        style={{ backgroundColor: color }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Related Products Section */}
+        <div className="mt-24 pt-16 border-t border-zinc-100">
+          <div className="flex items-end justify-between mb-8">
+            <div>
+              <h2 className="text-3xl font-black text-zinc-900 tracking-tight mb-2">Related Products</h2>
+              <p className="text-zinc-500 font-medium">You might also like these sneakers</p>
+            </div>
+            <Link to="/shop" className="hidden sm:flex items-center gap-2 text-sm font-bold text-zinc-400 hover:text-orange-500 transition-colors group">
+              View All Shop
+              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            </Link>
+          </div>
+
+          <div className="relative group/carousel">
+            <div className="flex gap-6 overflow-x-auto pb-8 scrollbar-hide snap-x snap-mandatory">
+              {products
+                .filter(p => p.id !== product.id && (p.category === product.category || p.brand === product.brand))
+                .slice(0, 8)
+                .map((relatedProduct) => (
+                  <div key={relatedProduct.id} className="flex-shrink-0 w-[280px] sm:w-[320px] snap-start">
+                    <ProductCard 
+                      product={relatedProduct} 
+                      onQuickView={(p) => {
+                        setQuickViewProduct(p);
+                        setQvSize(null);
+                        setQvColor(p.color || null);
+                        setQvImageIndex(0);
+                      }}
+                    />
+                  </div>
+                ))}
+            </div>
+            
+            {/* Carousel Navigation Hints (Mobile) */}
+            <div className="sm:hidden flex justify-center gap-1 mt-2">
+              <div className="w-8 h-1 bg-orange-500 rounded-full" />
+              <div className="w-2 h-1 bg-zinc-200 rounded-full" />
+              <div className="w-2 h-1 bg-zinc-200 rounded-full" />
+            </div>
+          </div>
+        </div>
+
+        {/* Quick View Modal (Reused from Shop for consistency) */}
+        <AnimatePresence>
+          {quickViewProduct && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setQuickViewProduct(null)}
+                className="absolute inset-0 bg-zinc-900/60 backdrop-blur-sm"
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                className="relative w-full max-w-4xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col md:flex-row max-h-[90vh]"
+              >
+                <button 
+                  onClick={() => setQuickViewProduct(null)}
+                  className="absolute top-4 right-4 p-2 bg-white/80 backdrop-blur-md rounded-full text-zinc-400 hover:text-zinc-900 z-10 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+
+                {/* Left: Image Gallery */}
+                <div className="w-full md:w-1/2 bg-zinc-100 relative group/gallery">
+                  <ImageWithSkeleton 
+                    src={(quickViewProduct.colors?.find(c => c.name === qvColor)?.images || quickViewProduct.images || [quickViewProduct.image])[qvImageIndex]} 
+                    alt={quickViewProduct.name}
+                    className="w-full h-full object-cover"
+                    containerClassName="h-full"
+                  />
+                  
+                  {/* Gallery Navigation */}
+                  {(quickViewProduct.images?.length || 0) > 1 && (
+                    <>
+                      <button 
+                        onClick={() => setQvImageIndex(prev => (prev === 0 ? (quickViewProduct.images?.length || 1) - 1 : prev - 1))}
+                        className="absolute left-4 top-1/2 -translate-y-1/2 p-2 bg-white/80 rounded-full opacity-0 group-hover/gallery:opacity-100 transition-opacity"
+                      >
+                        <ChevronLeft className="w-5 h-5" />
+                      </button>
+                      <button 
+                        onClick={() => setQvImageIndex(prev => (prev === (quickViewProduct.images?.length || 1) - 1 ? 0 : prev + 1))}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 p-2 bg-white/80 rounded-full opacity-0 group-hover/gallery:opacity-100 transition-opacity"
+                      >
+                        <ChevronRight className="w-5 h-5" />
+                      </button>
+                    </>
+                  )}
+                </div>
+
+                {/* Right: Product Info */}
+                <div className="w-full md:w-1/2 p-6 sm:p-8 overflow-y-auto">
+                  <div className="mb-6">
+                    <p className="text-xs font-black text-orange-500 uppercase tracking-widest mb-1">{quickViewProduct.brand}</p>
+                    <h2 className="text-2xl font-black text-zinc-900 leading-tight mb-2">{quickViewProduct.name}</h2>
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl font-black text-zinc-900">{formatPrice(quickViewProduct.price)}</span>
+                      {quickViewProduct.originalPrice && (
+                        <span className="text-lg text-zinc-400 line-through font-medium">{formatPrice(quickViewProduct.originalPrice)}</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Color Selection */}
+                  {quickViewProduct.colors && quickViewProduct.colors.length > 0 && (
+                    <div className="mb-6">
+                      <h4 className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-3">Color: <span className="text-zinc-900">{qvColor}</span></h4>
+                      <div className="flex gap-2">
+                        {quickViewProduct.colors.map((c, i) => (
+                          <button
+                            key={i}
+                            onClick={() => {
+                              setQvColor(c.name);
+                              setQvImageIndex(0);
+                            }}
+                            className={`w-8 h-8 rounded-full border-2 transition-all ${qvColor === c.name ? 'border-zinc-900 scale-110' : 'border-transparent hover:border-zinc-200'}`}
+                            style={{ backgroundColor: c.hex || '#ccc' }}
+                            title={c.name}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Size Selection */}
+                  <div className="mb-8">
+                    <div className="flex justify-between items-center mb-3">
+                      <h4 className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Select Size (US)</h4>
+                    </div>
+                    <div className="grid grid-cols-4 gap-2">
+                      {[7, 8, 9, 10, 11, 12].map(size => (
+                        <button
+                          key={size}
+                          onClick={() => setQvSize(size)}
+                          className={`py-2 rounded-xl text-xs font-bold transition-all border ${
+                            qvSize === size
+                              ? 'bg-zinc-900 text-white border-zinc-900 shadow-lg'
+                              : 'bg-white text-zinc-900 border-zinc-200 hover:border-zinc-900'
+                          }`}
+                        >
+                          {size}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => {
+                        if (!qvSize) return alert('Please select a size');
+                        addToCart(quickViewProduct, qvSize, qvColor || undefined);
+                        setQuickViewProduct(null);
+                      }}
+                      className="flex-1 py-4 bg-zinc-900 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-orange-500 transition-colors shadow-xl flex items-center justify-center gap-2"
+                    >
+                      <ShoppingCart className="w-4 h-4" />
+                      Add to Cart
+                    </button>
+                    <button
+                      onClick={() => toggleWishlist(quickViewProduct)}
+                      className={`p-4 rounded-2xl border transition-all ${
+                        isInWishlist(quickViewProduct.id)
+                          ? 'bg-red-50 text-red-500 border-red-100'
+                          : 'bg-zinc-50 text-zinc-400 border-zinc-100 hover:text-red-500'
+                      }`}
+                    >
+                      <Heart className={`w-5 h-5 ${isInWishlist(quickViewProduct.id) ? 'fill-current' : ''}`} />
+                    </button>
+                  </div>
+
+                  <button 
+                    onClick={() => {
+                      setQuickViewProduct(null);
+                      navigate(`/product/${quickViewProduct.id}`);
+                    }}
+                    className="w-full mt-4 text-center text-xs font-bold text-zinc-400 hover:text-zinc-900 uppercase tracking-widest transition-colors"
+                  >
+                    View Full Details
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

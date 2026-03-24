@@ -5,6 +5,7 @@ import { signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
 import { motion } from 'motion/react';
 import { Package, LogOut, User as UserIcon, MapPin, Clock, CheckCircle2, Edit2, Save } from 'lucide-react';
 import { formatPrice } from '../utils';
+import { ImageWithSkeleton } from '../components/ImageWithSkeleton';
 
 export function Profile() {
   const { currentUser, userProfile, updateUserProfile, orders } = useStore();
@@ -86,7 +87,7 @@ export function Profile() {
               <div className="flex flex-col items-center text-center mb-8">
                 <div className="w-24 h-24 rounded-full bg-zinc-100 overflow-hidden mb-4 border-4 border-white shadow-sm">
                   {currentUser.photoURL ? (
-                    <img src={currentUser.photoURL} alt={currentUser.displayName || 'User'} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    <ImageWithSkeleton src={currentUser.photoURL} alt={currentUser.displayName || 'User'} className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center bg-orange-100 text-orange-500">
                       <UserIcon className="w-10 h-10" />
@@ -170,7 +171,7 @@ export function Profile() {
                           {order.items.map((item, idx) => (
                             <div key={`${item.id}-${idx}`} className="flex items-center gap-4">
                               <div className="w-16 h-16 rounded-xl bg-zinc-100 overflow-hidden flex-shrink-0">
-                                <img src={item.image} alt={item.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                <ImageWithSkeleton src={item.image} alt={item.name} className="w-full h-full object-cover" />
                               </div>
                               <div className="flex-1 min-w-0">
                                 <h4 className="font-medium text-zinc-900 truncate">{item.name}</h4>

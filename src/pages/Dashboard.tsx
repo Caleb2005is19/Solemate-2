@@ -7,6 +7,7 @@ import { formatPrice } from '../utils';
 import { loginWithGoogle, logout } from '../firebase';
 import { uploadToCloudinary } from '../services/cloudinaryService';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
+import { ImageWithSkeleton } from '../components/ImageWithSkeleton';
 
 export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
   const { sellerId } = useParams<{ sellerId: string }>();
@@ -495,7 +496,7 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
                             <div className={`aspect-square rounded-[2rem] overflow-hidden border-2 border-dashed transition-all flex flex-col items-center justify-center gap-4 ${formData.image ? 'border-zinc-200 bg-zinc-50' : 'border-zinc-300 bg-zinc-50 hover:border-orange-500 hover:bg-orange-50'}`}>
                               {formData.image ? (
                                 <>
-                                  <img src={formData.image} alt="Preview" className="w-full h-full object-cover" />
+                                  <ImageWithSkeleton src={formData.image} alt="Preview" className="w-full h-full object-cover" />
                                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                     <button 
                                       type="button"
@@ -536,7 +537,7 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
                           <div className="grid grid-cols-3 gap-2">
                             {formData.images?.map((img, idx) => (
                               <div key={idx} className="relative aspect-square rounded-xl overflow-hidden group">
-                                <img src={img} alt={`Gallery ${idx}`} className="w-full h-full object-cover" />
+                                <ImageWithSkeleton src={img} alt={`Gallery ${idx}`} className="w-full h-full object-cover" />
                                 <button 
                                   type="button"
                                   onClick={() => removeGalleryImage(idx)}
@@ -780,7 +781,7 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
                         <tr key={p.id} className="border-b border-zinc-50 hover:bg-zinc-50/50 transition-colors group">
                           <td className="p-6 flex items-center gap-4">
                             <div className="w-14 h-14 rounded-2xl overflow-hidden border border-zinc-100 bg-zinc-50 flex-shrink-0">
-                              <img src={p.image} alt={p.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                              <ImageWithSkeleton src={p.image} alt={p.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                             </div>
                             <div>
                               <p className="font-black text-zinc-900">{p.name}</p>
@@ -920,7 +921,7 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
                       <div className="space-y-4">
                         {viewingOrder.items.map((item, idx) => (
                           <div key={idx} className="flex items-center gap-4 p-4 bg-zinc-50 rounded-xl">
-                            <img src={item.image} alt={item.name} className="w-16 h-16 object-cover rounded-lg" />
+                            <ImageWithSkeleton src={item.image} alt={item.name} className="w-16 h-16 object-cover rounded-lg" />
                             <div className="flex-1">
                               <h4 className="font-bold text-zinc-900">{item.name}</h4>
                               <p className="text-sm text-zinc-500">Size: {item.selectedSize} | Qty: {item.quantity}</p>

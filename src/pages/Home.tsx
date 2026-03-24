@@ -5,6 +5,7 @@ import { useStore } from '../context/StoreContext';
 import { ProductCard } from '../components/ProductCard';
 import { motion } from 'motion/react';
 import { SEO } from '../components/SEO';
+import { ImageWithSkeleton } from '../components/ImageWithSkeleton';
 
 export function Home() {
   const { products } = useStore();
@@ -43,11 +44,11 @@ export function Home() {
       {/* Hero Section */}
       <section className="relative h-[80vh] min-h-[600px] flex items-center justify-center overflow-hidden bg-zinc-900">
         <div className="absolute inset-0 z-0">
-          <img
+          <ImageWithSkeleton
             src="https://images.unsplash.com/photo-1552346154-21d32810baa3?auto=format&fit=crop&q=80&w=2000"
             alt="Hero Background"
             className="w-full h-full object-cover opacity-30"
-            referrerPolicy="no-referrer"
+            containerClassName="h-full"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-zinc-900/50 to-transparent" />
         </div>
@@ -177,11 +178,11 @@ export function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <Link to="/shop?gender=Men" className="group relative h-96 rounded-3xl overflow-hidden">
-              <img
+              <ImageWithSkeleton
                 src="https://images.unsplash.com/photo-1460353581641-37baddab0fa2?auto=format&fit=crop&q=80&w=1000"
                 alt="Men's Collection"
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-                referrerPolicy="no-referrer"
+                containerClassName="h-full"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/80 via-zinc-900/20 to-transparent" />
               <div className="absolute bottom-8 left-8">
@@ -193,11 +194,11 @@ export function Home() {
             </Link>
             
             <Link to="/shop?gender=Women" className="group relative h-96 rounded-3xl overflow-hidden">
-              <img
+              <ImageWithSkeleton
                 src="https://images.unsplash.com/photo-1525966222134-fcfa99b8ae77?auto=format&fit=crop&q=80&w=1000"
                 alt="Women's Collection"
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-                referrerPolicy="no-referrer"
+                containerClassName="h-full"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/80 via-zinc-900/20 to-transparent" />
               <div className="absolute bottom-8 left-8">
