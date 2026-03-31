@@ -4,6 +4,7 @@ import path from 'path';
 import dotenv from 'dotenv';
 import admin from 'firebase-admin';
 import { getFirestore } from 'firebase-admin/firestore';
+import rateLimit from 'express-rate-limit';
 
 dotenv.config();
 
@@ -32,6 +33,48 @@ async function startServer() {
   const PORT = 3000;
 
   app.use(express.json());
+
+  // Rate Limiting for API
+  const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // limit each IP to 100 requests per windowMs
+    message: 'Too many requests from this IP, please try again after 15 minutes',
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  // Apply rate limiter to sensitive routes
+  app.use('/api/mpesa/stkpush', apiLimiter);
+  app.use('/api/mpesa/verify-receipt', apiLimiter);
+
+  // Load Test Endpoint (Admin only in a real app)
+  app.post('/api/load-test/bulk-orders', async (req, res) => {
+    try {
+      const { count = 10, userId = 'test-user' } = req.body;
+      const orders = [];
+      
+      for (let i = 0; i < count; i++) {
+        const orderId = `load-test-${Date.now()}-${i}`;
+        orders.push(
+          db.collection('orders').doc(orderId).set({
+            userId,
+            items: [{ id: 'test-product', name: 'Test Product', price: 100, quantity: 1 }],
+            total: 100,
+            status: 'Pending',
+            paymentStatus: 'Unpaid',
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            isLoadTest: true
+          })
+        );
+      }
+      
+      await Promise.all(orders);
+      res.json({ success: true, message: `Successfully created ${count} test orders` });
+    } catch (error) {
+      console.error('Load Test Error:', error);
+      res.status(500).json({ error: 'Internal server error during load test' });
+    }
+  });
 
   // M-Pesa Credentials
   const CONSUMER_KEY = process.env.MPESA_CONSUMER_KEY;

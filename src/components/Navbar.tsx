@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ShoppingBag, Menu, Search, X, Heart, Phone, User, LogIn, LogOut, ShieldCheck } from 'lucide-react';
+import { ShoppingBag, Menu, Search, X, Heart, Phone, User, LogIn, LogOut, ShieldCheck, Zap } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useStore } from '../context/StoreContext';
 import { loginWithGoogle, logout } from '../firebase';
@@ -166,14 +166,24 @@ export function Navbar() {
                         </Link>
 
                         {isAdmin && (
-                          <Link 
-                            to="/admin" 
-                            onClick={() => setIsProfileOpen(false)}
-                            className="flex items-center gap-2 px-4 py-2 text-sm text-orange-600 font-medium hover:bg-orange-50 transition-colors"
-                          >
-                            <ShieldCheck className="w-4 h-4" />
-                            Admin Portal
-                          </Link>
+                          <>
+                            <Link 
+                              to="/admin" 
+                              onClick={() => setIsProfileOpen(false)}
+                              className="flex items-center gap-2 px-4 py-2 text-sm text-orange-600 font-medium hover:bg-orange-50 transition-colors"
+                            >
+                              <ShieldCheck className="w-4 h-4" />
+                              Admin Portal
+                            </Link>
+                            <Link 
+                              to="/stress-test" 
+                              onClick={() => setIsProfileOpen(false)}
+                              className="flex items-center gap-2 px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-50 transition-colors"
+                            >
+                              <Zap className="w-4 h-4 text-orange-500" />
+                              Stress Test
+                            </Link>
+                          </>
                         )}
 
                         {currentSellerId && (
