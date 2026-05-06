@@ -276,6 +276,8 @@ export function ProductDetail() {
                 src={activeImage || product.image}
                 alt={product.name}
                 className="w-full h-full"
+                loading="eager"
+                fetchPriority="high"
               />
               <button 
                 onClick={() => toggleWishlist(product)}
@@ -293,10 +295,17 @@ export function ProductDetail() {
                   onClick={() => setActiveImage(img)}
                   className={`flex-shrink-0 w-20 h-20 rounded-xl overflow-hidden border-2 transition-all ${
                     activeImage === img ? 'border-zinc-900 scale-105' : 'border-transparent opacity-60 hover:opacity-100'
-                  }`}
-                >
-                  <img src={img} alt={`${product.name} ${idx}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                </button>
+                   }`}
+                 >
+                   <img 
+                    src={img} 
+                    alt={`${product.name} ${idx}`} 
+                    className="w-full h-full object-cover" 
+                    referrerPolicy="no-referrer" 
+                    loading="lazy"
+                    decoding="async"
+                  />
+                 </button>
               ))}
             </div>
           </motion.div>

@@ -6,12 +6,21 @@ interface ImageZoomProps {
   src: string;
   alt: string;
   className?: string;
+  loading?: "lazy" | "eager";
+  fetchPriority?: "high" | "low" | "auto";
 }
 
-export function ImageZoom({ src, alt, className = "" }: ImageZoomProps) {
+export function ImageZoom({ 
+  src, 
+  alt, 
+  className = "", 
+  loading = "lazy",
+  fetchPriority = "auto"
+}: ImageZoomProps) {
   const [isZoomed, setIsZoomed] = useState(false);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const handleMouseMove = (e: MouseEvent<HTMLDivElement>) => {
@@ -26,16 +35,33 @@ export function ImageZoom({ src, alt, className = "" }: ImageZoomProps) {
     <>
       <div 
         ref={containerRef}
-        className={`relative overflow-hidden cursor-zoom-in group ${className}`}
+        className={`relative overflow-hidden cursor-zoom-in group bg-zinc-100 ${className}`}
         onMouseEnter={() => setIsZoomed(true)}
         onMouseLeave={() => setIsZoomed(false)}
         onMouseMove={handleMouseMove}
         onClick={() => setIsFullscreen(true)}
       >
+        <AnimatePresence>
+          {!isLoaded && (
+            <motion.div
+              initial={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 z-0 bg-zinc-100 flex items-center justify-center"
+            >
+              <div className="w-8 h-8 border-2 border-zinc-200 border-t-orange-500 rounded-full animate-spin" />
+            </motion.div>
+          )}
+        </AnimatePresence>
+        
         <img
           src={src}
           alt={alt}
-          className={`w-full h-full object-cover transition-transform duration-500 ${isZoomed ? 'scale-110' : 'scale-100'}`}
+          onLoad={() => setIsLoaded(true)}
+          className={`w-full h-full object-cover transition-all duration-700 ${isZoomed ? 'scale-110' : 'scale-100'} ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
+          loading={loading}
+          // @ts-ignore
+          fetchPriority={fetchPriority}
+          decoding={fetchPriority === 'high' ? 'sync' : 'async'}
           referrerPolicy="no-referrer"
         />
         

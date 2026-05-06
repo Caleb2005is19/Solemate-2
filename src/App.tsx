@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { CartProvider } from './context/CartContext';
 import { StoreProvider } from './context/StoreContext';
@@ -6,15 +6,24 @@ import { Navbar } from './components/Navbar';
 import { CartDrawer } from './components/CartDrawer';
 import { Footer } from './components/Footer';
 import ScrollToTop from './components/ScrollToTop';
-import { Home } from './pages/Home';
-import { Shop } from './pages/Shop';
-import { ProductDetail } from './pages/ProductDetail';
-import { Checkout } from './pages/Checkout';
-import { Dashboard } from './pages/Dashboard';
-import { MyOrders } from './pages/MyOrders';
-import { Profile } from './pages/Profile';
-import { StressTest } from './pages/StressTest';
 import { ErrorBoundary } from './components/ErrorBoundary';
+
+// Lazy load pages for better performance
+const Home = lazy(() => import('./pages/Home').then(m => ({ default: m.Home })));
+const Shop = lazy(() => import('./pages/Shop').then(m => ({ default: m.Shop })));
+const ProductDetail = lazy(() => import('./pages/ProductDetail').then(m => ({ default: m.ProductDetail })));
+const Checkout = lazy(() => import('./pages/Checkout').then(m => ({ default: m.Checkout })));
+const Dashboard = lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })));
+const MyOrders = lazy(() => import('./pages/MyOrders').then(m => ({ default: m.MyOrders })));
+const Profile = lazy(() => import('./pages/Profile').then(m => ({ default: m.Profile })));
+const StressTest = lazy(() => import('./pages/StressTest').then(m => ({ default: m.StressTest })));
+
+// Loading component
+const PageLoader = () => (
+  <div className="min-h-[60vh] flex items-center justify-center">
+    <div className="w-12 h-12 border-4 border-zinc-200 border-t-orange-500 rounded-full animate-spin" />
+  </div>
+);
 
 export default function App() {
   return (
@@ -27,18 +36,20 @@ export default function App() {
               <Navbar />
               <CartDrawer />
               <main>
-                <Routes>
-                  <Route path="/" element={<Home />} />
-                  <Route path="/shop" element={<Shop />} />
-                  <Route path="/product/:id" element={<ProductDetail />} />
-                  <Route path="/checkout" element={<Checkout />} />
-                  <Route path="/admin" element={<Dashboard role="admin" />} />
-                  <Route path="/seller/:sellerId" element={<Dashboard role="seller" />} />
-                  <Route path="/my-orders" element={<MyOrders />} />
-                  <Route path="/profile" element={<Profile />} />
-                  <Route path="/stress-test" element={<StressTest />} />
-                  <Route path="*" element={<Home />} />
-                </Routes>
+                <Suspense fallback={<PageLoader />}>
+                  <Routes>
+                    <Route path="/" element={<Home />} />
+                    <Route path="/shop" element={<Shop />} />
+                    <Route path="/product/:id" element={<ProductDetail />} />
+                    <Route path="/checkout" element={<Checkout />} />
+                    <Route path="/admin" element={<Dashboard role="admin" />} />
+                    <Route path="/seller/:sellerId" element={<Dashboard role="seller" />} />
+                    <Route path="/my-orders" element={<MyOrders />} />
+                    <Route path="/profile" element={<Profile />} />
+                    <Route path="/stress-test" element={<StressTest />} />
+                    <Route path="*" element={<Home />} />
+                  </Routes>
+                </Suspense>
               </main>
               
               <Footer />

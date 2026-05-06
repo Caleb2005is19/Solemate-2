@@ -8,8 +8,97 @@
     <meta name="keywords" content="sneakers kenya, buy shoes online nairobi, authentic sneakers nairobi, solemate kenya, footwear kenya" />
     <meta name="author" content="Solemate.co.ke" />
     <meta name="theme-color" content="#f97316" />
+    
+    <!-- Resource Hints for Performance -->
+    <link rel="preconnect" href="https://images.unsplash.com" crossorigin />
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
+    
+    <!-- Critical Fonts Loading -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
+    <noscript>
+      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+    </noscript>
+
     <link rel="icon" type="image/png" href="https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&q=80&w=32&h=32" />
     <link rel="apple-touch-icon" href="https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&q=80&w=192&h=192" />
+    
+    <!-- Structured Data for Google Sitelinks -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://solemate.co.ke/#organization",
+            "name": "Solemate Kenya",
+            "url": "https://solemate.co.ke/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&q=80&w=192&h=192"
+            },
+            "contactPoint": {
+              "@type": "ContactPoint",
+              "telephone": "+254-700-000000",
+              "contactType": "customer service"
+            }
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://solemate.co.ke/#website",
+            "url": "https://solemate.co.ke/",
+            "name": "Solemate.co.ke",
+            "description": "Premium Sneakers & Footwear in Kenya",
+            "potentialAction": {
+              "@type": "SearchAction",
+              "target": {
+                "@type": "EntryPoint",
+                "urlTemplate": "https://solemate.co.ke/shop?q={search_term_string}"
+              },
+              "query-input": "required name=search_term_string"
+            }
+          },
+          {
+            "@type": "CollectionPage",
+            "@id": "https://solemate.co.ke/shop",
+            "url": "https://solemate.co.ke/shop",
+            "name": "Shop at Solemate",
+            "description": "Browse our premium sneakers and footwear collection."
+          },
+          {
+            "@type": "ItemList",
+            "itemListElement": [
+              {
+                "@type": "SiteNavigationElement",
+                "position": 1,
+                "name": "Shop Collection",
+                "url": "https://solemate.co.ke/shop"
+              },
+              {
+                "@type": "SiteNavigationElement",
+                "position": 2,
+                "name": "Track Your Orders",
+                "url": "https://solemate.co.ke/my-orders"
+              },
+              {
+                "@type": "SiteNavigationElement",
+                "position": 3,
+                "name": "My Profile",
+                "url": "https://solemate.co.ke/profile"
+              },
+              {
+                "@type": "SiteNavigationElement",
+                "position": 4,
+                "name": "Secure Checkout",
+                "url": "https://solemate.co.ke/checkout"
+              }
+            ]
+          }
+        ]
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
