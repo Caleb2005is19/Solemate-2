@@ -101,7 +101,31 @@
     </script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <style>
+        .initial-loader {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 100vh;
+          background-color: #ffffff;
+        }
+        .initial-loader-spinner {
+          width: 48px;
+          height: 48px;
+          border: 4px solid #e4e4e7;
+          border-top-color: #f97316;
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      </style>
+      <div class="initial-loader">
+        <div class="initial-loader-spinner"></div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -68,6 +68,16 @@ export default defineConfig(({mode}) => {
       chunkSizeWarningLimit: 1000,
       cssCodeSplit: true,
       sourcemap: false,
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            'vendor-react': ['react', 'react-dom', 'react-router-dom', 'react-helmet-async'],
+            'vendor-firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/storage'],
+            'vendor-ui': ['lucide-react', 'motion'],
+            'vendor-charts': ['recharts']
+          }
+        }
+      }
     }
   };
 });
