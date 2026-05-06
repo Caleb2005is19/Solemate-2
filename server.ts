@@ -9,6 +9,9 @@ dotenv.config();
 async function startServer() {
   const app = express();
   const PORT = 3000;
+  
+  // Vercel deployment trigger comment
+
 
   // Use the API router for all /api routes
   app.use(apiRouter);
