@@ -3,8 +3,17 @@ import dotenv from 'dotenv';
 import admin from 'firebase-admin';
 import { getFirestore } from 'firebase-admin/firestore';
 import rateLimit from 'express-rate-limit';
+// @ts-ignore
+import IntaSend from 'intasend-node';
 
 dotenv.config();
+
+// Initialize IntaSend
+const intasend = new IntaSend(
+  process.env.INTASEND_PUBLISHABLE_KEY,
+  process.env.INTASEND_SECRET_KEY,
+  process.env.INTASEND_TEST === 'true'
+);
 
 // Initialize Firebase Admin
 let db: admin.firestore.Firestore;
@@ -41,6 +50,144 @@ const apiLimiter = rateLimit({
 
 app.use('/api/mpesa/stkpush', apiLimiter);
 app.use('/api/mpesa/verify-receipt', apiLimiter);
+app.use('/api/intasend/stkpush', apiLimiter);
+
+// IntaSend STK Push
+app.post('/api/intasend/stkpush', async (req, res) => {
+  try {
+    const { phone, amount, orderId, email, firstName, lastName } = req.body;
+
+    if (!phone || !amount || !orderId) {
+      return res.status(400).json({ error: 'Phone, amount, and orderId are required' });
+    }
+
+    let formattedPhone = phone.replace(/\s+/g, '');
+    if (formattedPhone.startsWith('0')) {
+      formattedPhone = `254${formattedPhone.substring(1)}`;
+    } else if (formattedPhone.startsWith('+')) {
+      formattedPhone = formattedPhone.substring(1);
+    } else if (formattedPhone.startsWith('7') || formattedPhone.startsWith('1')) {
+      formattedPhone = `254${formattedPhone}`;
+    }
+
+    const response = await intasend.collection().mpesaStkPush({
+      first_name: firstName || 'Customer',
+      last_name: lastName || 'User',
+      email: email || 'customer@example.com',
+      host: process.env.APP_URL || 'https://solemate.co.ke',
+      amount: Math.ceil(amount),
+      phone_number: formattedPhone,
+      api_ref: orderId
+    });
+
+    if (response) {
+      // Intasend returns an invoice object with invoice_id if successful
+      const invoiceId = response.invoice?.invoice_id || response.id;
+      
+      try {
+        await db.collection('orders').doc(orderId).set({
+          intasendInvoiceId: invoiceId,
+          status: 'Processing',
+          paymentMethod: 'IntaSend M-Pesa'
+        }, { merge: true });
+      } catch (fsError: any) {
+        console.error('Firestore Update Error during IntaSend STK Push:', fsError);
+      }
+
+      res.json({ success: true, message: 'IntaSend STK Push initiated', invoiceId });
+    } else {
+      res.status(400).json({ success: false, error: 'Failed to initiate IntaSend STK push' });
+    }
+  } catch (error: any) {
+    console.error('IntaSend STK Push Error:', error);
+    res.status(500).json({ success: false, error: error.message || 'Internal server error' });
+  }
+});
+
+// IntaSend Webhook
+app.post('/api/intasend/webhook', async (req, res) => {
+  try {
+    const payload = req.body;
+    console.log('IntaSend Webhook Received:', payload);
+
+    // Intasend payload structure can vary, but usually contains invoice_id and state
+    const invoiceId = payload.invoice_id || payload.id;
+    const state = payload.state; // e.g., 'COMPLETE', 'FAILED', 'PENDING'
+    const orderId = payload.api_ref;
+
+    if (orderId) {
+      const orderRef = db.collection('orders').doc(orderId);
+      
+      if (state === 'COMPLETE') {
+        await orderRef.update({
+          status: 'Processing',
+          paymentStatus: 'Paid',
+          paidAt: admin.firestore.FieldValue.serverTimestamp(),
+          intasendTransactionId: payload.transaction_id,
+          verificationMethod: 'Automatic'
+        });
+      } else if (state === 'FAILED') {
+        await orderRef.update({
+          status: 'Cancelled',
+          paymentStatus: 'Failed',
+          paymentError: 'Payment failed via IntaSend'
+        });
+      }
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('IntaSend Webhook Error:', error);
+    res.status(500).json({ error: 'Internal Error' });
+  }
+});
+
+// IntaSend Status Check
+app.get('/api/intasend/status/:orderId', async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const orderDoc = await db.collection('orders').doc(orderId).get();
+    
+    if (!orderDoc.exists) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    const orderData = orderDoc.data();
+    const invoiceId = orderData?.intasendInvoiceId;
+
+    if (invoiceId) {
+      try {
+        const response = await intasend.collection().status(invoiceId);
+        // Update order status if IntaSend returns a new state
+        if (response && response.invoice) {
+           const state = response.invoice.state;
+           if (state === 'COMPLETE' && orderData?.paymentStatus !== 'Paid') {
+              await db.collection('orders').doc(orderId).update({
+                paymentStatus: 'Paid',
+                status: 'Processing',
+                paidAt: admin.firestore.FieldValue.serverTimestamp()
+              });
+           }
+        }
+      } catch (statusError) {
+        console.error('IntaSend Status API Error:', statusError);
+      }
+    }
+
+    // Return the latest data from our DB
+    const updatedOrderDoc = await db.collection('orders').doc(orderId).get();
+    const updatedOrderData = updatedOrderDoc.data();
+
+    res.json({ 
+      status: updatedOrderData?.status, 
+      paymentStatus: updatedOrderData?.paymentStatus,
+      paymentError: updatedOrderData?.paymentError
+    });
+  } catch (error) {
+    console.error('IntaSend Status Check Error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 app.post('/api/load-test/bulk-orders', async (req, res) => {
   try {

@@ -95,26 +95,33 @@ export function Checkout() {
           paymentMethod,
         });
 
-        // 2. Initiate STK Push
-        const response = await fetch('/api/mpesa/stkpush', {
+        // 2. Initiate STK Push via IntaSend
+        const response = await fetch('/api/intasend/stkpush', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone, amount: finalTotal, orderId }),
+          body: JSON.stringify({ 
+            phone, 
+            amount: finalTotal, 
+            orderId,
+            email: fData.get('email') as string,
+            firstName: fData.get('firstName') as string,
+            lastName: fData.get('lastName') as string
+          }),
         });
 
         const data = await response.json();
 
         if (!response.ok) {
-          throw new Error(data.error || 'Failed to initiate M-Pesa payment');
+          throw new Error(data.error || 'Failed to initiate IntaSend payment');
         }
 
         setShowMpesaModal(true);
         setMpesaStatus('waiting');
 
-        // 3. Start polling for status
+        // 3. Start polling for status via IntaSend status endpoint
         const pollInterval = setInterval(async () => {
           try {
-            const statusRes = await fetch(`/api/mpesa/status/${orderId}`);
+            const statusRes = await fetch(`/api/intasend/status/${orderId}`);
             const statusData = await statusRes.json();
 
             if (statusData.paymentStatus === 'Paid') {
