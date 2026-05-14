@@ -44,6 +44,7 @@
         "description": { "type": "string", "description": "Product description" },
         "isNew": { "type": "boolean", "description": "Whether the product is new" },
         "inStock": { "type": "boolean", "description": "Whether the product is in stock" },
+        "stock": { "type": "number", "description": "Available inventory count" },
         "sellerId": { "type": "string", "description": "ID of the seller who owns this product" }
       },
       "required": ["id", "name", "brand", "price", "image", "category", "gender", "color", "description", "inStock"]

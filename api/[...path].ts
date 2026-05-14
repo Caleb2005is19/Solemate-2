@@ -5,6 +5,9 @@ import { getFirestore } from 'firebase-admin/firestore';
 import rateLimit from 'express-rate-limit';
 // @ts-ignore
 import IntaSend from 'intasend-node';
+import React from 'react';
+import { renderToBuffer } from '@react-pdf/renderer';
+import InvoiceDocument from '../src/components/InvoiceDocument';
 
 dotenv.config();
 
@@ -18,22 +21,46 @@ const intasend = new IntaSend(
 // Initialize Firebase Admin
 let db: admin.firestore.Firestore;
 
-const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID;
-const databaseId = process.env.VITE_FIREBASE_DATABASE_ID || process.env.FIREBASE_DATABASE_ID || '(default)';
+const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || process.env.PROJECT_ID;
+const databaseId = process.env.VITE_FIREBASE_DATABASE_ID || process.env.FIREBASE_DATABASE_ID;
+
+console.log('Firebase Config Debug:', {
+  projectId: projectId || 'MISSING',
+  databaseId: databaseId || 'DEFAULT',
+  env_PROJECT_ID: process.env.PROJECT_ID || 'MISSING',
+  env_FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID || 'MISSING',
+  env_VITE_FIREBASE_PROJECT_ID: process.env.VITE_FIREBASE_PROJECT_ID || 'MISSING'
+});
 
 if (!admin.apps.length) {
   try {
-    admin.initializeApp({
-      projectId: projectId,
-    });
-    console.log(`Firebase Admin initialized for project: ${projectId || 'default'}`);
-  } catch (error) {
-    console.error('Error initializing Firebase Admin:', error);
+    if (projectId) {
+      admin.initializeApp({
+        projectId: projectId,
+      });
+      console.log(`Firebase Admin initialized with projectId: ${projectId}`);
+    } else {
+      admin.initializeApp();
+      console.log('Firebase Admin initialized with default credentials');
+    }
+  } catch (error: any) {
+    console.error('Error initializing Firebase Admin:', error.message);
   }
 }
 
-db = getFirestore(databaseId);
-db.settings({ ignoreUndefinedProperties: true });
+try {
+  // Only specify databaseId if it is a named database (not default)
+  if (databaseId && databaseId !== '(default)') {
+    console.log(`Initializing Firestore with databaseId: ${databaseId}`);
+    db = getFirestore(databaseId);
+  } else {
+    console.log('Initializing Firestore with (default) database');
+    db = getFirestore();
+  }
+  db.settings({ ignoreUndefinedProperties: true });
+} catch (error: any) {
+  console.error('Error initializing Firestore:', error.message);
+}
 
 const app = express();
 
@@ -186,6 +213,49 @@ app.get('/api/intasend/status/:orderId', async (req, res) => {
   } catch (error) {
     console.error('IntaSend Status Check Error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/api/orders/:id/invoice', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    if (!db) {
+      throw new Error('Firestore database not initialized. Check server logs for initialization errors.');
+    }
+
+    console.log(`Fetching order ${id} for invoice generation...`);
+    const orderDoc = await db.collection('orders').doc(id).get();
+
+    if (!orderDoc.exists) {
+      console.log(`Order ${id} not found in collection 'orders'`);
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    const orderData = orderDoc.data();
+    const order = {
+      id: id,
+      ...orderData,
+      date: orderData?.date || new Date().toISOString().split('T')[0]
+    };
+
+    // Generate PDF
+    const buffer = await renderToBuffer(React.createElement(InvoiceDocument, { order }) as any);
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=invoice-${id.slice(-8).toUpperCase()}.pdf`);
+    res.send(buffer);
+  } catch (error: any) {
+    console.error('Invoice Generation Error:', error);
+    // Include more details if it's a gRPC error
+    const statusCode = error.code || 'unknown';
+    const details = error.details || error.message;
+    res.status(500).json({ 
+      error: 'Failed to generate invoice', 
+      message: error.message,
+      code: statusCode, 
+      details: details
+    });
   }
 });
 
@@ -435,11 +505,30 @@ app.get('/api/mpesa/status/:orderId', async (req, res) => {
   }
 });
 
-app.get("/api/health", (req, res) => {
+app.get("/api/health", async (req, res) => {
+  let firestoreStatus = "not initialized";
+  let firestoreTest = "not attempted";
+  
+  if (db) {
+    firestoreStatus = "initialized";
+    try {
+      // Try a simple operation to check permissions
+      const testDoc = await db.collection('orders').limit(1).get();
+      firestoreTest = "connected (read successful)";
+    } catch (err: any) {
+      firestoreTest = `connection failed: ${err.message} (code: ${err.code})`;
+    }
+  }
+
   res.json({ 
     status: "ok",
-    firebase: db ? "initialized" : "not initialized",
-    projectId: process.env.VITE_FIREBASE_PROJECT_ID || "missing"
+    firebase: firestoreStatus,
+    firestoreTest: firestoreTest,
+    config: {
+      projectId: projectId || "missing",
+      databaseId: databaseId || "(default)",
+      runningInVercel: !!process.env.VERCEL
+    }
   });
 });
 

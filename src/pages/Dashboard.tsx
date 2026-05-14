@@ -15,7 +15,7 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
   const currentSellerId = role === 'seller' ? sellerId : null;
   const currentSeller = currentSellerId ? sellers.find(s => s.id === currentSellerId) : null;
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'orders' | 'sellers'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'inventory' | 'orders' | 'sellers'>('overview');
   const [isAddingProduct, setIsAddingProduct] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [viewingOrder, setViewingOrder] = useState<Order | null>(null);
@@ -33,7 +33,7 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
 
   // Form State
   const [formData, setFormData] = useState<Partial<Product>>({
-    name: '', brand: '', price: 0, originalPrice: 0, image: '', images: [], category: 'Sneakers', gender: 'Unisex', color: '', colors: [], description: '', inStock: true, sellerId: ''
+    name: '', brand: '', price: 0, originalPrice: 0, image: '', images: [], category: 'Sneakers', gender: 'Unisex', color: '', colors: [], description: '', inStock: true, stock: 0, sellerId: ''
   });
 
   const [newColor, setNewColor] = useState({ name: '', hex: '#000000' });
@@ -175,7 +175,7 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
       }
       setIsAddingProduct(false);
       setEditingProduct(null);
-      setFormData({ name: '', brand: '', price: 0, originalPrice: 0, image: '', images: [], category: 'Sneakers', gender: 'Unisex', color: '', colors: [], description: '', inStock: true, sellerId: '' });
+      setFormData({ name: '', brand: '', price: 0, originalPrice: 0, image: '', images: [], category: 'Sneakers', gender: 'Unisex', color: '', colors: [], description: '', inStock: true, stock: 0, sellerId: '' });
       setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
       console.error("Error saving product:", err);
@@ -233,153 +233,7 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
 
   const handlePrintInvoice = (order: Order) => {
     if (!order) return;
-    
-    try {
-      const printWindow = window.open('', '_blank', 'width=800,height=600');
-      if (!printWindow) {
-        alert('Popup blocked! Please allow popups for Solemate.co.ke to print invoices.');
-        return;
-      }
-
-      // Defensive data extraction
-      const customerInfo = order.customerInfo || { firstName: '', lastName: '', email: '', phone: '', location: '', city: '' };
-      const firstName = customerInfo.firstName || '';
-      const lastName = customerInfo.lastName || '';
-      const email = customerInfo.email || '';
-      const phone = customerInfo.phone || '';
-      const location = customerInfo.location || '';
-      const city = customerInfo.city || '';
-      const items = order.items || [];
-      const total = order.total || 0;
-      const deliveryFee = order.deliveryFee || 0;
-      const orderId = order.id || 'N/A';
-      const orderDate = order.date ? new Date(order.date).toLocaleDateString() : 'N/A';
-
-      const itemsHtml = items.map(item => {
-        const itemPrice = Number(item.price) || 0;
-        const itemQty = Number(item.quantity) || 0;
-        return `
-          <tr>
-            <td style="padding: 12px; border-bottom: 1px solid #eee;">
-              <div style="font-weight: bold;">${item.name || 'Unknown Item'}</div>
-              <div style="font-size: 12px; color: #666;">Size: ${item.selectedSize || 'N/A'}</div>
-            </td>
-            <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: center;">${itemQty}</td>
-            <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: right;">${formatPrice(itemPrice)}</td>
-            <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: right;">${formatPrice(itemPrice * itemQty)}</td>
-          </tr>
-        `;
-      }).join('');
-
-      const content = `
-        <!DOCTYPE html>
-        <html lang="en">
-          <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Invoice #${orderId}</title>
-            <style>
-              body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #333; line-height: 1.5; padding: 40px; margin: 0; }
-              .header { display: flex; justify-content: space-between; margin-bottom: 40px; border-bottom: 2px solid #f97316; padding-bottom: 20px; }
-              .logo { font-size: 24px; font-weight: bold; color: #f97316; }
-              .invoice-info { text-align: right; }
-              .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-bottom: 40px; }
-              .section-title { font-size: 12px; font-weight: bold; text-transform: uppercase; color: #999; margin-bottom: 10px; }
-              table { width: 100%; border-collapse: collapse; margin-bottom: 40px; }
-              th { text-align: left; padding: 12px; background: #f9fafb; border-bottom: 1px solid #eee; font-size: 12px; text-transform: uppercase; color: #666; }
-              .totals { margin-left: auto; width: 300px; }
-              .total-row { display: flex; justify-content: space-between; padding: 8px 0; }
-              .total-row.grand { border-top: 2px solid #eee; margin-top: 10px; padding-top: 10px; font-weight: bold; font-size: 18px; color: #f97316; }
-              .footer { margin-top: 60px; text-align: center; font-size: 12px; color: #999; border-top: 1px solid #eee; padding-top: 20px; }
-              @media print {
-                body { padding: 0; }
-                .no-print { display: none; }
-              }
-            </style>
-          </head>
-          <body>
-            <div class="header">
-              <div class="logo">Solemate.co.ke</div>
-              <div class="invoice-info">
-                <div style="font-weight: bold; font-size: 20px;">INVOICE</div>
-                <div>Order ID: #${orderId}</div>
-                <div>Date: ${orderDate}</div>
-              </div>
-            </div>
-
-            <div class="grid">
-              <div>
-                <div class="section-title">Bill To</div>
-                <div style="font-weight: bold;">${firstName} ${lastName}</div>
-                <div>${email}</div>
-                <div>${phone}</div>
-              </div>
-              <div>
-                <div class="section-title">Shipping Address</div>
-                <div>${location}</div>
-                <div>${city}</div>
-              </div>
-            </div>
-
-            <table>
-              <thead>
-                <tr>
-                  <th>Item Description</th>
-                  <th style="text-align: center;">Qty</th>
-                  <th style="text-align: right;">Price</th>
-                  <th style="text-align: right;">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${itemsHtml}
-              </tbody>
-            </table>
-
-            <div class="totals">
-              <div class="total-row">
-                <span>Subtotal</span>
-                <span>${formatPrice(total - deliveryFee)}</span>
-              </div>
-              <div class="total-row">
-                <span>Delivery Fee</span>
-                <span>${deliveryFee === 0 ? 'Free' : formatPrice(deliveryFee)}</span>
-              </div>
-              <div class="total-row grand">
-                <span>Total Amount</span>
-                <span>${formatPrice(total)}</span>
-              </div>
-            </div>
-
-            <div class="footer">
-              <p>Thank you for shopping with Solemate.co.ke!</p>
-              <p>For any inquiries, please contact us at +254 700 000 000</p>
-            </div>
-
-            <script>
-              function startPrint() {
-                if (window.print_started) return;
-                window.print_started = true;
-                setTimeout(() => {
-                  window.print();
-                  window.close();
-                }, 500);
-              }
-              window.onload = startPrint;
-              // Fallback for browsers where onload might not fire
-              setTimeout(startPrint, 2000);
-            </script>
-          </body>
-        </html>
-      `;
-
-      printWindow.document.open();
-      printWindow.document.write(content);
-      printWindow.document.close();
-    } catch (err) {
-      console.error('Printing error:', err);
-      const errorMsg = err instanceof Error ? err.message : String(err);
-      alert(`There was a problem with the printing: ${errorMsg}. Please try again.`);
-    }
+    window.open(`/api/orders/${order.id}/invoice`, '_blank');
   };
 
   const handlePrintAllInvoices = () => {
@@ -579,6 +433,12 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${activeTab === 'products' ? 'bg-orange-500 text-white' : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'}`}
           >
             <Package className="w-5 h-5" /> Products
+          </button>
+          <button
+            onClick={() => setActiveTab('inventory')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${activeTab === 'inventory' ? 'bg-orange-500 text-white' : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'}`}
+          >
+            <Box className="w-5 h-5" /> Inventory
           </button>
           <button
             onClick={() => {
@@ -1017,7 +877,7 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
                           ></textarea>
                         </div>
 
-                        <div className="flex items-center justify-between p-4 bg-zinc-50 rounded-2xl border border-zinc-100">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-zinc-50 p-4 rounded-2xl border border-zinc-100">
                           <div className="flex items-center gap-3">
                             <input 
                               type="checkbox" 
@@ -1027,6 +887,17 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
                               className="w-6 h-6 text-orange-500 rounded-lg border-zinc-300 cursor-pointer" 
                             />
                             <label htmlFor="inStock" className="font-bold text-zinc-900 cursor-pointer">Available in Stock</label>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs font-bold text-zinc-500 uppercase ml-1">Current Stock Count</label>
+                            <input 
+                              type="number" 
+                              min="0"
+                              value={formData.stock || 0} 
+                              onChange={e => setFormData({...formData, stock: Number(e.target.value)})} 
+                              className="w-full px-4 py-3 rounded-2xl border border-zinc-200 outline-none font-bold" 
+                              placeholder="0"
+                            />
                           </div>
                         </div>
                       </div>
@@ -1062,6 +933,7 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
                       <tr className="bg-zinc-50/50 border-b border-zinc-100">
                         <th className="p-6 font-bold text-zinc-500 text-xs uppercase tracking-wider">Product</th>
                         <th className="p-6 font-bold text-zinc-500 text-xs uppercase tracking-wider">Price</th>
+                        <th className="p-6 font-bold text-zinc-500 text-xs uppercase tracking-wider">Stock</th>
                         <th className="p-6 font-bold text-zinc-500 text-xs uppercase tracking-wider">Category</th>
                         <th className="p-6 font-bold text-zinc-500 text-xs uppercase tracking-wider">Status</th>
                         <th className="p-6 font-bold text-zinc-500 text-xs uppercase tracking-wider text-right">Actions</th>
@@ -1070,7 +942,7 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
                     <tbody>
                       {products.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="p-20 text-center">
+                          <td colSpan={6} className="p-20 text-center">
                             <div className="flex flex-col items-center gap-4">
                               <div className="w-20 h-20 bg-zinc-50 rounded-full flex items-center justify-center text-zinc-300">
                                 <Package className="w-10 h-10" />
@@ -1101,6 +973,16 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
                           </td>
                           <td className="p-6">
                             <p className="font-black text-zinc-900">{formatPrice(p.price)}</p>
+                          </td>
+                          <td className="p-6">
+                            <div className="flex items-center gap-2">
+                               <span className={`font-black ${p.stock && p.stock < 5 ? 'text-rose-500' : 'text-zinc-900'}`}>
+                                 {p.stock || 0}
+                               </span>
+                               {p.stock && p.stock < 5 && (
+                                 <span className="text-[10px] font-black bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded uppercase">Low</span>
+                               )}
+                            </div>
                           </td>
                           <td className="p-6">
                             <span className="px-3 py-1 bg-zinc-100 text-zinc-600 rounded-lg text-xs font-bold uppercase tracking-wider">
@@ -1138,6 +1020,110 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {activeTab === 'inventory' && (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h1 className="text-3xl font-bold text-zinc-900">Inventory Management</h1>
+              <div className="flex items-center gap-3 text-sm text-zinc-500">
+                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 text-rose-600 rounded-xl font-bold border border-rose-100">
+                  <div className="w-2 h-2 rounded-full bg-rose-500"></div>
+                  Low Stock (&lt;5)
+                </div>
+                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-100 text-zinc-600 rounded-xl font-bold border border-zinc-200">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                  Healthy Stock
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-[2rem] border border-zinc-100 shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-zinc-50/50 border-b border-zinc-100">
+                      <th className="p-6 font-bold text-zinc-500 text-xs uppercase tracking-wider">Product Info</th>
+                      <th className="p-6 font-bold text-zinc-500 text-xs uppercase tracking-wider">Category</th>
+                      <th className="p-6 font-bold text-zinc-500 text-xs uppercase tracking-wider w-40">Stock Level</th>
+                      <th className="p-6 font-bold text-zinc-500 text-xs uppercase tracking-wider">Inventory Status</th>
+                      <th className="p-6 font-bold text-zinc-500 text-xs uppercase tracking-wider text-right">Quick Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {products.map(p => (
+                      <tr key={p.id} className="border-b border-zinc-50 hover:bg-zinc-50/50 transition-colors group">
+                        <td className="p-6 flex items-center gap-4">
+                          <div className="w-12 h-12 rounded-xl overflow-hidden bg-zinc-100 flex-shrink-0">
+                            <img src={p.image} alt={p.name} className="w-full h-full object-cover" />
+                          </div>
+                          <div>
+                            <p className="font-bold text-zinc-900">{p.name}</p>
+                            <p className="text-xs text-zinc-400">{p.brand}</p>
+                          </div>
+                        </td>
+                        <td className="p-6">
+                          <span className="text-sm text-zinc-600">{p.category}</span>
+                        </td>
+                        <td className="p-6">
+                           <div className="flex items-center gap-2 group/input">
+                              <input 
+                                type="number" 
+                                min="0"
+                                value={p.stock || 0}
+                                onChange={async (e) => {
+                                  const newStock = Number(e.target.value);
+                                  await updateProduct(p.id, { ...p, stock: newStock, inStock: newStock > 0 });
+                                }}
+                                className={`w-20 px-3 py-2 rounded-xl border transition-all font-bold outline-none ${p.stock && p.stock < 5 ? 'border-rose-200 bg-rose-50 text-rose-700 focus:ring-2 focus:ring-rose-500' : 'border-zinc-200 bg-white text-zinc-900 focus:ring-2 focus:ring-orange-500'}`}
+                              />
+                           </div>
+                        </td>
+                        <td className="p-6">
+                          {p.stock && p.stock === 0 ? (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-zinc-900 text-white rounded-full text-[10px] font-black uppercase tracking-wider">
+                              Out of Stock
+                            </span>
+                          ) : p.stock && p.stock < 5 ? (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-rose-100 text-rose-700 rounded-full text-[10px] font-black uppercase tracking-wider">
+                              Critical Low
+                            </span>
+                          ) : p.stock && p.stock < 15 ? (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-[10px] font-black uppercase tracking-wider">
+                              Moderate
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-[10px] font-black uppercase tracking-wider">
+                              Well Stocked
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-6 text-right">
+                           <div className="flex justify-end gap-2">
+                             <button 
+                               onClick={async () => {
+                                 const currentStock = p.stock || 0;
+                                 await updateProduct(p.id, { ...p, stock: currentStock + 10, inStock: true });
+                               }}
+                               className="px-3 py-2 bg-zinc-100 text-zinc-900 rounded-xl text-xs font-bold hover:bg-zinc-900 hover:text-white transition-all active:scale-95"
+                             >
+                               +10 Restock
+                             </button>
+                             <button
+                               onClick={() => openEdit(p)}
+                               className="p-2 text-zinc-400 hover:text-zinc-900 transition-colors"
+                             >
+                               <Edit className="w-5 h-5" />
+                             </button>
+                           </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         )}
 
@@ -1227,10 +1213,10 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
                       <h2 className="text-xl font-bold text-zinc-900">Order #{viewingOrder.id}</h2>
                       <button 
                         onClick={() => handlePrintInvoice(viewingOrder)}
-                        className="flex items-center gap-2 px-3 py-1.5 bg-zinc-100 text-zinc-600 rounded-lg text-xs font-bold hover:bg-zinc-200 transition-colors"
+                        className="flex items-center gap-2 px-3 py-1.5 bg-orange-500 text-white rounded-lg text-xs font-bold hover:bg-orange-600 transition-colors shadow-sm shadow-orange-200"
                       >
                         <Printer className="w-4 h-4" />
-                        Print Invoice
+                        Download PDF Invoice
                       </button>
                     </div>
                     <button onClick={() => setViewingOrder(null)} className="p-2 hover:bg-zinc-100 rounded-full transition-colors">

@@ -1,5 +1,6 @@
 {
   "name": "Solemate.co.ke | Premium Footwear & Sneakers in Kenya",
   "description": "Shop the latest premium sneakers, boots, and casual shoes at Solemate.co.ke. Fast delivery across Kenya, secure M-Pesa payments, and authentic footwear brands.",
-  "requestFramePermissions": ["camera", "microphone", "geolocation"]
+  "requestFramePermissions": ["camera", "microphone", "geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

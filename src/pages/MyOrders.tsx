@@ -226,6 +226,17 @@ export function MyOrders() {
                           </div>
                         </div>
 
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.open(`/api/orders/${order.id}/invoice`, '_blank');
+                          }}
+                          className="w-full flex items-center justify-center gap-3 py-4 bg-white text-zinc-900 border-2 border-zinc-900 rounded-[2rem] font-black hover:bg-zinc-50 transition-all active:scale-95 shadow-sm"
+                        >
+                          <ShoppingBag className="w-5 h-5" />
+                          Download Receipt (PDF)
+                        </button>
+
                         <div className="p-6 bg-orange-50 rounded-[2rem] border border-orange-100">
                           <div className="flex items-center gap-3 mb-4">
                             <AlertCircle className="w-5 h-5 text-orange-600" />

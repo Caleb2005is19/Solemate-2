@@ -67,38 +67,40 @@ service cloud.firestore {
              data.joinedDate is string;
     }
 
-    function isValidProduct(data) {
-      return hasRequiredFields(['name', 'brand', 'price', 'image', 'category', 'gender', 'color', 'description', 'inStock', 'sellerId']) &&
-             hasOnlyAllowedFields(['name', 'brand', 'price', 'originalPrice', 'image', 'images', 'category', 'gender', 'color', 'colors', 'description', 'inStock', 'sellerId', 'id', 'isNew']) &&
-             data.name is string && data.name.size() > 0 && data.name.size() < 200 &&
-             data.brand is string &&
-             data.price is number && data.price >= 0 &&
+    function isValidProduct(data, isUpdate) {
+      return (isUpdate || hasRequiredFields(['name', 'brand', 'price', 'image', 'category', 'gender', 'color', 'description', 'inStock', 'sellerId'])) &&
+             hasOnlyAllowedFields(['name', 'brand', 'price', 'originalPrice', 'image', 'images', 'category', 'gender', 'color', 'colors', 'description', 'inStock', 'sellerId', 'id', 'isNew', 'stock']) &&
+             (!('name' in data) || (data.name is string && data.name.size() > 0 && data.name.size() < 200)) &&
+             (!('brand' in data) || data.brand is string) &&
+             (!('price' in data) || (data.price is number && data.price >= 0)) &&
              (!('originalPrice' in data) || (data.originalPrice is number && data.originalPrice >= 0)) &&
-             data.image is string &&
+             (!('image' in data) || data.image is string) &&
              (!('images' in data) || data.images is list) &&
-             data.category is string &&
-             data.gender in ['Men', 'Women', 'Unisex', 'Kids'] &&
-             data.color is string &&
+             (!('category' in data) || data.category is string) &&
+             (!('gender' in data) || data.gender in ['Men', 'Women', 'Unisex', 'Kids']) &&
+             (!('color' in data) || data.color is string) &&
              (!('colors' in data) || data.colors is list) &&
-             data.description is string && data.description.size() < 2000 &&
-             data.inStock is bool &&
-             data.sellerId is string;
+             (!('description' in data) || (data.description is string && data.description.size() < 2000)) &&
+             (!('inStock' in data) || data.inStock is bool) &&
+             (!('stock' in data) || (data.stock is number && data.stock >= 0)) &&
+             (!('sellerId' in data) || data.sellerId is string);
     }
 
-    function isValidOrder(data) {
-      return hasRequiredFields(['customerInfo', 'items', 'total', 'status', 'date', 'paymentMethod']) &&
-             hasOnlyAllowedFields(['customerInfo', 'items', 'total', 'status', 'date', 'paymentMethod', 'userId', 'sellerIds', 'id', 'deliveryFee', 'mpesaCheckoutId', 'paymentStatus', 'mpesaReceipt', 'paymentError', 'paidAt', 'verificationMethod']) &&
-             data.customerInfo is map &&
-             data.customerInfo.keys().hasAll(['firstName', 'lastName', 'email', 'phone', 'location', 'city']) &&
-             data.items is list &&
-             data.total is number && data.total >= 0 &&
+    function isValidOrder(data, isUpdate) {
+      return (isUpdate || hasRequiredFields(['customerInfo', 'items', 'total', 'status', 'date', 'paymentMethod'])) &&
+             hasOnlyAllowedFields(['customerInfo', 'items', 'total', 'status', 'date', 'paymentMethod', 'userId', 'sellerIds', 'id', 'deliveryFee', 'mpesaCheckoutId', 'paymentStatus', 'mpesaReceipt', 'paymentError', 'paidAt', 'verificationMethod', 'intasendInvoiceId', 'intasendTransactionId']) &&
+             (!('customerInfo' in data) || (data.customerInfo is map && data.customerInfo.keys().hasAll(['firstName', 'lastName', 'email', 'phone', 'location', 'city']))) &&
+             (!('items' in data) || data.items is list) &&
+             (!('total' in data) || (data.total is number && data.total >= 0)) &&
              (!('deliveryFee' in data) || (data.deliveryFee is number && data.deliveryFee >= 0)) &&
-             data.status in ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled'] &&
-             data.date is string &&
-             data.paymentMethod is string &&
+             (!('status' in data) || data.status in ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled']) &&
+             (!('date' in data) || data.date is string) &&
+             (!('paymentMethod' in data) || data.paymentMethod is string) &&
              (!('mpesaCheckoutId' in data) || data.mpesaCheckoutId is string) &&
              (!('paymentStatus' in data) || data.paymentStatus in ['Paid', 'Failed', 'Pending']) &&
              (!('mpesaReceipt' in data) || (data.mpesaReceipt is string && data.mpesaReceipt.size() < 20)) &&
+             (!('intasendInvoiceId' in data) || data.intasendInvoiceId is string) &&
+             (!('intasendTransactionId' in data) || data.intasendTransactionId is string) &&
              (!('verificationMethod' in data) || data.verificationMethod in ['Automatic', 'Manual']);
     }
 
@@ -122,15 +124,15 @@ service cloud.firestore {
 
     match /products/{productId} {
       allow read: if true;
-      allow create: if isAuthenticated() && isValidProduct(request.resource.data) && (isAdmin() || isSeller(request.resource.data.sellerId));
-      allow update: if isAuthenticated() && isValidProduct(request.resource.data) && (isAdmin() || isSeller(resource.data.sellerId));
+      allow create: if isAuthenticated() && isValidProduct(request.resource.data, false) && (isAdmin() || isSeller(request.resource.data.sellerId));
+      allow update: if isAuthenticated() && isValidProduct(request.resource.data, true) && (isAdmin() || isSeller(resource.data.sellerId));
       allow delete: if isAdmin() || (isAuthenticated() && isSeller(resource.data.sellerId));
     }
 
     match /orders/{orderId} {
       allow read: if isAdmin() || isOrderOwner(resource.data);
-      allow create: if isValidOrder(request.resource.data);
-      allow update: if isAdmin() && isValidOrder(request.resource.data);
+      allow create: if isValidOrder(request.resource.data, false);
+      allow update: if isAdmin() && isValidOrder(request.resource.data, true);
       allow delete: if isAdmin();
     }
   }

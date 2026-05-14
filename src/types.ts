@@ -37,6 +37,7 @@ export interface Product {
   description: string;
   isNew?: boolean;
   inStock: boolean;
+  stock?: number;
   sellerId?: string;
 }
 

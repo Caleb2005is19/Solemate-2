@@ -5,6 +5,7 @@ import { StoreProvider } from './context/StoreContext';
 import { Navbar } from './components/Navbar';
 import { CartDrawer } from './components/CartDrawer';
 import { Footer } from './components/Footer';
+import BackToTop from './components/BackToTop';
 import ScrollToTop from './components/ScrollToTop';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
@@ -53,6 +54,7 @@ export default function App() {
               </main>
               
               <Footer />
+              <BackToTop />
             </div>
           </Router>
         </CartProvider>
