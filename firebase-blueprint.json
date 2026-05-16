@@ -80,6 +80,129 @@
         "verificationMethod": { "type": "string", "enum": ["Automatic", "Manual"], "description": "How the payment was verified" }
       },
       "required": ["id", "customerInfo", "items", "total", "status", "date", "paymentMethod"]
+    },
+    "Review": {
+      "title": "Review",
+      "description": "Customer review for a product",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the review" },
+        "productId": { "type": "string", "description": "ID of the product being reviewed" },
+        "userId": { "type": "string", "description": "ID of the user who wrote the review" },
+        "userName": { "type": "string", "description": "Name of the reviewer" },
+        "rating": { "type": "number", "minimum": 1, "maximum": 5, "description": "Star rating from 1 to 5" },
+        "comment": { "type": "string", "description": "Review text" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the review was created" }
+      },
+      "required": ["id", "productId", "userId", "userName", "rating", "comment", "createdAt"]
+    },
+    "SiteSettings": {
+      "title": "Site Settings",
+      "description": "Global business information and settings",
+      "type": "object",
+      "properties": {
+        "businessName": { "type": "string" },
+        "logo": { "type": "string" },
+        "favicon": { "type": "string" },
+        "contactEmail": { "type": "string", "format": "email" },
+        "phoneNumbers": { "type": "array", "items": { "type": "string" } },
+        "whatsappNumber": { "type": "string" },
+        "location": { "type": "string" },
+        "googleMapsEmbed": { "type": "string" },
+        "socialMedia": {
+          "type": "object",
+          "properties": {
+            "facebook": { "type": "string" },
+            "instagram": { "type": "string" },
+            "twitter": { "type": "string" },
+            "linkedin": { "type": "string" }
+          }
+        },
+        "footerText": { "type": "string" },
+        "seo": {
+          "type": "object",
+          "properties": {
+            "title": { "type": "string" },
+            "description": { "type": "string" }
+          }
+        },
+        "currency": { "type": "string" },
+        "deliveryFee": { "type": "number" },
+        "taxPercentage": { "type": "number" },
+        "openingHours": { "type": "string" }
+      }
+    },
+    "ThemeSettings": {
+      "title": "Theme Settings",
+      "description": "UI appearance customization",
+      "type": "object",
+      "properties": {
+        "primaryColor": { "type": "string" },
+        "secondaryColor": { "type": "string" },
+        "fontFamily": { "type": "string" },
+        "borderRadius": { "type": "string" },
+        "darkMode": { "type": "boolean" },
+        "buttonStyle": { "type": "string", "enum": ["pill", "rounded", "sharp"] }
+      }
+    },
+    "ContentBlock": {
+      "title": "Content Block",
+      "description": "Reusable content pieces like policy pages",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "slug": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "lastUpdated": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "slug", "title", "content"]
+    },
+    "FeatureToggles": {
+      "title": "Feature Toggles",
+      "description": "Enable or disable application features",
+      "type": "object",
+      "properties": {
+        "enableReviews": { "type": "boolean" },
+        "enableCoupons": { "type": "boolean" },
+        "enableWishlist": { "type": "boolean" },
+        "enablePickupStation": { "type": "boolean" },
+        "enableGuestCheckout": { "type": "boolean" },
+        "maintenanceMode": { "type": "boolean" }
+      }
+    },
+    "Announcement": {
+      "title": "Announcement",
+      "description": "Promotional banners and popups",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string", "enum": ["banner", "popup", "notice"] },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "link": { "type": "string" },
+        "active": { "type": "boolean" },
+        "startDate": { "type": "string", "format": "date-time" },
+        "endDate": { "type": "string", "format": "date-time" },
+        "mobileOnly": { "type": "boolean" },
+        "desktopOnly": { "type": "boolean" }
+      },
+      "required": ["id", "type", "title", "active"]
+    },
+    "ContactMessage": {
+      "title": "Contact Message",
+      "description": "Messages sent from contact forms",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "subject": { "type": "string" },
+        "message": { "type": "string" },
+        "status": { "type": "string", "enum": ["unread", "read", "replied"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "email", "message", "status", "createdAt"]
     }
   },
   "firestore": {
@@ -95,9 +218,37 @@
       "schema": "Product",
       "description": "Product catalog"
     },
+    "/products/{productId}/reviews/{reviewId}": {
+      "schema": "Review",
+      "description": "Product reviews"
+    },
     "/orders/{orderId}": {
       "schema": "Order",
       "description": "Customer orders"
+    },
+    "/settings/site": {
+      "schema": "SiteSettings",
+      "description": "Global site settings"
+    },
+    "/settings/theme": {
+      "schema": "ThemeSettings",
+      "description": "App theme settings"
+    },
+    "/settings/features": {
+      "schema": "FeatureToggles",
+      "description": "Feature flags"
+    },
+    "/content_blocks/{blockId}": {
+      "schema": "ContentBlock",
+      "description": "Static content blocks"
+    },
+    "/announcements/{announcementId}": {
+      "schema": "Announcement",
+      "description": "Marketing announcements"
+    },
+    "/contact_messages/{messageId}": {
+      "schema": "ContactMessage",
+      "description": "Contact form submissions"
     }
   }
 }

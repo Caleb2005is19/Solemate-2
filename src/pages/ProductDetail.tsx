@@ -9,8 +9,9 @@ import { SEO } from '../components/SEO';
 import { ProductCard } from '../components/ProductCard';
 import { RecentlyViewed } from '../components/RecentlyViewed';
 import { ImageZoom } from '../components/ImageZoom';
-import { Product } from '../types';
-import { ShoppingCart, X, Info } from 'lucide-react';
+import { Product, Review } from '../types';
+import { ShoppingCart, X, Info, Send, User } from 'lucide-react';
+import { reviewService } from '../services/reviewService';
 
 const SIZES = [7, 7.5, 8, 8.5, 9, 9.5, 10, 10.5, 11, 11.5, 12, 13];
 
@@ -139,7 +140,7 @@ const getStyleAdvice = (product: Product) => {
 export function ProductDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { products } = useStore();
+  const { products, currentUser } = useStore();
   const { addToCart, toggleWishlist, isInWishlist, addToRecentlyViewed } = useCart();
   
   const product = products.find(p => p.id === id);
@@ -153,11 +154,58 @@ export function ProductDetail() {
   const [qvImageIndex, setQvImageIndex] = useState(0);
   const [copied, setCopied] = useState(false);
 
+  // Review states
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [loadingReviews, setLoadingReviews] = useState(true);
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState('');
+  const [submittingReview, setSubmittingReview] = useState(false);
+  const [hasPurchased, setHasPurchased] = useState(false);
+
   const handleCopyLink = () => {
     const url = window.location.href;
     navigator.clipboard.writeText(url);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const fetchReviews = async () => {
+    if (!id) return;
+    setLoadingReviews(true);
+    const fetchedReviews = await reviewService.getReviews(id);
+    setReviews(fetchedReviews);
+    setLoadingReviews(false);
+  };
+
+  const checkPurchase = async () => {
+    if (!id || !currentUser) {
+      setHasPurchased(false);
+      return;
+    }
+    const bought = await reviewService.hasPurchasedProduct(currentUser.uid, id);
+    setHasPurchased(bought);
+  };
+
+  const handleSubmitReview = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id || !currentUser) return;
+    
+    setSubmittingReview(true);
+    const result = await reviewService.addReview(
+      id, 
+      currentUser.uid, 
+      currentUser.displayName || 'Anonymous User', 
+      rating, 
+      comment
+    );
+    if (result) {
+      setReviews(prev => [result, ...prev]);
+      setShowReviewForm(false);
+      setComment('');
+      setRating(5);
+    }
+    setSubmittingReview(false);
   };
 
   // Reset state when product changes
@@ -169,8 +217,10 @@ export function ProductDetail() {
       setError(null);
       window.scrollTo(0, 0);
       addToRecentlyViewed(product);
+      fetchReviews();
+      checkPurchase();
     }
-  }, [id, product, addToRecentlyViewed]);
+  }, [id, product, addToRecentlyViewed, currentUser]);
 
   if (!product) {
     return (
@@ -344,6 +394,30 @@ export function ProductDetail() {
                   )}
                 </button>
               </div>
+
+              {reviews.length > 0 && (
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="flex items-center gap-0.5">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <Star 
+                        key={star}
+                        className={`w-4 h-4 ${
+                          star <= Math.round(reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length)
+                            ? 'fill-orange-500 text-orange-500' 
+                            : 'text-zinc-200'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <span className="text-sm font-bold text-zinc-900">
+                    {(reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length).toFixed(1)}
+                  </span>
+                  <span className="text-sm text-zinc-400 font-medium">
+                    ({reviews.length} {reviews.length === 1 ? 'review' : 'reviews'})
+                  </span>
+                </div>
+              )}
+
               <div className="flex items-center gap-4">
                 <p className="text-3xl font-bold text-zinc-900">{formatPrice(product.price)}</p>
                 {product.originalPrice && (
@@ -520,6 +594,216 @@ export function ProductDetail() {
                     ))}
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* User Reviews Section */}
+        <section className="mt-24 pt-16 border-t border-zinc-100">
+          <div className="flex flex-col lg:flex-row gap-12 lg:gap-20">
+            {/* Review Summary */}
+            <div className="lg:w-1/3">
+              <div className="flex items-center gap-3 mb-8">
+                <div className="w-10 h-10 rounded-full bg-orange-500/10 flex items-center justify-center text-orange-500">
+                  <Star className="w-5 h-5 fill-current" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black text-zinc-900 tracking-tight">User Reviews</h2>
+                  <p className="text-sm text-zinc-500 font-medium">What Solemates are saying</p>
+                </div>
+              </div>
+
+              <div className="bg-zinc-50 rounded-3xl p-8 sticky top-24">
+                <div className="text-center mb-8">
+                  <div className="text-5xl font-black text-zinc-900 mb-2">
+                    {reviews.length > 0 
+                      ? (reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length).toFixed(1) 
+                      : '0.0'}
+                  </div>
+                  <div className="flex justify-center gap-1 mb-2">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <Star 
+                        key={star}
+                        className={`w-5 h-5 ${
+                          star <= Math.round(reviews.length > 0 ? reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length : 0)
+                            ? 'fill-orange-500 text-orange-500' 
+                            : 'text-zinc-200'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <p className="text-sm text-zinc-500 font-bold uppercase tracking-widest">
+                    Based on {reviews.length} {reviews.length === 1 ? 'review' : 'reviews'}
+                  </p>
+                </div>
+
+                <div className="space-y-3 mb-8">
+                  {[5, 4, 3, 2, 1].map((ratingVal) => {
+                    const count = reviews.filter(r => r.rating === ratingVal).length;
+                    const percentage = reviews.length > 0 ? (count / reviews.length) * 100 : 0;
+                    return (
+                      <div key={ratingVal} className="flex items-center gap-4">
+                        <div className="text-xs font-bold text-zinc-400 w-4">{ratingVal}</div>
+                        <div className="flex-1 h-2 bg-zinc-200 rounded-full overflow-hidden">
+                          <motion.div 
+                            initial={{ width: 0 }}
+                            animate={{ width: `${percentage}%` }}
+                            className="h-full bg-orange-500" 
+                          />
+                        </div>
+                        <div className="text-xs font-bold text-zinc-400 w-8">{count}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {currentUser ? (
+                  hasPurchased ? (
+                    <button
+                      onClick={() => setShowReviewForm(!showReviewForm)}
+                      className="w-full py-4 bg-zinc-900 text-white rounded-2xl font-bold text-sm uppercase tracking-widest hover:bg-orange-500 transition-colors shadow-lg"
+                    >
+                      {showReviewForm ? 'Cancel Review' : 'Write a Review'}
+                    </button>
+                  ) : (
+                    <div className="p-4 bg-orange-50 rounded-2xl border border-orange-100 flex items-start gap-3">
+                      <Info className="w-5 h-5 text-orange-500 flex-shrink-0 mt-0.5" />
+                      <p className="text-xs text-orange-800 leading-relaxed font-medium">
+                        Only customers who have purchased this product can leave a review.
+                      </p>
+                    </div>
+                  )
+                ) : (
+                  <Link
+                    to="/profile"
+                    className="block w-full py-4 bg-zinc-100 text-zinc-900 text-center rounded-2xl font-bold text-sm uppercase tracking-widest hover:bg-zinc-200 transition-colors"
+                  >
+                    Login to Review
+                  </Link>
+                )}
+              </div>
+            </div>
+
+            {/* Review List & Form */}
+            <div className="flex-1">
+              <AnimatePresence>
+                {showReviewForm && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    className="mb-12 bg-white border border-zinc-100 rounded-3xl p-8 shadow-xl relative"
+                  >
+                    <button 
+                      onClick={() => setShowReviewForm(false)}
+                      className="absolute top-4 right-4 p-2 text-zinc-400 hover:text-zinc-900"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                    <h3 className="text-xl font-bold text-zinc-900 mb-6">Write your review</h3>
+                    <form onSubmit={handleSubmitReview} className="space-y-6">
+                      <div>
+                        <label className="block text-xs font-black text-zinc-400 uppercase tracking-widest mb-3">Rating</label>
+                        <div className="flex gap-2">
+                          {[1, 2, 3, 4, 5].map((r) => (
+                            <button
+                              key={r}
+                              type="button"
+                              onClick={() => setRating(r)}
+                              className="p-1 transition-transform active:scale-110"
+                            >
+                              <Star 
+                                className={`w-8 h-8 ${
+                                  r <= rating ? 'fill-orange-500 text-orange-500' : 'text-zinc-200'
+                                }`} 
+                              />
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-black text-zinc-400 uppercase tracking-widest mb-3">Your Feedback</label>
+                        <textarea
+                          required
+                          value={comment}
+                          onChange={(e) => setComment(e.target.value)}
+                          placeholder="What did you like about these sneakers?"
+                          className="w-full p-4 bg-zinc-50 border border-zinc-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-orange-500 focus:bg-white transition-all h-32 resize-none"
+                        />
+                      </div>
+                      <button
+                        type="submit"
+                        disabled={submittingReview}
+                        className="w-full py-4 bg-zinc-900 text-white rounded-2xl font-bold uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-orange-500 disabled:opacity-50 transition-all shadow-xl"
+                      >
+                        {submittingReview ? (
+                          <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        ) : (
+                          <>
+                            Submit Review
+                            <Send className="w-4 h-4" />
+                          </>
+                        )}
+                      </button>
+                    </form>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <div className="space-y-8">
+                {loadingReviews ? (
+                  <div className="flex flex-col items-center justify-center py-20 bg-zinc-50 rounded-3xl border border-dashed border-zinc-200">
+                    <div className="w-10 h-10 border-4 border-orange-500/10 border-t-orange-500 rounded-full animate-spin mb-4" />
+                    <p className="text-sm font-bold text-zinc-400 uppercase tracking-widest">Loading reviews...</p>
+                  </div>
+                ) : reviews.length > 0 ? (
+                  reviews.map((review) => (
+                    <motion.div 
+                      key={review.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="bg-white border-b border-zinc-100 pb-8 last:border-0"
+                    >
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-zinc-100 flex items-center justify-center text-zinc-400">
+                            <User className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <div className="text-sm font-black text-zinc-900">{review.userName}</div>
+                            <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
+                              {new Date(review.createdAt).toLocaleDateString()}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex gap-0.5">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <Star 
+                              key={star}
+                              className={`w-3 h-3 ${
+                                star <= review.rating ? 'fill-orange-500 text-orange-500' : 'text-zinc-200'
+                              }`} 
+                            />
+                          ))}
+                        </div>
+                      </div>
+                      <p className="text-zinc-600 leading-relaxed text-sm">
+                        {review.comment}
+                      </p>
+                    </motion.div>
+                  ))
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-20 bg-zinc-50 rounded-3xl border border-dashed border-zinc-200 text-center px-6">
+                    <div className="w-16 h-16 rounded-full bg-zinc-100 flex items-center justify-center text-zinc-300 mb-4">
+                      <MessageCircle className="w-8 h-8" />
+                    </div>
+                    <h4 className="text-lg font-bold text-zinc-900 mb-2">No reviews yet</h4>
+                    <p className="text-sm text-zinc-500 max-w-xs">
+                      Be the first to share your thoughts on the {product.name}.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           </div>

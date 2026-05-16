@@ -22,7 +22,7 @@ const intasend = new IntaSend(
 let db: admin.firestore.Firestore;
 
 const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || process.env.PROJECT_ID;
-const databaseId = process.env.VITE_FIREBASE_DATABASE_ID || process.env.FIREBASE_DATABASE_ID;
+const databaseId = (process.env.VITE_FIREBASE_DATABASE_ID || process.env.FIREBASE_DATABASE_ID || '').trim();
 
 console.log('Firebase Config Debug:', {
   projectId: projectId || 'MISSING',
@@ -34,23 +34,29 @@ console.log('Firebase Config Debug:', {
 
 if (!admin.apps.length) {
   try {
+    const config: admin.AppOptions = {};
     if (projectId) {
-      admin.initializeApp({
-        projectId: projectId,
-      });
-      console.log(`Firebase Admin initialized with projectId: ${projectId}`);
-    } else {
-      admin.initializeApp();
-      console.log('Firebase Admin initialized with default credentials');
+      config.projectId = projectId;
     }
+    
+    // Explicitly use applicationDefault() which is often more reliable in these environments
+    config.credential = admin.credential.applicationDefault();
+    
+    admin.initializeApp(config);
+    console.log(`Firebase Admin initialized with projectId: ${projectId || 'default'}`);
   } catch (error: any) {
-    console.error('Error initializing Firebase Admin:', error.message);
+    console.warn('Error initializing Firebase Admin with ADC, falling back to simple init:', error.message);
+    try {
+      admin.initializeApp(projectId ? { projectId } : {});
+    } catch (innerError: any) {
+      console.error('Critical Error initializing Firebase Admin:', innerError.message);
+    }
   }
 }
 
 try {
   // Only specify databaseId if it is a named database (not default)
-  if (databaseId && databaseId !== '(default)') {
+  if (databaseId && databaseId !== '(default)' && databaseId !== '') {
     console.log(`Initializing Firestore with databaseId: ${databaseId}`);
     db = getFirestore(databaseId);
   } else {

@@ -1,7 +1,20 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
-import { Product, Order, OrderStatus, Seller, UserProfile } from '../types';
+import { 
+  Product, 
+  Order, 
+  OrderStatus, 
+  Seller, 
+  UserProfile, 
+  SiteSettings, 
+  ThemeSettings, 
+  FeatureToggles, 
+  ContentBlock, 
+  Announcement, 
+  ContactMessage, 
+  HomepageSection 
+} from '../types';
 import { db, auth } from '../firebase';
-import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, getDoc, query, where, Query, or } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, getDoc, query, where, Query, or, orderBy, writeBatch } from 'firebase/firestore';
 import { onAuthStateChanged, User } from 'firebase/auth';
 
 enum OperationType {
@@ -73,6 +86,29 @@ interface StoreContextType {
   unreadOrdersCount: number;
   markOrdersAsRead: () => void;
   loading: boolean;
+  siteSettings: SiteSettings | null;
+  updateSiteSettings: (settings: Partial<SiteSettings>) => Promise<void>;
+  themeSettings: ThemeSettings | null;
+  updateThemeSettings: (settings: Partial<ThemeSettings>) => Promise<void>;
+  featureToggles: FeatureToggles | null;
+  updateFeatureToggles: (toggles: Partial<FeatureToggles>) => Promise<void>;
+  contentBlocks: ContentBlock[];
+  addContentBlock: (block: ContentBlock) => Promise<void>;
+  updateContentBlock: (id: string, block: Partial<ContentBlock>) => Promise<void>;
+  deleteContentBlock: (id: string) => Promise<void>;
+  announcements: Announcement[];
+  addAnnouncement: (a: Announcement) => Promise<void>;
+  updateAnnouncement: (id: string, a: Partial<Announcement>) => Promise<void>;
+  deleteAnnouncement: (id: string) => Promise<void>;
+  contactMessages: ContactMessage[];
+  addContactMessage: (msg: ContactMessage) => Promise<void>;
+  updateContactMessage: (id: string, updates: Partial<ContactMessage>) => Promise<void>;
+  deleteContactMessage: (id: string) => Promise<void>;
+  homepageSections: HomepageSection[];
+  addHomepageSection: (section: HomepageSection) => Promise<void>;
+  updateHomepageSection: (id: string, updates: Partial<HomepageSection>) => Promise<void>;
+  deleteHomepageSection: (id: string) => Promise<void>;
+  reorderHomepageSections: (sections: HomepageSection[]) => Promise<void>;
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
@@ -87,6 +123,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [currentSellerId, setCurrentSellerId] = useState<string | null>(null);
   const [unreadOrdersCount, setUnreadOrdersCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [siteSettings, setSiteSettings] = useState<SiteSettings | null>(null);
+  const [themeSettings, setThemeSettings] = useState<ThemeSettings | null>(null);
+  const [featureToggles, setFeatureToggles] = useState<FeatureToggles | null>(null);
+  const [contentBlocks, setContentBlocks] = useState<ContentBlock[]>([]);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [contactMessages, setContactMessages] = useState<ContactMessage[]>([]);
+  const [homepageSections, setHomepageSections] = useState<HomepageSection[]>([]);
   const [lastReadTimestamp, setLastReadTimestamp] = useState<number>(() => {
     const saved = localStorage.getItem('lastReadOrders');
     return saved ? parseInt(saved) : Date.now();
@@ -158,9 +201,53 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     });
 
+    const unsubSite = onSnapshot(doc(db, 'settings', 'site'), (snapshot) => {
+      if (snapshot.exists()) setSiteSettings(snapshot.data() as SiteSettings);
+    });
+
+    const unsubTheme = onSnapshot(doc(db, 'settings', 'theme'), (snapshot) => {
+      if (snapshot.exists()) setThemeSettings(snapshot.data() as ThemeSettings);
+    });
+
+    const unsubFeatures = onSnapshot(doc(db, 'settings', 'features'), (snapshot) => {
+      if (snapshot.exists()) setFeatureToggles(snapshot.data() as FeatureToggles);
+    });
+
+    const unsubContent = onSnapshot(collection(db, 'content_blocks'), (snapshot) => {
+      const blocks: ContentBlock[] = [];
+      snapshot.forEach(doc => blocks.push({ id: doc.id, ...doc.data() } as ContentBlock));
+      setContentBlocks(blocks);
+    });
+
+    const unsubAnnouncements = onSnapshot(collection(db, 'announcements'), (snapshot) => {
+      const anns: Announcement[] = [];
+      snapshot.forEach(doc => anns.push({ id: doc.id, ...doc.data() } as Announcement));
+      setAnnouncements(anns);
+    });
+
+    const unsubMessages = onSnapshot(collection(db, 'contact_messages'), (snapshot) => {
+      const msgs: ContactMessage[] = [];
+      snapshot.forEach(doc => msgs.push({ id: doc.id, ...doc.data() } as ContactMessage));
+      msgs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setContactMessages(msgs);
+    });
+
+    const unsubHomepage = onSnapshot(query(collection(db, 'homepage_sections'), orderBy('order', 'asc')), (snapshot) => {
+      const sections: HomepageSection[] = [];
+      snapshot.forEach(doc => sections.push({ id: doc.id, ...doc.data() } as HomepageSection));
+      setHomepageSections(sections);
+    });
+
     return () => {
       unsubProducts();
       unsubSellers();
+      unsubSite();
+      unsubTheme();
+      unsubFeatures();
+      unsubContent();
+      unsubAnnouncements();
+      unsubMessages();
+      unsubHomepage();
     };
   }, [currentUser]);
 
@@ -209,6 +296,138 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setLastReadTimestamp(now);
     localStorage.setItem('lastReadOrders', now.toString());
     setUnreadOrdersCount(0);
+  }, []);
+
+  const updateSiteSettings = useCallback(async (updates: Partial<SiteSettings>) => {
+    try {
+      await setDoc(doc(db, 'settings', 'site'), updates, { merge: true });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'settings/site');
+    }
+  }, []);
+
+  const updateThemeSettings = useCallback(async (updates: Partial<ThemeSettings>) => {
+    try {
+      await setDoc(doc(db, 'settings', 'theme'), updates, { merge: true });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'settings/theme');
+    }
+  }, []);
+
+  const updateFeatureToggles = useCallback(async (updates: Partial<FeatureToggles>) => {
+    try {
+      await setDoc(doc(db, 'settings', 'features'), updates, { merge: true });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'settings/features');
+    }
+  }, []);
+
+  const addContentBlock = useCallback(async (block: ContentBlock) => {
+    try {
+      await setDoc(doc(db, 'content_blocks', block.id), block);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, `content_blocks/${block.id}`);
+    }
+  }, []);
+
+  const updateContentBlock = useCallback(async (id: string, updates: Partial<ContentBlock>) => {
+    try {
+      await updateDoc(doc(db, 'content_blocks', id), updates);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `content_blocks/${id}`);
+    }
+  }, []);
+
+  const deleteContentBlock = useCallback(async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'content_blocks', id));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `content_blocks/${id}`);
+    }
+  }, []);
+
+  const addAnnouncement = useCallback(async (a: Announcement) => {
+    try {
+      await setDoc(doc(db, 'announcements', a.id), a);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, `announcements/${a.id}`);
+    }
+  }, []);
+
+  const updateAnnouncement = useCallback(async (id: string, updates: Partial<Announcement>) => {
+    try {
+      await updateDoc(doc(db, 'announcements', id), updates);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `announcements/${id}`);
+    }
+  }, []);
+
+  const deleteAnnouncement = useCallback(async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'announcements', id));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `announcements/${id}`);
+    }
+  }, []);
+
+  const addContactMessage = useCallback(async (msg: ContactMessage) => {
+    try {
+      await setDoc(doc(db, 'contact_messages', msg.id), msg);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, `contact_messages/${msg.id}`);
+    }
+  }, []);
+
+  const updateContactMessage = useCallback(async (id: string, updates: Partial<ContactMessage>) => {
+    try {
+      await updateDoc(doc(db, 'contact_messages', id), updates);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `contact_messages/${id}`);
+    }
+  }, []);
+
+  const deleteContactMessage = useCallback(async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'contact_messages', id));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `contact_messages/${id}`);
+    }
+  }, []);
+
+  const addHomepageSection = useCallback(async (section: HomepageSection) => {
+    try {
+      await setDoc(doc(db, 'homepage_sections', section.id), section);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, `homepage_sections/${section.id}`);
+    }
+  }, []);
+
+  const updateHomepageSection = useCallback(async (id: string, updates: Partial<HomepageSection>) => {
+    try {
+      await updateDoc(doc(db, 'homepage_sections', id), updates);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `homepage_sections/${id}`);
+    }
+  }, []);
+
+  const deleteHomepageSection = useCallback(async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'homepage_sections', id));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `homepage_sections/${id}`);
+    }
+  }, []);
+
+  const reorderHomepageSections = useCallback(async (sections: HomepageSection[]) => {
+    try {
+      const batch = writeBatch(db);
+      sections.forEach((section, index) => {
+        batch.update(doc(db, 'homepage_sections', section.id), { order: index });
+      });
+      await batch.commit();
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'homepage_sections_reorder');
+    }
   }, []);
 
   const addProduct = useCallback(async (p: Product) => {
@@ -295,7 +514,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       sellers, addSeller, updateSeller, deleteSeller,
       currentUser, userProfile, updateUserProfile, isAdmin, currentSellerId,
       unreadOrdersCount, markOrdersAsRead,
-      loading
+      loading,
+      siteSettings, updateSiteSettings,
+      themeSettings, updateThemeSettings,
+      featureToggles, updateFeatureToggles,
+      contentBlocks, addContentBlock, updateContentBlock, deleteContentBlock,
+      announcements, addAnnouncement, updateAnnouncement, deleteAnnouncement,
+      contactMessages, addContactMessage, updateContactMessage, deleteContactMessage,
+      homepageSections, addHomepageSection, updateHomepageSection, deleteHomepageSection, reorderHomepageSections
     }}>
       {children}
     </StoreContext.Provider>

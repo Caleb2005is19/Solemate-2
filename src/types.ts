@@ -72,3 +72,109 @@ export interface Order {
   paymentError?: string;
   verificationMethod?: 'Automatic' | 'Manual';
 }
+
+export interface Review {
+  id: string;
+  productId: string;
+  userId: string;
+  userName: string;
+  rating: number;
+  comment: string;
+  createdAt: string;
+}
+
+export interface SiteSettings {
+  businessName: string;
+  logo: string;
+  favicon: string;
+  contactEmail: string;
+  phoneNumbers: string[];
+  whatsappNumber: string;
+  location: string;
+  googleMapsEmbed: string;
+  socialMedia: {
+    facebook?: string;
+    instagram?: string;
+    twitter?: string;
+    linkedin?: string;
+  };
+  footerText: string;
+  seo: {
+    title: string;
+    description: string;
+  };
+  currency: string;
+  deliveryFee: number;
+  taxPercentage: number;
+  openingHours: string;
+}
+
+export interface ThemeSettings {
+  primaryColor: string;
+  secondaryColor: string;
+  fontFamily: string;
+  borderRadius: string;
+  darkMode: boolean;
+  buttonStyle: 'pill' | 'rounded' | 'sharp';
+}
+
+export interface FeatureToggles {
+  enableReviews: boolean;
+  enableCoupons: boolean;
+  enableWishlist: boolean;
+  enablePickupStation: boolean;
+  enableGuestCheckout: boolean;
+  maintenanceMode: boolean;
+}
+
+export interface ContentBlock {
+  id: string;
+  slug: string;
+  title: string;
+  content: string;
+  lastUpdated: string;
+}
+
+export interface Announcement {
+  id: string;
+  type: 'banner' | 'popup' | 'notice';
+  title: string;
+  message: string;
+  link?: string;
+  active: boolean;
+  startDate?: string;
+  endDate?: string;
+  mobileOnly?: boolean;
+  desktopOnly?: boolean;
+}
+
+export interface ContactMessage {
+  id: string;
+  name: string;
+  email: string;
+  subject?: string;
+  message: string;
+  status: 'unread' | 'read' | 'replied';
+  createdAt: string;
+}
+
+export interface HomepageSection {
+  id: string;
+  type: 'hero' | 'featured_products' | 'categories' | 'banner' | 'newsletter' | 'dynamic_products' | 'trust_badges';
+  title?: string;
+  subtitle?: string;
+  content?: string;
+  image?: string;
+  link?: string;
+  order: number;
+  active: boolean;
+  config?: {
+    limit?: number;
+    category?: string;
+    backgroundColor?: string;
+    textColor?: string;
+    fullWidth?: boolean;
+    buttonText?: string;
+    items?: { icon?: string; title: string; description: string }[];
+  };
+}

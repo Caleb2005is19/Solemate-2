@@ -8,8 +8,10 @@ import { SEO } from '../components/SEO';
 import { ImageWithSkeleton } from '../components/ImageWithSkeleton';
 
 export function Home() {
-  const { products } = useStore();
+  const { products, homepageSections, siteSettings } = useStore();
   const featuredProducts = products.slice(0, 4);
+
+  const activeSections = homepageSections.filter(s => s.active);
 
   const homeSchema = {
     "@context": "https://schema.org",
@@ -37,11 +39,104 @@ export function Home() {
   return (
     <div className="flex flex-col min-h-screen">
       <SEO 
-        title="Home" 
-        description="Shop the latest premium sneakers, boots, and casual shoes at Solemate.co.ke. Fast delivery across Kenya, secure M-Pesa payments, and authentic footwear brands."
+        title={siteSettings?.seo.title || "Home"} 
+        description={siteSettings?.seo.description || "Shop the latest premium sneakers, boots, and casual shoes at Solemate.co.ke."}
         schemaData={homeSchema}
       />
-      {/* Hero Section */}
+      
+      {activeSections.length > 0 ? (
+        activeSections.map((section, index) => (
+          <div key={section.id} style={{ order: section.order }}>
+            {section.type === 'hero' && (
+              <section className="relative h-[80vh] min-h-[600px] flex items-center justify-center overflow-hidden bg-zinc-900">
+                <div className="absolute inset-0 z-0">
+                  <ImageWithSkeleton
+                    src={section.image || "https://images.unsplash.com/photo-1552346154-21d32810baa3?auto=format&fit=crop&q=80&w=1400"}
+                    alt={section.title || "Hero"}
+                    className="w-full h-full object-cover opacity-30"
+                    containerClassName="h-full"
+                    loading="eager"
+                    fetchPriority="high"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-zinc-900/50 to-transparent" />
+                </div>
+                
+                <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+                  <motion.h1
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-5xl md:text-7xl font-black text-white tracking-tight mb-6"
+                  >
+                    {section.title}
+                  </motion.h1>
+                  <motion.p
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-xl md:text-2xl text-zinc-300 mb-10 max-w-2xl mx-auto font-light"
+                  >
+                    {section.subtitle}
+                  </motion.p>
+                  {section.link && (
+                    <Link
+                      to={section.link}
+                      className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-orange-500 text-white rounded-full font-bold text-lg hover:bg-orange-600 transition-all hover:scale-105"
+                    >
+                      {section.config?.buttonText || "Shop Now"}
+                      <ArrowRight className="w-5 h-5" />
+                    </Link>
+                  )}
+                </div>
+              </section>
+            )}
+
+            {section.type === 'featured_products' && (
+              <section className="py-24 bg-zinc-50">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                  <div className="flex justify-between items-end mb-12">
+                    <div>
+                      <h2 className="text-3xl font-bold text-zinc-900 tracking-tight">{section.title}</h2>
+                      <p className="text-zinc-500 mt-2">{section.subtitle}</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+                    {(section.config?.category 
+                      ? products.filter(p => p.category === section.config?.category)
+                      : products).slice(0, section.config?.limit || 4).map((product, idx) => (
+                      <ProductCard key={product.id} product={product} />
+                    ))}
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {section.type === 'trust_badges' && (
+              <section className="py-12 bg-white border-b border-zinc-100">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
+                    <div className="flex flex-col items-center">
+                      <Truck className="w-8 h-8 text-orange-500 mb-4" />
+                      <h3 className="font-bold text-zinc-900 mb-2">Fast Delivery</h3>
+                      <p className="text-zinc-500 text-sm">Same day delivery within Nairobi CBD.</p>
+                    </div>
+                    <div className="flex flex-col items-center">
+                      <ShieldCheck className="w-8 h-8 text-orange-500 mb-4" />
+                      <h3 className="font-bold text-zinc-900 mb-2">100% Authentic</h3>
+                      <p className="text-zinc-500 text-sm">All our sneakers are verified authentic.</p>
+                    </div>
+                    <div className="flex flex-col items-center">
+                      <Clock className="w-8 h-8 text-orange-500 mb-4" />
+                      <h3 className="font-bold text-zinc-900 mb-2">Pay on Delivery</h3>
+                      <p className="text-zinc-500 text-sm">Available for orders within Nairobi.</p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            )}
+          </div>
+        ))
+      ) : (
+        <>
+          {/* Hero Section */}
       <section className="relative h-[80vh] min-h-[600px] flex items-center justify-center overflow-hidden bg-zinc-900">
         <div className="absolute inset-0 z-0">
           <ImageWithSkeleton
@@ -236,6 +331,8 @@ export function Home() {
           </div>
         </div>
       </section>
-    </div>
+    </>
+  )}
+</div>
   );
 }

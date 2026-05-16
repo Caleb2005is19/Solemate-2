@@ -3,6 +3,11 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // 0. Global Safety Net - Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
     // ===============================================================
     // Helper Functions
     // ===============================================================
@@ -104,6 +109,26 @@ service cloud.firestore {
              (!('verificationMethod' in data) || data.verificationMethod in ['Automatic', 'Manual']);
     }
 
+    function isValidReview(data) {
+      return hasRequiredFields(['productId', 'userId', 'userName', 'rating', 'comment', 'createdAt']) &&
+             data.productId is string &&
+             data.userId == request.auth.uid &&
+             data.userName is string && data.userName.size() > 0 &&
+             data.rating is number && data.rating >= 1 && data.rating <= 5 &&
+             data.comment is string && data.comment.size() > 0 && data.comment.size() < 2000 &&
+             data.createdAt is string;
+    }
+
+    function isValidSiteSettings(data) {
+      return data.keys().size() > 0;
+    }
+
+    function isValidContactMessage(data) {
+      return hasRequiredFields(['name', 'email', 'message', 'status', 'createdAt']) &&
+             data.name is string && data.email is string && data.message is string &&
+             data.status in ['unread', 'read', 'replied'];
+    }
+
     // ===============================================================
     // Rules
     // ===============================================================
@@ -127,6 +152,12 @@ service cloud.firestore {
       allow create: if isAuthenticated() && isValidProduct(request.resource.data, false) && (isAdmin() || isSeller(request.resource.data.sellerId));
       allow update: if isAuthenticated() && isValidProduct(request.resource.data, true) && (isAdmin() || isSeller(resource.data.sellerId));
       allow delete: if isAdmin() || (isAuthenticated() && isSeller(resource.data.sellerId));
+
+      match /reviews/{reviewId} {
+        allow read: if true;
+        allow create: if isAuthenticated() && isValidReview(request.resource.data);
+        allow update, delete: if isAdmin() || (isAuthenticated() && request.auth.uid == resource.data.userId);
+      }
     }
 
     match /orders/{orderId} {
@@ -134,6 +165,26 @@ service cloud.firestore {
       allow create: if isValidOrder(request.resource.data, false);
       allow update: if isAdmin() && isValidOrder(request.resource.data, true);
       allow delete: if isAdmin();
+    }
+
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin() && isValidSiteSettings(request.resource.data);
+    }
+
+    match /content_blocks/{blockId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /announcements/{announcementId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /contact_messages/{messageId} {
+      allow create: if isValidContactMessage(request.resource.data);
+      allow read, update, delete: if isAdmin();
     }
   }
 }

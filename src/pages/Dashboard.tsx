@@ -1,7 +1,15 @@
 import React, { useState } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
-import { LayoutDashboard, Package, ShoppingCart, Plus, Edit, Trash, Check, X, Users, Link as LinkIcon, LogOut, Upload, TrendingUp, Image as ImageIcon, DollarSign, Tag, Info, Box, Printer } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, Plus, Edit, Trash, Check, X, Users, Link as LinkIcon, LogOut, Upload, TrendingUp, Image as ImageIcon, DollarSign, Tag, Info, Box, Printer, Globe, Palette, ToggleLeft, FileText, Bell, Inbox, Settings } from 'lucide-react';
+import { SiteSettingsTab } from '../components/admin/SiteSettingsTab';
+import { ThemeSettingsTab } from '../components/admin/ThemeSettingsTab';
+import { FeatureTogglesTab } from '../components/admin/FeatureTogglesTab';
+import { ContentTab } from '../components/admin/ContentTab';
+import { MarketingTab } from '../components/admin/MarketingTab';
+import { MessagesTab } from '../components/admin/MessagesTab';
+import { HomepageBuilderTab } from '../components/admin/HomepageBuilderTab';
+import { OverviewTab } from '../components/admin/OverviewTab';
 import { Product, OrderStatus, Order, Seller } from '../types';
 import { formatPrice } from '../utils';
 import { loginWithGoogle, logout } from '../firebase';
@@ -10,12 +18,35 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 
 export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
   const { sellerId } = useParams<{ sellerId: string }>();
-  const { products: allProducts, orders: allOrders, sellers, addProduct, updateProduct, deleteProduct, updateOrderStatus, addSeller, updateSeller, deleteSeller, currentUser, isAdmin, currentSellerId: authorizedSellerId, unreadOrdersCount, markOrdersAsRead, loading } = useStore();
+  const { 
+    products: allProducts, 
+    orders: allOrders, 
+    sellers, 
+    addProduct, 
+    updateProduct, 
+    deleteProduct, 
+    updateOrderStatus, 
+    addSeller, 
+    updateSeller, 
+    deleteSeller, 
+    currentUser, 
+    isAdmin, 
+    currentSellerId: authorizedSellerId, 
+    unreadOrdersCount, 
+    markOrdersAsRead, 
+    loading,
+    siteSettings,
+    announcements,
+    contactMessages
+  } = useStore();
   
   const currentSellerId = role === 'seller' ? sellerId : null;
   const currentSeller = currentSellerId ? sellers.find(s => s.id === currentSellerId) : null;
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'inventory' | 'orders' | 'sellers'>('overview');
+  const [activeTab, setActiveTab] = useState<
+    'overview' | 'products' | 'inventory' | 'orders' | 'sellers' | 
+    'site-settings' | 'theme-settings' | 'feature-toggles' | 'content' | 'announcements' | 'messages' | 'homepage-builder'
+  >('overview');
   const [isAddingProduct, setIsAddingProduct] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [viewingOrder, setViewingOrder] = useState<Order | null>(null);
@@ -421,7 +452,8 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
           </h2>
           <p className="text-zinc-400 text-sm mt-1">Manage your store</p>
         </div>
-        <nav className="flex-1 p-4 space-y-2">
+        <nav className="flex-1 p-4 space-y-2 overflow-y-auto custom-scrollbar">
+          <div className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2 ml-4">Main Menu</div>
           <button
             onClick={() => setActiveTab('overview')}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${activeTab === 'overview' ? 'bg-orange-500 text-white' : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'}`}
@@ -465,17 +497,65 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
               <Users className="w-5 h-5" /> Sellers
             </button>
           )}
-          
+
           {role === 'admin' && (
-            <div className="mt-auto pt-8">
+            <>
+              <div className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mt-6 mb-2 ml-4">Settings & Site</div>
               <button
-                onClick={logout}
-                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors text-red-400 hover:bg-red-500/10 hover:text-red-500"
+                onClick={() => setActiveTab('site-settings')}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${activeTab === 'site-settings' ? 'bg-orange-500 text-white' : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'}`}
               >
-                <LogOut className="w-5 h-5" /> Sign Out
+                <Settings className="w-5 h-5" /> Site Settings
               </button>
-            </div>
+              <button
+                onClick={() => setActiveTab('theme-settings')}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${activeTab === 'theme-settings' ? 'bg-orange-500 text-white' : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'}`}
+              >
+                <Palette className="w-5 h-5" /> Theme Editor
+              </button>
+              <button
+                onClick={() => setActiveTab('feature-toggles')}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${activeTab === 'feature-toggles' ? 'bg-orange-500 text-white' : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'}`}
+              >
+                <ToggleLeft className="w-5 h-5" /> Feature Toggles
+              </button>
+
+              <div className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mt-6 mb-2 ml-4">Content & Marketing</div>
+              <button
+                onClick={() => setActiveTab('content')}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${activeTab === 'content' ? 'bg-orange-500 text-white' : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'}`}
+              >
+                <FileText className="w-5 h-5" /> Pages & Content
+              </button>
+              <button
+                onClick={() => setActiveTab('homepage-builder')}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${activeTab === 'homepage-builder' ? 'bg-orange-500 text-white' : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'}`}
+              >
+                <LayoutDashboard className="w-5 h-5" /> Homepage Builder
+              </button>
+              <button
+                onClick={() => setActiveTab('announcements')}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${activeTab === 'announcements' ? 'bg-orange-500 text-white' : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'}`}
+              >
+                <Bell className="w-5 h-5" /> Announcements
+              </button>
+              <button
+                onClick={() => setActiveTab('messages')}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${activeTab === 'messages' ? 'bg-orange-500 text-white' : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'}`}
+              >
+                <Inbox className="w-5 h-5" /> Messages
+              </button>
+            </>
           )}
+          
+          <div className="mt-auto pt-8">
+            <button
+              onClick={logout}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors text-red-500 hover:bg-red-500/10"
+            >
+              <LogOut className="w-5 h-5" /> Sign Out
+            </button>
+          </div>
         </nav>
       </div>
 
@@ -520,101 +600,7 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
         )}
 
         {activeTab === 'overview' && (
-          <div className="space-y-6">
-            <h1 className="text-3xl font-bold text-zinc-900">Dashboard Overview</h1>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-white p-6 rounded-3xl border border-zinc-100 shadow-sm">
-                <div className="flex items-center gap-4 mb-4">
-                  <div className="w-12 h-12 bg-green-100 text-green-600 rounded-2xl flex items-center justify-center">
-                    <TrendingUp className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-zinc-500 font-medium">Total Revenue</p>
-                    <p className="text-2xl font-black text-zinc-900">{formatPrice(totalRevenue)}</p>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-white p-6 rounded-3xl border border-zinc-100 shadow-sm">
-                <div className="flex items-center gap-4 mb-4">
-                  <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center">
-                    <ShoppingCart className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-zinc-500 font-medium">Total Orders</p>
-                    <p className="text-2xl font-black text-zinc-900">{orders.length}</p>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-white p-6 rounded-3xl border border-zinc-100 shadow-sm">
-                <div className="flex items-center gap-4 mb-4">
-                  <div className="w-12 h-12 bg-orange-100 text-orange-600 rounded-2xl flex items-center justify-center">
-                    <Package className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-zinc-500 font-medium">Active Products</p>
-                    <p className="text-2xl font-black text-zinc-900">{products.length}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Revenue Chart */}
-            <div className="bg-white p-8 rounded-3xl border border-zinc-100 shadow-sm mb-8">
-              <div className="flex items-center justify-between mb-8">
-                <div>
-                  <h3 className="text-xl font-bold text-zinc-900">Revenue Overview</h3>
-                  <p className="text-sm text-zinc-500">Performance over the last 7 days</p>
-                </div>
-                <div className="px-4 py-2 bg-zinc-50 rounded-xl text-sm font-bold text-zinc-600">
-                  Last 7 Days
-                </div>
-              </div>
-              <div className="h-[300px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartData}>
-                    <defs>
-                      <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#f97316" stopOpacity={0.1}/>
-                        <stop offset="95%" stopColor="#f97316" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f4f4f5" />
-                    <XAxis 
-                      dataKey="name" 
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={{ fill: '#71717a', fontSize: 12 }}
-                      dy={10}
-                    />
-                    <YAxis 
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={{ fill: '#71717a', fontSize: 12 }}
-                      tickFormatter={(value) => `KSh ${value / 1000}k`}
-                    />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: '#fff', 
-                        borderRadius: '16px', 
-                        border: '1px solid #f4f4f5',
-                        boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'
-                      }}
-                      formatter={(value: number) => [formatPrice(value), 'Revenue']}
-                    />
-                    <Area 
-                      type="monotone" 
-                      dataKey="revenue" 
-                      stroke="#f97316" 
-                      strokeWidth={3}
-                      fillOpacity={1} 
-                      fill="url(#colorRevenue)" 
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </div>
+          <OverviewTab role={role} />
         )}
 
         {activeTab === 'products' && (
@@ -1370,6 +1356,14 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
             )}
           </div>
         )}
+
+        {activeTab === 'site-settings' && role === 'admin' && <SiteSettingsTab />}
+        {activeTab === 'theme-settings' && role === 'admin' && <ThemeSettingsTab />}
+        {activeTab === 'feature-toggles' && role === 'admin' && <FeatureTogglesTab />}
+        {activeTab === 'content' && role === 'admin' && <ContentTab />}
+        {activeTab === 'announcements' && role === 'admin' && <MarketingTab />}
+        {activeTab === 'messages' && role === 'admin' && <MessagesTab />}
+        {activeTab === 'homepage-builder' && role === 'admin' && <HomepageBuilderTab />}
       </div>
     </div>
   );
