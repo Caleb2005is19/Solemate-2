@@ -5,7 +5,6 @@ import { formatPrice } from '../utils';
 import { Navigate } from 'react-router-dom';
 import { OrderStatus } from '../types';
 import { ImageWithSkeleton } from '../components/ImageWithSkeleton';
-import { initiateStkPush, checkPaymentStatus, verifyMpesaReceipt } from '../services/payments';
 
 export function MyOrders() {
   const { currentUser, userProfile, orders, loading } = useStore();
@@ -23,54 +22,23 @@ export function MyOrders() {
     setVerifySuccess(null);
 
     try {
-      const data = await verifyMpesaReceipt(orderId, receiptCode.trim());
-      setVerifySuccess(data.message || 'Receipt submitted successfully! Your order is now being processed.');
-      setReceiptCode('');
-    } catch (err: any) {
-      setVerifyError(err.response?.data?.error || err.message);
-    } finally {
-      setIsVerifying(false);
-    }
-  };
-
-  const handleRetryMpesaPayment = async (order: any) => {
-    setIsVerifying(true);
-    setVerifyError(null);
-    setVerifySuccess(null);
-
-    try {
-      await initiateStkPush({ 
-        phone: order.customerInfo.phone, 
-        amount: order.total, 
-        orderId: order.id,
-        email: order.customerInfo.email || 'customer@example.com',
-        firstName: order.customerInfo.firstName || 'Customer',
-        lastName: order.customerInfo.lastName || 'User'
+      const response = await fetch('/api/mpesa/verify-receipt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId, receiptCode: receiptCode.trim() }),
       });
 
-      setVerifySuccess('STK Push payment prompt sent to your phone! Please input your Safaricom M-Pesa PIN, then wait 10 seconds and click Check Status.');
-    } catch (err: any) {
-      setVerifyError(err.response?.data?.error || err.message);
-    } finally {
-      setIsVerifying(false);
-    }
-  };
+      const data = await response.json();
 
-  const handleQueryPaymentStatus = async (orderId: string) => {
-    setIsVerifying(true);
-    setVerifyError(null);
-    setVerifySuccess(null);
-
-    try {
-      const data = await checkPaymentStatus(orderId);
-
-      if (data.paymentStatus === 'Paid') {
-        setVerifySuccess('Success! Your payment has been verified and your order is being processed.');
-      } else {
-        setVerifyError('Payment is still Pending or Unpaid on IntaSend. If you have already paid, enter your M-Pesa receipt code below.');
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to verify receipt');
       }
+
+      setVerifySuccess('Receipt submitted successfully! Your order is now being processed.');
+      setReceiptCode('');
+      // The Firestore listener will update the UI automatically
     } catch (err: any) {
-      setVerifyError(err.response?.data?.error || err.message);
+      setVerifyError(err.message);
     } finally {
       setIsVerifying(false);
     }
@@ -275,49 +243,26 @@ export function MyOrders() {
                             <h5 className="font-bold text-orange-900">Order Status Timeline</h5>
                           </div>
                           
-                          {order.status === 'Pending' && (order.paymentMethod === 'mpesa' || order.paymentMethod === 'IntaSend M-Pesa') && (
-                            <div className="mb-6 p-5 bg-white rounded-3xl border border-orange-200 shadow-sm space-y-4">
-                              <div>
-                                <h6 className="text-xs font-black text-orange-600 uppercase tracking-wider mb-1">IntaSend M-Pesa Options</h6>
-                                <p className="text-xs text-zinc-500">Choose an option below to complete or check your payment status.</p>
-                              </div>
+                          {order.status === 'Pending' && order.paymentMethod === 'mpesa' && (
+                            <div className="mb-6 p-4 bg-white rounded-2xl border border-orange-200 shadow-sm">
+                              <p className="text-xs font-black text-orange-600 uppercase tracking-widest mb-3">Manual Payment Verification</p>
+                              <p className="text-sm text-zinc-600 mb-4">Already paid? Enter your M-Pesa receipt code below to verify your payment.</p>
                               
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <button
-                                  onClick={() => handleRetryMpesaPayment(order)}
-                                  disabled={isVerifying}
-                                  className="w-full py-3 bg-orange-600 text-white rounded-xl font-bold text-xs hover:bg-orange-700 transition-all active:scale-95 disabled:opacity-50"
+                              <div className="flex gap-2">
+                                <input 
+                                  type="text" 
+                                  placeholder="e.g. RKL7T8X9Y0"
+                                  value={receiptCode}
+                                  onChange={(e) => setReceiptCode(e.target.value.toUpperCase())}
+                                  className="flex-1 px-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all"
+                                />
+                                <button 
+                                  onClick={() => handleVerifyReceipt(order.id)}
+                                  disabled={isVerifying || !receiptCode.trim()}
+                                  className="px-6 py-3 bg-orange-600 text-white rounded-xl font-bold text-sm hover:bg-orange-700 transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100"
                                 >
-                                  {isVerifying ? 'Processing...' : 'Pay with M-Pesa (Retry STK)'}
+                                  {isVerifying ? 'Verifying...' : 'Verify'}
                                 </button>
-                                
-                                <button
-                                  onClick={() => handleQueryPaymentStatus(order.id)}
-                                  disabled={isVerifying}
-                                  className="w-full py-3 bg-zinc-100 hover:bg-zinc-200 text-zinc-800 rounded-xl font-bold text-xs transition-all active:scale-95 disabled:opacity-50"
-                                >
-                                  {isVerifying ? 'Checking...' : 'Check Payment Status'}
-                                </button>
-                              </div>
-
-                              <div className="border-t border-zinc-100 pt-4">
-                                <p className="text-xs font-black text-zinc-500 uppercase tracking-widest mb-2">Have an M-Pesa Receipt Code?</p>
-                                <div className="flex gap-2">
-                                  <input 
-                                    type="text" 
-                                    placeholder="e.g. QGR3STUVWX"
-                                    value={receiptCode}
-                                    onChange={(e) => setReceiptCode(e.target.value.toUpperCase())}
-                                    className="flex-1 px-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all"
-                                  />
-                                  <button 
-                                    onClick={() => handleVerifyReceipt(order.id)}
-                                    disabled={isVerifying || !receiptCode.trim()}
-                                    className="px-4 py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-bold text-xs transition-all active:scale-95 disabled:opacity-50"
-                                  >
-                                    Submit
-                                  </button>
-                                </div>
                               </div>
                               
                               {verifyError && <p className="mt-2 text-xs font-bold text-rose-600">{verifyError}</p>}

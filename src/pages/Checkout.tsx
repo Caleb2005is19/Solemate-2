@@ -8,7 +8,6 @@ import { formatPrice } from '../utils';
 import { DELIVERY_AREAS } from '../constants';
 import { SEO } from '../components/SEO';
 import { ImageWithSkeleton } from '../components/ImageWithSkeleton';
-import { initiateStkPush, checkPaymentStatus } from '../services/payments';
 
 export function Checkout() {
   const { items, cartTotal, cartCount, clearCart } = useCart();
@@ -96,15 +95,25 @@ export function Checkout() {
           paymentMethod,
         });
 
-        // 2. Initiate STK Push via IntaSend Payments Service
-        const resData = await initiateStkPush({
-          phone,
-          amount: finalTotal,
-          orderId,
-          email: fData.get('email') as string,
-          firstName: fData.get('firstName') as string,
-          lastName: fData.get('lastName') as string,
+        // 2. Initiate STK Push via IntaSend
+        const response = await fetch('/api/intasend/stkpush', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            phone, 
+            amount: finalTotal, 
+            orderId,
+            email: fData.get('email') as string,
+            firstName: fData.get('firstName') as string,
+            lastName: fData.get('lastName') as string
+          }),
         });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to initiate IntaSend payment');
+        }
 
         setShowMpesaModal(true);
         setMpesaStatus('waiting');
@@ -112,7 +121,8 @@ export function Checkout() {
         // 3. Start polling for status via IntaSend status endpoint
         const pollInterval = setInterval(async () => {
           try {
-            const statusData = await checkPaymentStatus(orderId);
+            const statusRes = await fetch(`/api/intasend/status/${orderId}`);
+            const statusData = await statusRes.json();
 
             if (statusData.paymentStatus === 'Paid') {
               clearInterval(pollInterval);

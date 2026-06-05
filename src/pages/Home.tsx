@@ -39,8 +39,8 @@ export function Home() {
   return (
     <div className="flex flex-col min-h-screen">
       <SEO 
-        title={siteSettings?.seo?.title || "Home"} 
-        description={siteSettings?.seo?.description || "Shop the latest premium sneakers, boots, and casual shoes at Solemate.co.ke."}
+        title={siteSettings?.seo.title || "Home"} 
+        description={siteSettings?.seo.description || "Shop the latest premium sneakers, boots, and casual shoes at Solemate.co.ke."}
         schemaData={homeSchema}
       />
       

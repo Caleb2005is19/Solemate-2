@@ -144,26 +144,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           const docRef = doc(db, 'users', user.uid);
           const docSnap = await getDoc(docRef);
           if (docSnap.exists()) {
-            const data = docSnap.data() as UserProfile;
-            if (user.email === 'carlisat19@gmail.com' && data.role !== 'admin') {
-              const updatedProfile: UserProfile = {
-                ...data,
-                id: docSnap.id,
-                role: 'admin'
-              };
-              await setDoc(docRef, updatedProfile, { merge: true });
-              setUserProfile(updatedProfile);
-            } else {
-              setUserProfile({ id: docSnap.id, ...data } as UserProfile);
-            }
+            setUserProfile({ id: docSnap.id, ...docSnap.data() } as UserProfile);
           } else {
             // Create default profile
-            const isDefaultAdmin = user.email === 'carlisat19@gmail.com';
             const newProfile: UserProfile = {
               id: user.uid,
               email: user.email || '',
               displayName: user.displayName || '',
-              role: isDefaultAdmin ? 'admin' : 'client'
+              role: 'client'
             };
             await setDoc(docRef, newProfile);
             setUserProfile(newProfile);

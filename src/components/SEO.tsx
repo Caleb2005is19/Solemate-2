@@ -22,7 +22,7 @@ export function SEO({
   const fullTitle = title ? `${title} | ${siteName}` : siteName;
   const defaultDescription = 'Shop the latest premium sneakers, boots, and casual shoes at Solemate.co.ke. Fast delivery across Kenya, secure M-Pesa payments, and authentic footwear brands.';
   const metaDescription = description || defaultDescription;
-  const url = typeof window !== 'undefined' ? window.location.href : 'https://solemate.co.ke';
+  const url = window.location.href;
 
   return (
     <Helmet>

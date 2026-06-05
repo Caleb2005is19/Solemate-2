@@ -27,8 +27,7 @@ import {
   syncOrdersToSheet, 
   readSheetValues, 
   mapSheetRowsToProducts,
-  updateSheetValues,
-  populateSampleProducts
+  updateSheetValues
 } from '../../services/googleSheetsService';
 import { loginWithGoogle } from '../../firebase';
 import { Product } from '../../types';
@@ -144,22 +143,6 @@ export function GoogleSheetsTab() {
       console.error(err);
       setSyncStatus('failed');
       setErrorMessage(err.message || 'Failed to sync orders. Verify spreadsheet tabs contain "Orders_Sync".');
-    }
-  };
-
-  const handleSeedSampleProducts = async () => {
-    if (!spreadsheetId) return;
-    setLoading(true);
-    setErrorMessage(null);
-    try {
-      setStatusMessage('Populating "Products_Sync" tab with high-quality sample sneakers...');
-      await populateSampleProducts(spreadsheetId);
-      setStatusMessage('Successfully seeded 3 premium sneaker templates! Try scanning the rows now.');
-    } catch (err: any) {
-      console.error(err);
-      setErrorMessage(err.message || 'Failed to populate sheet automatically. Make sure the spreadsheet exists.');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -443,7 +426,7 @@ export function GoogleSheetsTab() {
             </p>
           </div>
 
-          <div className="pt-4 border-t border-zinc-50 space-y-3">
+          <div className="pt-4 border-t border-zinc-50 space-y-2">
             <button
               onClick={handleScanProductsSheet}
               disabled={!spreadsheetId || !authorized || importStatus === 'reading'}
@@ -459,17 +442,6 @@ export function GoogleSheetsTab() {
                 </>
               )}
             </button>
-
-            {spreadsheetId && authorized && (
-              <button
-                onClick={handleSeedSampleProducts}
-                disabled={loading}
-                className="w-full flex items-center justify-center gap-1.5 bg-zinc-50 border border-zinc-205 hover:bg-zinc-100 text-zinc-700 font-bold py-1.5 px-4 rounded-xl text-xs transition-all disabled:opacity-40 cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5 text-zinc-500" /> Need Test Data? Seed Sample Sneakers to Sheet
-              </button>
-            )}
-
             <p className="text-[10px] text-zinc-400 text-center mt-2">
               Validates column matches (Name, Brand, Category, Swatches, Pricing, Images).
             </p>

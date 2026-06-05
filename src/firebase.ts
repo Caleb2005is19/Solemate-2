@@ -2,11 +2,8 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
-// Use Vite glob imports to load config if and only if it exists at build time.
-// This prevents compilation from crashing when deploying to platforms like Vercel where the config file is not checked in.
-const configs = import.meta.glob('../firebase-applet-config*.json', { eager: true });
-const configKey = '../firebase-applet-config.json';
-const appletConfig = (configs[configKey] as any)?.default || {};
+// @ts-ignore
+import appletConfig from '../firebase-applet-config.json';
 
 const firebaseConfig: any = {
   apiKey: appletConfig?.apiKey || import.meta.env.VITE_FIREBASE_API_KEY,
