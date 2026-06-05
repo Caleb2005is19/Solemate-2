@@ -2,33 +2,26 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
-// @ts-ignore
-import appletConfig from '../firebase-applet-config.json';
 
-const firebaseConfig: any = {
-  apiKey: appletConfig?.apiKey || import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: appletConfig?.authDomain || import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: appletConfig?.projectId || import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: appletConfig?.storageBucket || import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: appletConfig?.messagingSenderId || import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: appletConfig?.appId || import.meta.env.VITE_FIREBASE_APP_ID,
-  firestoreDatabaseId: (appletConfig as any)?.firestoreDatabaseId || (appletConfig as any)?.databaseId || import.meta.env.VITE_FIREBASE_DATABASE_ID,
+const firebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
 if (!firebaseConfig.apiKey) {
-  console.error('Firebase API key is missing. Please make sure Firebase is set up or set VITE_FIREBASE_API_KEY.');
+  console.error('Firebase API key is missing. Please set VITE_FIREBASE_API_KEY in your AI Studio Secrets.');
 }
 
 // Only initialize if apiKey is present to avoid the auth/invalid-api-key error
 const app = firebaseConfig.apiKey ? initializeApp(firebaseConfig) : null;
-export const db = app ? getFirestore(app, firebaseConfig.firestoreDatabaseId || undefined) : null as any;
+export const db = app ? getFirestore(app, import.meta.env.VITE_FIREBASE_DATABASE_ID || undefined) : null as any;
 export const auth = app ? getAuth(app) : null as any;
 export const storage = app ? getStorage(app) : null as any;
 export const googleProvider = new GoogleAuthProvider();
-// Request Google Sheets Sync permission
-googleProvider.addScope('https://www.googleapis.com/auth/spreadsheets');
-
-import { setSheetsToken } from './services/googleSheetsService';
 
 export const loginWithGoogle = async () => {
   if (!auth) {
@@ -36,10 +29,6 @@ export const loginWithGoogle = async () => {
   }
   try {
     const result = await signInWithPopup(auth, googleProvider);
-    const credential = GoogleAuthProvider.credentialFromResult(result);
-    if (credential?.accessToken) {
-      setSheetsToken(credential.accessToken);
-    }
     return result.user;
   } catch (error) {
     console.error("Error signing in with Google", error);

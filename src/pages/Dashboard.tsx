@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
-import { LayoutDashboard, Package, ShoppingCart, Plus, Edit, Trash, Check, X, Users, Link as LinkIcon, LogOut, Upload, TrendingUp, Image as ImageIcon, DollarSign, Tag, Info, Box, Printer, Globe, Palette, ToggleLeft, FileText, Bell, Inbox, Settings, FileSpreadsheet } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, Plus, Edit, Trash, Check, X, Users, Link as LinkIcon, LogOut, Upload, TrendingUp, Image as ImageIcon, DollarSign, Tag, Info, Box, Printer, Globe, Palette, ToggleLeft, FileText, Bell, Inbox, Settings } from 'lucide-react';
 import { SiteSettingsTab } from '../components/admin/SiteSettingsTab';
-import { GoogleSheetsTab } from '../components/admin/GoogleSheetsTab';
 import { ThemeSettingsTab } from '../components/admin/ThemeSettingsTab';
 import { FeatureTogglesTab } from '../components/admin/FeatureTogglesTab';
 import { ContentTab } from '../components/admin/ContentTab';
@@ -46,7 +45,7 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
 
   const [activeTab, setActiveTab] = useState<
     'overview' | 'products' | 'inventory' | 'orders' | 'sellers' | 
-    'site-settings' | 'theme-settings' | 'feature-toggles' | 'content' | 'announcements' | 'messages' | 'homepage-builder' | 'google-sheets'
+    'site-settings' | 'theme-settings' | 'feature-toggles' | 'content' | 'announcements' | 'messages' | 'homepage-builder'
   >('overview');
   const [isAddingProduct, setIsAddingProduct] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -507,12 +506,6 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${activeTab === 'site-settings' ? 'bg-orange-500 text-white' : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'}`}
               >
                 <Settings className="w-5 h-5" /> Site Settings
-              </button>
-              <button
-                onClick={() => setActiveTab('google-sheets')}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${activeTab === 'google-sheets' ? 'bg-orange-500 text-white' : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'}`}
-              >
-                <FileSpreadsheet className="w-5 h-5" /> Google Sheets Sync
               </button>
               <button
                 onClick={() => setActiveTab('theme-settings')}
@@ -1365,7 +1358,6 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
         )}
 
         {activeTab === 'site-settings' && role === 'admin' && <SiteSettingsTab />}
-        {activeTab === 'google-sheets' && role === 'admin' && <GoogleSheetsTab />}
         {activeTab === 'theme-settings' && role === 'admin' && <ThemeSettingsTab />}
         {activeTab === 'feature-toggles' && role === 'admin' && <FeatureTogglesTab />}
         {activeTab === 'content' && role === 'admin' && <ContentTab />}

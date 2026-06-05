@@ -182,11 +182,6 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    match /homepage_sections/{sectionId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
     match /contact_messages/{messageId} {
       allow create: if isValidContactMessage(request.resource.data);
       allow read, update, delete: if isAdmin();

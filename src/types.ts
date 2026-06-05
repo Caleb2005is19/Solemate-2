@@ -107,8 +107,6 @@ export interface SiteSettings {
   deliveryFee: number;
   taxPercentage: number;
   openingHours: string;
-  sheetsSpreadsheetId?: string;
-  sheetsSpreadsheetUrl?: string;
 }
 
 export interface ThemeSettings {

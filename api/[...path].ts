@@ -4,69 +4,25 @@ import admin from 'firebase-admin';
 import { getFirestore } from 'firebase-admin/firestore';
 import rateLimit from 'express-rate-limit';
 // @ts-ignore
-import IntaSend_raw from 'intasend-node';
+import IntaSend from 'intasend-node';
 import React from 'react';
 import { renderToBuffer } from '@react-pdf/renderer';
 import InvoiceDocument from '../src/components/InvoiceDocument';
 
 dotenv.config();
 
-// Handle ES module and CommonJS default export wrapping defensively
-const IntaSend = (typeof IntaSend_raw === 'function') 
-  ? IntaSend_raw 
-  : ((IntaSend_raw as any).default || IntaSend_raw);
-
 // Initialize IntaSend
-let intasend: any;
-try {
-  const pubKey = process.env.INTASEND_PUBLISHABLE_KEY || '';
-  const secKey = process.env.INTASEND_SECRET_KEY || '';
-  let isTestEnv = true; // default to test
-
-  if (pubKey.includes('_TEST_') || secKey.includes('_TEST_')) {
-    isTestEnv = true;
-  } else if (pubKey.startsWith('ISIPUBK_') || secKey.startsWith('ISISECK_')) {
-    isTestEnv = false;
-  } else if (process.env.INTASEND_TEST === 'false') {
-    isTestEnv = false;
-  }
-
-  intasend = new IntaSend(
-    process.env.INTASEND_PUBLISHABLE_KEY,
-    process.env.INTASEND_SECRET_KEY,
-    isTestEnv
-  );
-  console.log(`IntaSend SDK initialized successfully (Sandbox: ${isTestEnv}).`);
-} catch (err: any) {
-  console.error('Failed to initialize IntaSend SDK:', err.message);
-}
+const intasend = new IntaSend(
+  process.env.INTASEND_PUBLISHABLE_KEY,
+  process.env.INTASEND_SECRET_KEY,
+  process.env.INTASEND_TEST === 'true'
+);
 
 // Initialize Firebase Admin
 let db: admin.firestore.Firestore;
 
-import fs from 'fs';
-import path from 'path';
-
-let projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || process.env.PROJECT_ID;
-let databaseId = (process.env.VITE_FIREBASE_DATABASE_ID || process.env.FIREBASE_DATABASE_ID || '').trim();
-
-// Read from firebase-applet-config.json if variables are missing
-try {
-  const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
-  if (fs.existsSync(configPath)) {
-    const configData = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-    if (!projectId && configData.projectId) {
-      projectId = configData.projectId;
-      console.log('Using backend Firebase projectId from config file:', projectId);
-    }
-    if (!databaseId && (configData.firestoreDatabaseId || configData.databaseId)) {
-      databaseId = configData.firestoreDatabaseId || configData.databaseId;
-      console.log('Using backend Firebase databaseId from config file:', databaseId);
-    }
-  }
-} catch (e: any) {
-  console.warn('Could not load backup config file for Firebase in backend:', e.message);
-}
+const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || process.env.PROJECT_ID;
+const databaseId = (process.env.VITE_FIREBASE_DATABASE_ID || process.env.FIREBASE_DATABASE_ID || '').trim();
 
 console.log('Firebase Config Debug:', {
   projectId: projectId || 'MISSING',
@@ -113,7 +69,6 @@ try {
 }
 
 const app = express();
-app.set('trust proxy', 1);
 
 app.use(express.json());
 
@@ -139,13 +94,6 @@ app.post('/api/intasend/stkpush', async (req, res) => {
       return res.status(400).json({ error: 'Phone, amount, and orderId are required' });
     }
 
-    if (!process.env.INTASEND_PUBLISHABLE_KEY || !process.env.INTASEND_SECRET_KEY) {
-      console.error('IntaSend environment variables are missing!');
-      return res.status(400).json({
-        error: 'M-Pesa payment gateway is not configured. Please supply INTASEND_PUBLISHABLE_KEY and INTASEND_SECRET_KEY in the Environment Settings.'
-      });
-    }
-
     let formattedPhone = phone.replace(/\s+/g, '');
     if (formattedPhone.startsWith('0')) {
       formattedPhone = `254${formattedPhone.substring(1)}`;
@@ -155,12 +103,9 @@ app.post('/api/intasend/stkpush', async (req, res) => {
       formattedPhone = `254${formattedPhone}`;
     }
 
-    const customerName = `${firstName || 'Customer'} ${lastName || 'User'}`.trim();
-
     const response = await intasend.collection().mpesaStkPush({
       first_name: firstName || 'Customer',
       last_name: lastName || 'User',
-      name: customerName,
       email: email || 'customer@example.com',
       host: process.env.APP_URL || 'https://solemate.co.ke',
       amount: Math.ceil(amount),
@@ -188,29 +133,7 @@ app.post('/api/intasend/stkpush', async (req, res) => {
     }
   } catch (error: any) {
     console.error('IntaSend STK Push Error:', error);
-    let errorMessage = 'Internal server error';
-    
-    if (error) {
-      if (Buffer.isBuffer(error)) {
-        try {
-          const parsed = JSON.parse(error.toString());
-          errorMessage = parsed.error || parsed.message || error.toString();
-        } catch {
-          errorMessage = error.toString();
-        }
-      } else if (typeof error === 'string') {
-        try {
-          const parsed = JSON.parse(error);
-          errorMessage = parsed.error || parsed.message || error;
-        } catch {
-          errorMessage = error;
-        }
-      } else if (typeof error === 'object') {
-        errorMessage = error.message || error.error || JSON.stringify(error);
-      }
-    }
-    
-    res.status(500).json({ success: false, error: errorMessage });
+    res.status(500).json({ success: false, error: error.message || 'Internal server error' });
   }
 });
 
