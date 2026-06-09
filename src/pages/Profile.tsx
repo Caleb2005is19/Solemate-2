@@ -225,10 +225,10 @@ export function Profile() {
                               <MapPin className="w-4 h-4 text-zinc-400" /> Delivery Address
                             </h5>
                             <p className="text-sm text-zinc-600">
-                              {order.customerInfo.firstName} {order.customerInfo.lastName}<br />
-                              {order.customerInfo.location}<br />
-                              {order.customerInfo.city}<br />
-                              {order.customerInfo.phone}
+                              {order?.customerInfo?.firstName ?? ''} {order?.customerInfo?.lastName ?? ''}<br />
+                              {order?.customerInfo?.location ?? ''}<br />
+                              {order?.customerInfo?.city ?? ''}<br />
+                              {order?.customerInfo?.phone ?? ''}
                             </p>
                           </div>
                           <div>

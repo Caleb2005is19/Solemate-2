@@ -142,8 +142,8 @@ export function OverviewTab({ role }: { role: 'admin' | 'seller' }) {
                    {order.status === 'Delivered' ? <CheckCircle2 className="w-5 h-5"/> : <Clock className="w-5 h-5"/>}
                 </div>
                 <div>
-                  <p className="text-sm font-bold text-zinc-900">{order.customerInfo.firstName} placed an order</p>
-                  <p className="text-xs text-zinc-500">{formatPrice(order.total)} • {new Date(order.date).toLocaleTimeString()}</p>
+                  <p className="text-sm font-bold text-zinc-900">{(order?.customerInfo?.firstName ?? 'Customer')} placed an order</p>
+                  <p className="text-xs text-zinc-500">{formatPrice(order?.total ?? 0)} • {order?.date ? new Date(order.date).toLocaleTimeString() : ''}</p>
                 </div>
               </div>
             ))}

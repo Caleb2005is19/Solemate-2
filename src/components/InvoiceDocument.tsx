@@ -161,7 +161,23 @@ interface InvoiceProps {
 }
 
 const InvoiceDocument: React.FC<InvoiceProps> = ({ order }) => {
-  const formatPrice = (amount: number) => `KES ${amount.toLocaleString()}`;
+  const formatPrice = (amount: number) => `KES ${(amount || 0).toLocaleString()}`;
+
+  if (!order) {
+    return (
+      <Document>
+        <Page size="A4" style={styles.page}>
+          <Text>Loading invoice details...</Text>
+        </Page>
+      </Document>
+    );
+  }
+
+  const orderId = (order.id || '').slice(-8).toUpperCase();
+  const customerInfo = order.customerInfo || { firstName: '', lastName: '', email: '', phone: '', location: '', city: '' };
+  const items = order.items || [];
+  const total = order.total || 0;
+  const deliveryFee = order.deliveryFee || 0;
 
   return (
     <Document>
@@ -176,8 +192,8 @@ const InvoiceDocument: React.FC<InvoiceProps> = ({ order }) => {
           </View>
           <View style={styles.invoiceInfo}>
             <Text style={styles.invoiceTitle}>INVOICE</Text>
-            <Text style={styles.invoiceDetail}>INV-{order.id.slice(-8).toUpperCase()}</Text>
-            <Text style={styles.invoiceDetail}>Date: {order.date}</Text>
+            <Text style={styles.invoiceDetail}>INV-{orderId}</Text>
+            <Text style={styles.invoiceDetail}>Date: {order.date || ''}</Text>
             <Text style={styles.invoiceDetail}>Status: {order.paymentStatus || 'Pending'}</Text>
           </View>
         </View>
@@ -187,15 +203,15 @@ const InvoiceDocument: React.FC<InvoiceProps> = ({ order }) => {
           <View style={styles.billingInfo}>
             <View style={styles.addressBlock}>
               <Text style={styles.sectionTitle}>Bill To</Text>
-              <Text style={styles.addressLabel}>{order.customerInfo.firstName} {order.customerInfo.lastName}</Text>
-              <Text style={styles.addressText}>{order.customerInfo.email}</Text>
-              <Text style={styles.addressText}>{order.customerInfo.phone}</Text>
+              <Text style={styles.addressLabel}>{(customerInfo.firstName || '')} {(customerInfo.lastName || '')}</Text>
+              <Text style={styles.addressText}>{customerInfo.email || ''}</Text>
+              <Text style={styles.addressText}>{customerInfo.phone || ''}</Text>
             </View>
             <View style={styles.addressBlock}>
               <Text style={styles.sectionTitle}>Shipping Detail</Text>
-              <Text style={styles.addressText}>{order.customerInfo.location}</Text>
-              <Text style={styles.addressText}>{order.customerInfo.city}</Text>
-              <Text style={styles.addressText}>Method: {order.paymentMethod}</Text>
+              <Text style={styles.addressText}>{customerInfo.location || ''}</Text>
+              <Text style={styles.addressText}>{customerInfo.city || ''}</Text>
+              <Text style={styles.addressText}>Method: {order.paymentMethod || ''}</Text>
             </View>
           </View>
         </View>
@@ -209,15 +225,15 @@ const InvoiceDocument: React.FC<InvoiceProps> = ({ order }) => {
             <View style={styles.colTotal}><Text style={styles.headerText}>Total</Text></View>
           </View>
 
-          {order.items.map((item: any, index: number) => (
+          {items.map((item: any, index: number) => (
             <View key={index} style={styles.tableRow}>
               <View style={styles.colDescription}>
-                <Text style={styles.itemText}>{item.name}</Text>
+                <Text style={styles.itemText}>{item.name || ''}</Text>
                 {item.brand && <Text style={[styles.companyInfo, { marginTop: 2 }]}>{item.brand}</Text>}
               </View>
-              <View style={styles.colQty}><Text style={styles.itemText}>{item.quantity}</Text></View>
+              <View style={styles.colQty}><Text style={styles.itemText}>{item.quantity || 0}</Text></View>
               <View style={styles.colPrice}><Text style={styles.itemText}>{formatPrice(item.price)}</Text></View>
-              <View style={styles.colTotal}><Text style={styles.itemText}>{formatPrice(item.price * item.quantity)}</Text></View>
+              <View style={styles.colTotal}><Text style={styles.itemText}>{formatPrice((item.price || 0) * (item.quantity || 0))}</Text></View>
             </View>
           ))}
         </View>
@@ -227,17 +243,17 @@ const InvoiceDocument: React.FC<InvoiceProps> = ({ order }) => {
           <View style={styles.totalsTable}>
             <View style={styles.totalRow}>
               <Text style={styles.invoiceDetail}>Subtotal</Text>
-              <Text style={styles.invoiceDetail}>{formatPrice(order.total - (order.deliveryFee || 0))}</Text>
+              <Text style={styles.invoiceDetail}>{formatPrice(total - deliveryFee)}</Text>
             </View>
-            {order.deliveryFee > 0 && (
+            {deliveryFee > 0 && (
               <View style={styles.totalRow}>
                 <Text style={styles.invoiceDetail}>Delivery Fee</Text>
-                <Text style={styles.invoiceDetail}>{formatPrice(order.deliveryFee)}</Text>
+                <Text style={styles.invoiceDetail}>{formatPrice(deliveryFee)}</Text>
               </View>
             )}
             <View style={styles.grandTotalRow}>
               <Text style={styles.grandTotalLabel}>Grand Total</Text>
-              <Text style={styles.grandTotalValue}>{formatPrice(order.total)}</Text>
+              <Text style={styles.grandTotalValue}>{formatPrice(total)}</Text>
             </View>
           </View>
         </View>

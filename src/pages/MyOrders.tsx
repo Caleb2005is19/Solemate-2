@@ -40,12 +40,12 @@ export function MyOrders() {
 
     try {
       await initiateStkPush({ 
-        phone: order.customerInfo.phone, 
-        amount: order.total, 
-        orderId: order.id,
-        email: order.customerInfo.email || 'customer@example.com',
-        firstName: order.customerInfo.firstName || 'Customer',
-        lastName: order.customerInfo.lastName || 'User'
+        phone: order?.customerInfo?.phone || '', 
+        amount: order?.total ?? 0, 
+        orderId: order?.id || '',
+        email: order?.customerInfo?.email || 'customer@example.com',
+        firstName: order?.customerInfo?.firstName || 'Customer',
+        lastName: order?.customerInfo?.lastName || 'User'
       });
 
       setVerifySuccess('STK Push payment prompt sent to your phone! Please input your Safaricom M-Pesa PIN, then wait 10 seconds and click Check Status.');
@@ -224,8 +224,8 @@ export function MyOrders() {
                             <div>
                               <p className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-1">Shipping Address</p>
                               <p className="text-sm font-medium leading-relaxed">
-                                {order.customerInfo.location}<br />
-                                {order.customerInfo.city}, Kenya
+                                {order?.customerInfo?.location || ''}<br />
+                                {order?.customerInfo?.city || ''}, Kenya
                               </p>
                             </div>
                           </div>
@@ -235,7 +235,7 @@ export function MyOrders() {
                             </div>
                             <div>
                               <p className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-1">Contact Phone</p>
-                              <p className="text-sm font-medium">{order.customerInfo.phone}</p>
+                              <p className="text-sm font-medium">{order?.customerInfo?.phone || ''}</p>
                             </div>
                           </div>
                           <div className="flex items-center gap-4">

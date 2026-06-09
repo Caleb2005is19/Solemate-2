@@ -1170,8 +1170,8 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
                       <tr key={o.id} className="border-b border-zinc-100 hover:bg-zinc-50">
                         <td className="p-4 text-sm font-mono text-zinc-600">#{o.id}</td>
                         <td className="p-4">
-                          <p className="font-bold text-zinc-900 text-sm">{o.customerInfo.firstName} {o.customerInfo.lastName}</p>
-                          <p className="text-xs text-zinc-500">{o.customerInfo.city}</p>
+                          <p className="font-bold text-zinc-900 text-sm">{o?.customerInfo?.firstName ?? ''} {o?.customerInfo?.lastName ?? ''}</p>
+                          <p className="text-xs text-zinc-500">{o?.customerInfo?.city ?? ''}</p>
                         </td>
                         <td className="p-4 text-sm text-zinc-600">{new Date(o.date).toLocaleDateString()}</td>
                         <td className="p-4 text-sm font-bold text-zinc-900">{formatPrice(o.total)}</td>
@@ -1237,16 +1237,16 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
                       <div>
                         <h3 className="text-sm font-bold text-zinc-900 uppercase tracking-wider mb-3">Customer Details</h3>
                         <div className="space-y-1 text-sm text-zinc-600">
-                          <p><span className="font-medium text-zinc-900">Name:</span> {viewingOrder.customerInfo.firstName} {viewingOrder.customerInfo.lastName}</p>
-                          <p><span className="font-medium text-zinc-900">Email:</span> {viewingOrder.customerInfo.email}</p>
-                          <p><span className="font-medium text-zinc-900">Phone:</span> {viewingOrder.customerInfo.phone}</p>
+                          <p><span className="font-medium text-zinc-900">Name:</span> {viewingOrder?.customerInfo?.firstName ?? ''} {viewingOrder?.customerInfo?.lastName ?? ''}</p>
+                          <p><span className="font-medium text-zinc-900">Email:</span> {viewingOrder?.customerInfo?.email ?? ''}</p>
+                          <p><span className="font-medium text-zinc-900">Phone:</span> {viewingOrder?.customerInfo?.phone ?? ''}</p>
                         </div>
                       </div>
                       <div>
                         <h3 className="text-sm font-bold text-zinc-900 uppercase tracking-wider mb-3">Delivery Address</h3>
                         <div className="space-y-1 text-sm text-zinc-600">
-                          <p>{viewingOrder.customerInfo.location}</p>
-                          <p>{viewingOrder.customerInfo.city}</p>
+                          <p>{viewingOrder?.customerInfo?.location ?? ''}</p>
+                          <p>{viewingOrder?.customerInfo?.city ?? ''}</p>
                         </div>
                       </div>
                     </div>
