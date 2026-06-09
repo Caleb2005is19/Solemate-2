@@ -15,7 +15,7 @@ dotenv.config();
 const intasend = new IntaSend(
   process.env.INTASEND_PUBLISHABLE_KEY,
   process.env.INTASEND_SECRET_KEY,
-  process.env.INTASEND_TEST === 'true'
+  process.env.INTASEND_TEST === 'false'
 );
 
 // Initialize Firebase Admin
