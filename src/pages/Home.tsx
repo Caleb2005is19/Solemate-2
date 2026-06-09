@@ -39,8 +39,8 @@ export function Home() {
   return (
     <div className="flex flex-col min-h-screen">
       <SEO 
-        title={siteSettings?.seo.title || "Home"} 
-        description={siteSettings?.seo.description || "Shop the latest premium sneakers, boots, and casual shoes at Solemate.co.ke."}
+        title={siteSettings?.seo?.title || "Home"} 
+        description={siteSettings?.seo?.description || "Shop the latest premium sneakers, boots, and casual shoes at Solemate.co.ke."}
         schemaData={homeSchema}
       />
       
@@ -320,8 +320,8 @@ export function Home() {
               We specialize in bringing you the latest trends from top global brands, ensuring that every step you take is a statement of style and quality.
             </p>
             <p>
-              Explore a curated collection of sneakers, casual shoes, and streetwear favorites, with options for every style, age, and budget., 
-              our collection has something for every sneakerhead. We pride ourselves on offering 100% authentic products with fast, reliable delivery 
+              Whether you're looking for the newest <strong>Air Jordans</strong>, classic <strong>Nike Air Force 1s</strong>, or comfortable <strong>Adidas Yeezys</strong>, 
+              our curated collection has something for every sneakerhead. We pride ourselves on offering 100% authentic products with fast, reliable delivery 
               across Nairobi and the rest of Kenya.
             </p>
             <p>

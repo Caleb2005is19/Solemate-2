@@ -8,6 +8,9 @@ import { formatPrice } from '../utils';
 import { DELIVERY_AREAS } from '../constants';
 import { SEO } from '../components/SEO';
 import { ImageWithSkeleton } from '../components/ImageWithSkeleton';
+import { initiateStkPush, checkPaymentStatus, loadIntasendScript, setupIntaSendCheckout } from '../services/payments';
+import { db } from '../firebase';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 
 export function Checkout() {
   const { items, cartTotal, cartCount, clearCart } = useCart();
@@ -19,6 +22,113 @@ export function Checkout() {
   const [showMpesaModal, setShowMpesaModal] = useState(false);
   const [mpesaStatus, setMpesaStatus] = useState<'waiting' | 'success' | 'failed'>('waiting');
   const mpesaStatusRef = React.useRef(mpesaStatus);
+
+  // Coupons & Pricing states
+  const [couponCode, setCouponCode] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discountPercentage: number } | null>(null);
+  const [couponError, setCouponError] = useState<string | null>(null);
+  const [couponSuccess, setCouponSuccess] = useState<string | null>(null);
+  const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
+
+  const handleApplyCoupon = async () => {
+    const formattedCode = couponCode.trim().toUpperCase();
+    if (!formattedCode) return;
+    setCouponError(null);
+    setCouponSuccess(null);
+    setIsValidatingCoupon(true);
+
+    const fallbackCoupons: Record<string, number> = {
+      'SOLE20': 20,
+      'WELCOME10': 10,
+      'SNEAKERHEAD': 15
+    };
+
+    try {
+      let foundCoupon = false;
+
+      if (db) {
+        const qRef = query(collection(db, 'coupons'), where('code', '==', formattedCode));
+        const querySnapshot = await getDocs(qRef);
+        
+        if (!querySnapshot.empty) {
+          const docSnap = querySnapshot.docs[0];
+          const data = docSnap.data();
+          const isActive = data.isActive !== false;
+          const maxUses = data.maxUses ?? 100;
+          const usedCount = data.usedCount ?? 0;
+          const discountPercentage = Number(data.discountPercentage ?? data.discount ?? 0);
+          
+          let expired = false;
+          if (data.expiryDate) {
+            const expiry = data.expiryDate.toDate ? data.expiryDate.toDate() : new Date(data.expiryDate);
+            if (expiry && expiry < new Date()) {
+              expired = true;
+            }
+          }
+
+          if (!isActive) {
+            setCouponError('This coupon is currently inactive');
+            setIsValidatingCoupon(false);
+            return;
+          }
+
+          if (expired) {
+            setCouponError('This coupon code has expired');
+            setIsValidatingCoupon(false);
+            return;
+          }
+
+          if (usedCount >= maxUses) {
+            setCouponError('This coupon has reached its maximum uses');
+            setIsValidatingCoupon(false);
+            return;
+          }
+
+          setAppliedCoupon({
+            code: formattedCode,
+            discountPercentage
+          });
+          setCouponSuccess(`Coupon "${formattedCode}" applied! ${discountPercentage}% discount added.`);
+          foundCoupon = true;
+        }
+      }
+
+      if (!foundCoupon) {
+        if (fallbackCoupons[formattedCode] !== undefined) {
+          const discount = fallbackCoupons[formattedCode];
+          setAppliedCoupon({
+            code: formattedCode,
+            discountPercentage: discount
+          });
+          setCouponSuccess(`Coupon "${formattedCode}" applied! ${discount}% discount added.`);
+        } else {
+          setCouponError('Invalid coupon code. Try SOLE20 or WELCOME10');
+        }
+      }
+    } catch (err: any) {
+      console.warn('Client-side coupon lookup failed:', err.message);
+      // Fallback
+      if (fallbackCoupons[formattedCode] !== undefined) {
+        const discount = fallbackCoupons[formattedCode];
+        setAppliedCoupon({
+          code: formattedCode,
+          discountPercentage: discount
+        });
+        setCouponSuccess(`Coupon "${formattedCode}" applied! ${discount}% discount added.`);
+      } else {
+        setCouponError('Error validating coupon. Try SOLE20 or WELCOME10');
+      }
+    } finally {
+      setIsValidatingCoupon(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponCode('');
+    setCouponSuccess(null);
+    setCouponError(null);
+  };
 
   useEffect(() => {
     mpesaStatusRef.current = mpesaStatus;
@@ -56,7 +166,13 @@ export function Checkout() {
     setDeliveryFee(area ? area.fee : 0);
   }, [selectedCity]);
 
-  const finalTotal = cartTotal + deliveryFee;
+  const discountAmount = appliedCoupon ? (cartTotal * appliedCoupon.discountPercentage) / 100 : 0;
+  const subtotalAfterDiscount = cartTotal - discountAmount;
+  const finalTotal = subtotalAfterDiscount + deliveryFee;
+
+  // 16% inclusive VAT calculation (Standard in Kenya)
+  const vatRate = 0.16;
+  const vatAmount = subtotalAfterDiscount - (subtotalAfterDiscount / (1 + vatRate));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,7 +181,6 @@ export function Checkout() {
     const phone = fData.get('phone') as string;
     
     const orderId = Math.random().toString(36).substr(2, 9);
-
     const sellerIds = Array.from(new Set(items.map(item => item.sellerId).filter(Boolean) as string[]));
 
     if (paymentMethod === 'mpesa') {
@@ -73,7 +188,7 @@ export function Checkout() {
       setPaymentError(null);
       
       try {
-        // 1. Create the order first in Pending state
+        // 1. Create the order first in Pending/Unpaid state with complete coupon and VAT details
         await addOrder({
           id: orderId,
           userId: currentUser?.uid,
@@ -87,33 +202,27 @@ export function Checkout() {
             city: selectedCity,
           },
           items: [...items],
+          subtotal: cartTotal,
+          discount: discountAmount,
+          couponCode: appliedCoupon?.code || null,
+          vatAmount,
           total: finalTotal,
           deliveryFee,
           status: 'Pending',
           paymentStatus: 'Pending',
           date: new Date().toISOString(),
-          paymentMethod,
+          paymentMethod: 'IntaSend M-Pesa',
         });
 
-        // 2. Initiate STK Push via IntaSend
-        const response = await fetch('/api/intasend/stkpush', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            phone, 
-            amount: finalTotal, 
-            orderId,
-            email: fData.get('email') as string,
-            firstName: fData.get('firstName') as string,
-            lastName: fData.get('lastName') as string
-          }),
+        // 2. Initiate STK Push via IntaSend Payments Service
+        await initiateStkPush({
+          phone,
+          amount: finalTotal,
+          orderId,
+          email: fData.get('email') as string,
+          firstName: fData.get('firstName') as string,
+          lastName: fData.get('lastName') as string,
         });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.error || 'Failed to initiate IntaSend payment');
-        }
 
         setShowMpesaModal(true);
         setMpesaStatus('waiting');
@@ -121,8 +230,7 @@ export function Checkout() {
         // 3. Start polling for status via IntaSend status endpoint
         const pollInterval = setInterval(async () => {
           try {
-            const statusRes = await fetch(`/api/intasend/status/${orderId}`);
-            const statusData = await statusRes.json();
+            const statusData = await checkPaymentStatus(orderId);
 
             if (statusData.paymentStatus === 'Paid') {
               clearInterval(pollInterval);
@@ -165,8 +273,88 @@ export function Checkout() {
       
       return;
     }
-    
-    // For Card/COD, complete immediately
+
+    if (paymentMethod === 'card') {
+      setIsProcessing(true);
+      setPaymentError(null);
+
+      try {
+        // 1. Fetch publishable key from backend config dynamically to prevent leak
+        const keyConfigResponse = await fetch('/api/intasend/publishable-key');
+        const keyConfig = await keyConfigResponse.json();
+        const publicKey = keyConfig.publishableKey;
+
+        if (!publicKey) {
+          throw new Error('M-Pesa and Card Payment Gateway is not configured. Please supply keys in Settings.');
+        }
+
+        // 2. Hydrate official client script to make inline secure iframe checkout ready
+        await loadIntasendScript();
+
+        // 3. Register the order in unpaid state
+        await addOrder({
+          id: orderId,
+          userId: currentUser?.uid,
+          sellerIds,
+          customerInfo: {
+            firstName: fData.get('firstName') as string,
+            lastName: fData.get('lastName') as string,
+            email: fData.get('email') as string,
+            phone,
+            location: fData.get('location') as string,
+            city: selectedCity,
+          },
+          items: [...items],
+          subtotal: cartTotal,
+          discount: discountAmount,
+          couponCode: appliedCoupon?.code || null,
+          vatAmount,
+          total: finalTotal,
+          deliveryFee,
+          status: 'Pending',
+          paymentStatus: 'Pending',
+          date: new Date().toISOString(),
+          paymentMethod: 'IntaSend Card',
+        });
+
+        // 4. Open the secure checkout dialog inline
+        setupIntaSendCheckout({
+          publicKey,
+          amount: finalTotal,
+          currency: 'KES',
+          email: fData.get('email') as string,
+          firstName: fData.get('firstName') as string,
+          lastName: fData.get('lastName') as string,
+          phone,
+          apiRef: orderId,
+          onSuccess: async (res: any) => {
+            console.log('IntaSend payment success event:', res);
+            try {
+              // Confirm order paymentStatus to Paid
+              await checkPaymentStatus(orderId);
+            } catch (err) {
+              console.warn('Backend confirmation poll check failed but payment succeeded:', err);
+            }
+            clearCart();
+            setIsProcessing(false);
+            setIsSubmitted(true);
+          },
+          onError: (err: any) => {
+            console.error('IntaSend inline checkout exited/failed:', err);
+            setPaymentError('The Credit/Debit card checkout process was closed or was declined by the bank.');
+            setIsProcessing(false);
+          }
+        });
+
+      } catch (err: any) {
+        console.error('IntaSend Card Payment Initialization Error:', err);
+        setPaymentError(err.message || 'An error occurred during transaction setup. Switch to M-Pesa if card fails.');
+        setIsProcessing(false);
+      }
+      return;
+    }
+
+    // Default Fallback path
     completeOrder(fData, orderId, phone);
   };
 
@@ -186,6 +374,10 @@ export function Checkout() {
         city: selectedCity,
       },
       items: [...items],
+      subtotal: cartTotal,
+      discount: discountAmount,
+      couponCode: appliedCoupon?.code || null,
+      vatAmount,
       total: finalTotal,
       deliveryFee,
       status: 'Pending',
@@ -406,7 +598,7 @@ export function Checkout() {
                           : 'border-zinc-200 text-zinc-500 hover:border-zinc-300'
                       }`}
                     >
-                      Card / Cash on Delivery
+                      Card / Bank Transfer
                     </button>
                   </div>
 
@@ -428,10 +620,19 @@ export function Checkout() {
                   )}
 
                   {paymentMethod === 'card' && (
-                    <div className="bg-zinc-50 p-6 rounded-2xl border border-zinc-200 text-center">
-                      <p className="text-zinc-600 font-medium">
-                        You can pay via Card or Cash upon delivery. Our rider will carry a PDQ machine.
+                    <div className="bg-orange-50 p-6 rounded-2xl border border-orange-200">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-10 h-10 bg-orange-600 rounded-lg flex items-center justify-center text-white font-bold text-xs">CARD</div>
+                        <h3 className="text-lg font-bold text-orange-900">Visa / Mastercard / Banks</h3>
+                      </div>
+                      <p className="text-orange-850 text-sm mb-4 leading-relaxed text-left">
+                        We accept Visa, Mastercard, and secure Bank Transfer APIs. A secure IntaSend checkout dialogue popup will open to authorize and complete your transaction of <strong>{formatPrice(finalTotal)}</strong>.
                       </p>
+                      {paymentError && (
+                        <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-xl text-sm font-medium">
+                          {paymentError}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -444,10 +645,10 @@ export function Checkout() {
                   {isProcessing ? (
                     <>
                       <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      Processing Payment...
+                      Processing Checkout...
                     </>
                   ) : (
-                    'Confirm Order'
+                    'Pay and Confirm Order'
                   )}
                 </button>
               </form>
@@ -482,11 +683,54 @@ export function Checkout() {
                 ))}
               </div>
 
+              {/* Promo Coupon Form */}
+              <div className="border-t border-zinc-100 pt-6 pb-2">
+                <label className="text-xs font-black text-zinc-400 uppercase tracking-wider block mb-2">Have a coupon code?</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={couponCode}
+                    onChange={(e) => setCouponCode(e.target.value)}
+                    placeholder="e.g. SOLE20, WELCOME10"
+                    disabled={isValidatingCoupon || appliedCoupon !== null}
+                    className="flex-1 px-4 py-2 border border-zinc-200 rounded-xl text-sm outline-none uppercase font-bold focus:ring-2 focus:ring-orange-500 bg-zinc-50 disabled:opacity-60"
+                  />
+                  {appliedCoupon ? (
+                    <button
+                      type="button"
+                      onClick={handleRemoveCoupon}
+                      className="px-4 py-2 bg-zinc-100 hover:bg-zinc-200 text-zinc-600 rounded-xl text-xs font-bold transition-all"
+                    >
+                      Remove
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleApplyCoupon}
+                      disabled={!couponCode.trim() || isValidatingCoupon}
+                      className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50"
+                    >
+                      {isValidatingCoupon ? 'Checking...' : 'Apply'}
+                    </button>
+                  )}
+                </div>
+                {couponError && <p className="text-red-500 text-xs mt-1.5 font-semibold">{couponError}</p>}
+                {couponSuccess && <p className="text-green-600 text-xs mt-1.5 font-semibold">{couponSuccess}</p>}
+              </div>
+
               <div className="border-t border-zinc-100 pt-6 space-y-3">
                 <div className="flex justify-between text-sm text-zinc-500">
                   <span>Subtotal ({cartCount} items)</span>
                   <span className="font-medium text-zinc-900">{formatPrice(cartTotal)}</span>
                 </div>
+                
+                {appliedCoupon && (
+                  <div className="flex justify-between text-sm text-green-600 font-semibold bg-green-50 p-2.5 rounded-xl">
+                    <span>Discount ({appliedCoupon.code})</span>
+                    <span>-{formatPrice(discountAmount)} ({appliedCoupon.discountPercentage}%)</span>
+                  </div>
+                )}
+
                 <div className="flex justify-between text-sm text-zinc-500">
                   <div className="flex items-center gap-1">
                     <Truck className="w-3 h-3" />
@@ -496,6 +740,12 @@ export function Checkout() {
                     {deliveryFee === 0 ? 'Free' : formatPrice(deliveryFee)}
                   </span>
                 </div>
+
+                <div className="flex justify-between text-xs text-zinc-400 border-t border-dashed border-zinc-100 pt-2.5">
+                  <span>VAT Inclusive (16%)</span>
+                  <span>{formatPrice(vatAmount)}</span>
+                </div>
+
                 <div className="border-t border-zinc-100 pt-4 mt-4 flex justify-between items-center">
                   <span className="font-bold text-zinc-900">Total</span>
                   <span className="text-2xl font-black text-zinc-900">{formatPrice(finalTotal)}</span>

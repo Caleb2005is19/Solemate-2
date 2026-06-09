@@ -70,6 +70,10 @@
           "required": ["firstName", "lastName", "email", "phone", "location", "city"]
         },
         "items": { "type": "array", "description": "List of products in the order" },
+        "subtotal": { "type": "number", "description": "Subtotal order amount before discount" },
+        "discount": { "type": "number", "description": "Discount amount from applied coupon" },
+        "couponCode": { "type": "string", "description": "Applied promo coupon code" },
+        "vatAmount": { "type": "number", "description": "VAT amount inclusive" },
         "total": { "type": "number", "description": "Total order amount" },
         "deliveryFee": { "type": "number", "description": "Delivery fee for the order" },
         "status": { "type": "string", "enum": ["Pending", "Processing", "Shipped", "Delivered", "Cancelled"], "description": "Current order status" },
@@ -80,6 +84,21 @@
         "verificationMethod": { "type": "string", "enum": ["Automatic", "Manual"], "description": "How the payment was verified" }
       },
       "required": ["id", "customerInfo", "items", "total", "status", "date", "paymentMethod"]
+    },
+    "Coupon": {
+      "title": "Coupon",
+      "description": "Store promo coupon details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the coupon" },
+        "code": { "type": "string", "description": "Uppercase coupon promo code" },
+        "discountPercentage": { "type": "number", "description": "Discount percentage" },
+        "isActive": { "type": "boolean", "description": "Whether the coupon is active" },
+        "maxUses": { "type": "number", "description": "Max permitted uses" },
+        "usedCount": { "type": "number", "description": "Active count of usage" },
+        "expiryDate": { "type": "string", "format": "date", "description": "Expiry date of coupon" }
+      },
+      "required": ["id", "code", "discountPercentage", "isActive"]
     },
     "Review": {
       "title": "Review",
@@ -249,6 +268,10 @@
     "/contact_messages/{messageId}": {
       "schema": "ContactMessage",
       "description": "Contact form submissions"
+    },
+    "/coupons/{couponId}": {
+      "schema": "Coupon",
+      "description": "Store promo coupon codes"
     }
   }
 }

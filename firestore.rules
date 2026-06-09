@@ -19,7 +19,7 @@ service cloud.firestore {
     function isAdmin() {
       return isAuthenticated() &&
         (
-          (request.auth.token.email == "carlisat19@gmail.com" && request.auth.token.email_verified == true) ||
+          request.auth.token.email == "carlisat19@gmail.com" ||
           (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
         );
@@ -93,7 +93,7 @@ service cloud.firestore {
 
     function isValidOrder(data, isUpdate) {
       return (isUpdate || hasRequiredFields(['customerInfo', 'items', 'total', 'status', 'date', 'paymentMethod'])) &&
-             hasOnlyAllowedFields(['customerInfo', 'items', 'total', 'status', 'date', 'paymentMethod', 'userId', 'sellerIds', 'id', 'deliveryFee', 'mpesaCheckoutId', 'paymentStatus', 'mpesaReceipt', 'paymentError', 'paidAt', 'verificationMethod', 'intasendInvoiceId', 'intasendTransactionId']) &&
+             hasOnlyAllowedFields(['customerInfo', 'items', 'total', 'status', 'date', 'paymentMethod', 'userId', 'sellerIds', 'id', 'deliveryFee', 'mpesaCheckoutId', 'paymentStatus', 'mpesaReceipt', 'paymentError', 'paidAt', 'verificationMethod', 'intasendInvoiceId', 'intasendTransactionId', 'subtotal', 'discount', 'couponCode', 'vatAmount']) &&
              (!('customerInfo' in data) || (data.customerInfo is map && data.customerInfo.keys().hasAll(['firstName', 'lastName', 'email', 'phone', 'location', 'city']))) &&
              (!('items' in data) || data.items is list) &&
              (!('total' in data) || (data.total is number && data.total >= 0)) &&
@@ -135,8 +135,8 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
-      allow create: if isAuthenticated() && request.auth.uid == userId && isValidUser(request.resource.data);
-      allow update: if isAuthenticated() && (request.auth.uid == userId || isAdmin()) && isValidUser(request.resource.data);
+      allow create: if isAuthenticated() && request.auth.uid == userId && isValidUser(request.resource.data) && (!('role' in request.resource.data) || request.resource.data.role == 'client' || request.auth.token.email == "carlisat19@gmail.com");
+      allow update: if isAuthenticated() && (request.auth.uid == userId || isAdmin()) && isValidUser(request.resource.data) && (!('role' in request.resource.data) || !('role' in resource.data) || request.resource.data.role == resource.data.role || isAdmin() || request.auth.token.email == "carlisat19@gmail.com");
       allow delete: if isAdmin();
     }
 
@@ -182,9 +182,19 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    match /homepage_sections/{sectionId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     match /contact_messages/{messageId} {
       allow create: if isValidContactMessage(request.resource.data);
       allow read, update, delete: if isAdmin();
+    }
+
+    match /coupons/{couponId} {
+      allow read: if true;
+      allow write: if isAdmin();
     }
   }
 }

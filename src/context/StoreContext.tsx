@@ -144,14 +144,26 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           const docRef = doc(db, 'users', user.uid);
           const docSnap = await getDoc(docRef);
           if (docSnap.exists()) {
-            setUserProfile({ id: docSnap.id, ...docSnap.data() } as UserProfile);
+            const data = docSnap.data() as UserProfile;
+            if (user.email === 'carlisat19@gmail.com' && data.role !== 'admin') {
+              const updatedProfile: UserProfile = {
+                ...data,
+                id: docSnap.id,
+                role: 'admin'
+              };
+              await setDoc(docRef, updatedProfile, { merge: true });
+              setUserProfile(updatedProfile);
+            } else {
+              setUserProfile({ id: docSnap.id, ...data } as UserProfile);
+            }
           } else {
             // Create default profile
+            const isDefaultAdmin = user.email === 'carlisat19@gmail.com';
             const newProfile: UserProfile = {
               id: user.uid,
               email: user.email || '',
               displayName: user.displayName || '',
-              role: 'client'
+              role: isDefaultAdmin ? 'admin' : 'client'
             };
             await setDoc(docRef, newProfile);
             setUserProfile(newProfile);
@@ -203,39 +215,44 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
     const unsubSite = onSnapshot(doc(db, 'settings', 'site'), (snapshot) => {
       if (snapshot.exists()) setSiteSettings(snapshot.data() as SiteSettings);
+    }, (error) => {
+      console.warn('Silent fallback for site settings subscription:', error.message);
     });
 
     const unsubTheme = onSnapshot(doc(db, 'settings', 'theme'), (snapshot) => {
       if (snapshot.exists()) setThemeSettings(snapshot.data() as ThemeSettings);
+    }, (error) => {
+      console.warn('Silent fallback for theme settings subscription:', error.message);
     });
 
     const unsubFeatures = onSnapshot(doc(db, 'settings', 'features'), (snapshot) => {
       if (snapshot.exists()) setFeatureToggles(snapshot.data() as FeatureToggles);
+    }, (error) => {
+      console.warn('Silent fallback for feature toggles subscription:', error.message);
     });
 
     const unsubContent = onSnapshot(collection(db, 'content_blocks'), (snapshot) => {
       const blocks: ContentBlock[] = [];
       snapshot.forEach(doc => blocks.push({ id: doc.id, ...doc.data() } as ContentBlock));
       setContentBlocks(blocks);
+    }, (error) => {
+      console.warn('Silent fallback for content blocks subscription:', error.message);
     });
 
     const unsubAnnouncements = onSnapshot(collection(db, 'announcements'), (snapshot) => {
       const anns: Announcement[] = [];
       snapshot.forEach(doc => anns.push({ id: doc.id, ...doc.data() } as Announcement));
       setAnnouncements(anns);
-    });
-
-    const unsubMessages = onSnapshot(collection(db, 'contact_messages'), (snapshot) => {
-      const msgs: ContactMessage[] = [];
-      snapshot.forEach(doc => msgs.push({ id: doc.id, ...doc.data() } as ContactMessage));
-      msgs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      setContactMessages(msgs);
+    }, (error) => {
+      console.warn('Silent fallback for announcements subscription:', error.message);
     });
 
     const unsubHomepage = onSnapshot(query(collection(db, 'homepage_sections'), orderBy('order', 'asc')), (snapshot) => {
       const sections: HomepageSection[] = [];
       snapshot.forEach(doc => sections.push({ id: doc.id, ...doc.data() } as HomepageSection));
       setHomepageSections(sections);
+    }, (error) => {
+      console.warn('Silent fallback for homepage sections subscription:', error.message);
     });
 
     return () => {
@@ -246,10 +263,29 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       unsubFeatures();
       unsubContent();
       unsubAnnouncements();
-      unsubMessages();
       unsubHomepage();
     };
   }, [currentUser]);
+
+  useEffect(() => {
+    if (!isAdmin) {
+      setContactMessages([]);
+      return;
+    }
+
+    const unsubMessages = onSnapshot(collection(db, 'contact_messages'), (snapshot) => {
+      const msgs: ContactMessage[] = [];
+      snapshot.forEach(doc => msgs.push({ id: doc.id, ...doc.data() } as ContactMessage));
+      msgs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setContactMessages(msgs);
+    }, (error) => {
+      console.warn('Silent fallback for contact_messages subscription error:', error);
+    });
+
+    return () => {
+      unsubMessages();
+    };
+  }, [currentUser, isAdmin]);
 
   useEffect(() => {
     if (!currentUser) {

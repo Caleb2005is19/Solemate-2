@@ -62,6 +62,10 @@ export interface Order {
     city: string;
   };
   items: CartItem[];
+  subtotal?: number;
+  discount?: number;
+  couponCode?: string | null;
+  vatAmount?: number;
   total: number;
   deliveryFee: number;
   status: OrderStatus;
@@ -107,6 +111,8 @@ export interface SiteSettings {
   deliveryFee: number;
   taxPercentage: number;
   openingHours: string;
+  sheetsSpreadsheetId?: string;
+  sheetsSpreadsheetUrl?: string;
 }
 
 export interface ThemeSettings {
