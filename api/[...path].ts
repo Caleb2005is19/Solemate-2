@@ -1,3 +1,10 @@
+// REQUIRED ENV VARS ON VERCEL:
+// INTASEND_PUBLISHABLE_KEY=ISPubKey_live_...
+// INTASEND_SECRET_KEY=ISSecretKey_live_...
+// INTASEND_TEST=false
+// APP_URL=https://solemate-2.vercel.app
+// VITE_FIREBASE_PROJECT_ID=your-project-id
+
 import express from 'express';
 import dotenv from 'dotenv';
 import admin from 'firebase-admin';
@@ -20,26 +27,11 @@ const IntaSend = (typeof IntaSend_raw === 'function')
 function getIntasend(): any {
   const pubKey = (process.env.INTASEND_PUBLISHABLE_KEY || '').trim();
   const secKey = (process.env.INTASEND_SECRET_KEY || '').trim();
-
   if (!pubKey || !secKey) {
-    throw new Error('M-Pesa payment gateway is not configured. Please supply INTASEND_PUBLISHABLE_KEY and INTASEND_SECRET_KEY in the Environment Settings.');
+    throw new Error('IntaSend keys missing. Set INTASEND_PUBLISHABLE_KEY and INTASEND_SECRET_KEY in Vercel environment variables.');
   }
-
-  let isTestEnv = true; // default to test
-
-  if (pubKey.includes('_TEST_') || secKey.includes('_TEST_')) {
-    isTestEnv = true;
-  } else if (pubKey.startsWith('ISIPUBK_') || secKey.startsWith('ISISECK_')) {
-    isTestEnv = false;
-  } else if (process.env.INTASEND_TEST === 'false') {
-    isTestEnv = false;
-  }
-
-  try {
-    return new IntaSend(pubKey, secKey, isTestEnv);
-  } catch (err: any) {
-    throw new Error(`Failed to initialize IntaSend SDK: ${err.message}`);
-  }
+  const isTestEnv = process.env.INTASEND_TEST !== 'false';
+  return new IntaSend(pubKey, secKey, isTestEnv);
 }
 
 // Initialize Firebase Admin
@@ -78,11 +70,18 @@ console.log('Firebase Config Debug:', {
 });
 
 let appInstance: admin.app.App;
-
-// Synchronous safe baseline setup to ensure db is defined on startup
 try {
   if (!admin.apps.length) {
-    appInstance = admin.initializeApp(projectId ? { projectId } : {});
+    const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT;
+    if (serviceAccountJson) {
+      const serviceAccount = JSON.parse(serviceAccountJson);
+      appInstance = admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+        projectId: serviceAccount.project_id || projectId,
+      });
+    } else {
+      appInstance = admin.initializeApp(projectId ? { projectId } : {});
+    }
   } else {
     appInstance = admin.apps[0]!;
   }
@@ -91,70 +90,17 @@ try {
     : getFirestore(appInstance);
   db.settings({ ignoreUndefinedProperties: true });
 } catch (e: any) {
-  try {
-    appInstance = admin.apps[0] || admin.initializeApp();
-    db = getFirestore(appInstance);
-    db.settings({ ignoreUndefinedProperties: true });
-  } catch (inner) {
-    console.error('Synchronous baseline init failed:', inner);
-  }
+  console.error('Firebase init error:', e.message);
 }
 
 // Background dynamic prober to find the working Firestore project/credential connection
 async function runFailsafeInitialization() {
-  const configProjectId = projectId;
-  const hostProjectId = process.env.PROJECT_ID || process.env.FIREBASE_PROJECT_ID;
-  
-  const possibleConfigs = [];
-  if (hostProjectId) {
-    possibleConfigs.push({ label: 'Host Project ID', projectId: hostProjectId, databaseId });
+  try {
+    await db.collection('orders').limit(1).get();
+    console.log('Firebase connection verified.');
+  } catch (err: any) {
+    console.warn('Firebase probe failed:', err.message);
   }
-  possibleConfigs.push({ label: 'Argless Auto-detection', projectId: undefined, databaseId });
-  if (configProjectId && configProjectId !== hostProjectId) {
-    possibleConfigs.push({ label: 'Applet Config project ID', projectId: configProjectId, databaseId });
-  }
-
-  console.log('Firebase Admin failsafe verification: testing host and custom projects...', possibleConfigs);
-
-  for (const config of possibleConfigs) {
-    try {
-      const apps = [...admin.apps];
-      for (const a of apps) {
-        if (a) {
-          try { await a.delete(); } catch (_) {}
-        }
-      }
-      
-      let app: admin.app.App;
-      if (config.projectId) {
-        app = admin.initializeApp({
-          projectId: config.projectId,
-          credential: admin.credential.applicationDefault()
-        });
-      } else {
-        app = admin.initializeApp();
-      }
-      
-      let testDb: admin.firestore.Firestore;
-      if (config.databaseId && config.databaseId !== '(default)' && config.databaseId !== '') {
-        testDb = getFirestore(app, config.databaseId);
-      } else {
-        testDb = getFirestore(app);
-      }
-      
-      testDb.settings({ ignoreUndefinedProperties: true });
-      
-      // Probe database query triggers validation/IAM credential verification
-      await testDb.collection('orders').limit(1).get();
-      
-      console.log(`Failsafe successful! Selecting verified active config: ${config.label} (Project: ${config.projectId || 'auto-detected'})`);
-      db = testDb;
-      return;
-    } catch (err: any) {
-      console.warn(`Probe failed for configuration ${config.label}: ${err.message}`);
-    }
-  }
-  console.warn('All failsafe db probes failed. Sticking to synchronous baseline config.');
 }
 
 runFailsafeInitialization().catch(err => {
@@ -215,14 +161,15 @@ app.post('/api/intasend/stkpush', async (req, res) => {
         api_ref: orderId
       });
     } catch (apiErr: any) {
-      console.warn('Real IntaSend API authorization/communication failed, proceeding with sandbox simulation:', apiErr.message);
-      isMock = true;
-      response = {
-        invoice: {
-          invoice_id: `mock-inv-${Date.now()}`
-        },
-        id: `mock-inv-${Date.now()}`
-      };
+      let errMsg = 'IntaSend API error';
+      if (Buffer.isBuffer(apiErr)) {
+        try { const p = JSON.parse(apiErr.toString()); errMsg = p.error || p.detail || p.message || apiErr.toString(); } 
+        catch { errMsg = apiErr.toString(); }
+      } else {
+        errMsg = apiErr?.message || JSON.stringify(apiErr) || 'Unknown IntaSend error';
+      }
+      console.error('IntaSend STK Push failed:', errMsg);
+      return res.status(502).json({ success: false, error: errMsg });
     }
 
     if (response) {
@@ -332,21 +279,7 @@ app.get('/api/intasend/status/:orderId', async (req, res) => {
     const invoiceId = orderData?.intasendInvoiceId;
 
     if (invoiceId) {
-      if (typeof invoiceId === 'string' && invoiceId.startsWith('mock-inv-')) {
-        // Simulate Sandbox completion instantly for testing systems and developers
-        if (orderData?.paymentStatus !== 'Paid') {
-          try {
-            await db.collection('orders').doc(orderId).update({
-              paymentStatus: 'Paid',
-              status: 'Processing',
-              paidAt: admin.firestore.FieldValue.serverTimestamp()
-            });
-          } catch (fsErr) {
-            console.error('Firestore Update Error during Simulated IntaSend complete:', fsErr);
-          }
-        }
-      } else {
-        try {
+      try {
           const client = getIntasend();
           const response = await client.collection().status(invoiceId);
           // Update order status if IntaSend returns a new state
@@ -363,7 +296,6 @@ app.get('/api/intasend/status/:orderId', async (req, res) => {
         } catch (statusError) {
           console.error('IntaSend Status API Error:', statusError);
         }
-      }
     }
 
     // Return the latest data from our DB
@@ -507,14 +439,15 @@ app.post('/api/mpesa/stkpush', async (req, res) => {
         api_ref: orderId
       });
     } catch (apiErr: any) {
-      console.warn('IntaSend payment STK push failed in redirected mpesa endpoint, using sandbox simulation:', apiErr.message);
-      isMock = true;
-      response = {
-        invoice: {
-          invoice_id: `mock-inv-${Date.now()}`
-        },
-        id: `mock-inv-${Date.now()}`
-      };
+      let errMsg = 'IntaSend API error';
+      if (Buffer.isBuffer(apiErr)) {
+        try { const p = JSON.parse(apiErr.toString()); errMsg = p.error || p.detail || p.message || apiErr.toString(); } 
+        catch { errMsg = apiErr.toString(); }
+      } else {
+        errMsg = apiErr?.message || JSON.stringify(apiErr) || 'Unknown IntaSend error';
+      }
+      console.error('IntaSend STK Push failed:', errMsg);
+      return res.status(502).json({ success: false, error: errMsg });
     }
 
     if (response) {
