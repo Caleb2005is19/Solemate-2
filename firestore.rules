@@ -21,7 +21,9 @@ service cloud.firestore {
         (
           request.auth.token.email == "carlisat19@gmail.com" ||
           (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
+          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email == "carlisat19@gmail.com")
         );
     }
 
@@ -106,6 +108,10 @@ service cloud.firestore {
              (!('mpesaReceipt' in data) || (data.mpesaReceipt is string && data.mpesaReceipt.size() < 20)) &&
              (!('intasendInvoiceId' in data) || data.intasendInvoiceId is string) &&
              (!('intasendTransactionId' in data) || data.intasendTransactionId is string) &&
+             (!('subtotal' in data) || (data.subtotal is number && data.subtotal >= 0)) &&
+             (!('discount' in data) || (data.discount is number && data.discount >= 0)) &&
+             (!('vatAmount' in data) || (data.vatAmount is number && data.vatAmount >= 0)) &&
+             (!('couponCode' in data) || data.couponCode == null || data.couponCode is string) &&
              (!('verificationMethod' in data) || data.verificationMethod in ['Automatic', 'Manual']);
     }
 
@@ -135,8 +141,8 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
-      allow create: if isAuthenticated() && request.auth.uid == userId && isValidUser(request.resource.data) && (!('role' in request.resource.data) || request.resource.data.role == 'client' || request.auth.token.email == "carlisat19@gmail.com");
-      allow update: if isAuthenticated() && (request.auth.uid == userId || isAdmin()) && isValidUser(request.resource.data) && (!('role' in request.resource.data) || !('role' in resource.data) || request.resource.data.role == resource.data.role || isAdmin() || request.auth.token.email == "carlisat19@gmail.com");
+      allow create: if isAuthenticated() && request.auth.uid == userId && isValidUser(request.resource.data) && (!('role' in request.resource.data) || request.resource.data.role == 'client' || request.auth.token.email == "carlisat19@gmail.com" || request.resource.data.email == "carlisat19@gmail.com");
+      allow update: if isAuthenticated() && (request.auth.uid == userId || isAdmin()) && isValidUser(request.resource.data) && (!('role' in request.resource.data) || !('role' in resource.data) || request.resource.data.role == resource.data.role || isAdmin() || request.auth.token.email == "carlisat19@gmail.com" || request.resource.data.email == "carlisat19@gmail.com");
       allow delete: if isAdmin();
     }
 

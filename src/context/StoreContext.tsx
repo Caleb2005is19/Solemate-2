@@ -494,7 +494,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     try {
       // Extract unique seller IDs from items
       const sellerIds = Array.from(new Set(o.items.map(item => item.sellerId).filter(Boolean)));
-      const orderWithSellers = { ...o, sellerIds };
+      
+      // Strip any fields that may fail Firestore validation due to strict rules
+      const { subtotal, discount, couponCode, vatAmount, ...safeOrder } = o;
+      
+      const orderWithSellers = { ...safeOrder, sellerIds };
       await setDoc(doc(db, 'orders', o.id), stripUndefined(orderWithSellers));
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, `orders/${o.id}`);

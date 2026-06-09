@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
-import { LayoutDashboard, Package, ShoppingCart, Plus, Edit, Trash, Check, X, Users, Link as LinkIcon, LogOut, Upload, TrendingUp, Image as ImageIcon, DollarSign, Tag, Info, Box, Printer, Globe, Palette, ToggleLeft, FileText, Bell, Inbox, Settings, FileSpreadsheet, Ticket } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, Plus, Edit, Trash, Check, X, Users, Link as LinkIcon, LogOut, Upload, TrendingUp, Image as ImageIcon, DollarSign, Tag, Info, Box, Printer, Globe, Palette, ToggleLeft, FileText, Bell, Inbox, Settings, FileSpreadsheet, Ticket, Terminal } from 'lucide-react';
 import { SiteSettingsTab } from '../components/admin/SiteSettingsTab';
 import { GoogleSheetsTab } from '../components/admin/GoogleSheetsTab';
 import { CouponsTab } from '../components/admin/CouponsTab';
@@ -12,6 +12,7 @@ import { MarketingTab } from '../components/admin/MarketingTab';
 import { MessagesTab } from '../components/admin/MessagesTab';
 import { HomepageBuilderTab } from '../components/admin/HomepageBuilderTab';
 import { OverviewTab } from '../components/admin/OverviewTab';
+import { LogsTab } from '../components/admin/LogsTab';
 import { Product, OrderStatus, Order, Seller } from '../types';
 import { formatPrice } from '../utils';
 import { loginWithGoogle, logout } from '../firebase';
@@ -47,7 +48,7 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
 
   const [activeTab, setActiveTab] = useState<
     'overview' | 'products' | 'inventory' | 'orders' | 'sellers' | 
-    'site-settings' | 'theme-settings' | 'feature-toggles' | 'content' | 'announcements' | 'messages' | 'homepage-builder' | 'google-sheets' | 'coupons'
+    'site-settings' | 'theme-settings' | 'feature-toggles' | 'content' | 'announcements' | 'messages' | 'homepage-builder' | 'google-sheets' | 'coupons' | 'logs'
   >('overview');
   const [isAddingProduct, setIsAddingProduct] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -532,6 +533,14 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${activeTab === 'feature-toggles' ? 'bg-orange-500 text-white' : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'}`}
               >
                 <ToggleLeft className="w-5 h-5" /> Feature Toggles
+              </button>
+
+              <div className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mt-6 mb-2 ml-4">System & Diagnostics</div>
+              <button
+                onClick={() => setActiveTab('logs')}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${activeTab === 'logs' ? 'bg-orange-500 text-white' : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'}`}
+              >
+                <Terminal className="w-5 h-5" /> Diagnostics Logs
               </button>
 
               <div className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mt-6 mb-2 ml-4">Content & Marketing</div>
@@ -1380,6 +1389,7 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
         {activeTab === 'announcements' && role === 'admin' && <MarketingTab />}
         {activeTab === 'messages' && role === 'admin' && <MessagesTab />}
         {activeTab === 'homepage-builder' && role === 'admin' && <HomepageBuilderTab />}
+        {activeTab === 'logs' && role === 'admin' && <LogsTab />}
       </div>
     </div>
   );

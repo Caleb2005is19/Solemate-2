@@ -683,6 +683,97 @@ app.get('/api/mpesa/status/:orderId', async (req, res) => {
   }
 });
 
+// ==========================================
+// Log Aggregator System
+// ==========================================
+interface LogEntry {
+  timestamp: string;
+  level: 'info' | 'warn' | 'error';
+  source: 'server' | 'client';
+  message: string;
+  metadata?: any;
+}
+
+const logsBuffer: LogEntry[] = [];
+const MAX_LOGS = 300;
+
+function addLog(level: 'info' | 'warn' | 'error', source: 'server' | 'client', message: string, metadata?: any) {
+  logsBuffer.unshift({
+    timestamp: new Date().toISOString(),
+    level,
+    source,
+    message,
+    metadata
+  });
+  if (logsBuffer.length > MAX_LOGS) {
+    logsBuffer.pop();
+  }
+}
+
+// Hook console logs to capture server errors/actions
+const originalLog = console.log;
+const originalWarn = console.warn;
+const originalError = console.error;
+
+console.log = (...args: any[]) => {
+  originalLog(...args);
+  const msg = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' ');
+  if (!msg.includes('/api/logs')) {
+    addLog('info', 'server', msg);
+  }
+};
+
+console.warn = (...args: any[]) => {
+  originalWarn(...args);
+  const msg = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' ');
+  if (!msg.includes('/api/logs')) {
+    addLog('warn', 'server', msg);
+  }
+};
+
+console.error = (...args: any[]) => {
+  originalError(...args);
+  const msg = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' ');
+  if (!msg.includes('/api/logs')) {
+    addLog('error', 'server', msg);
+  }
+};
+
+// Log Endpoints
+app.get('/api/logs', (req, res) => {
+  res.json({ success: true, logs: logsBuffer });
+});
+
+app.post('/api/logs', (req, res) => {
+  try {
+    const { level, message, metadata } = req.body;
+    if (!message) {
+      return res.status(400).json({ error: 'Message is required' });
+    }
+    addLog(level || 'info', 'client', message, metadata);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to ingest log', message: err.message });
+  }
+});
+
+app.post('/api/logs/clear', (req, res) => {
+  logsBuffer.length = 0;
+  res.json({ success: true });
+});
+
+app.post('/api/logs/test', (req, res) => {
+  const { level, message } = req.body;
+  if (level === 'info') {
+    console.log(`[TEST INFO EFFECT] ${message || 'Simulated informational log on server'}`);
+  } else if (level === 'warn') {
+    console.warn(`[TEST WARNING EFFECT] ${message || 'Simulated warning log on server'}`);
+  } else if (level === 'error') {
+    console.error(`[TEST ERROR EFFECT] ${message || 'Simulated error log on server'}`);
+  }
+  res.json({ success: true });
+});
+
 app.get("/api/health", async (req, res) => {
   let firestoreStatus = "not initialized";
   let firestoreTest = "not attempted";
