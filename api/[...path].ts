@@ -12,9 +12,6 @@ import { getFirestore } from 'firebase-admin/firestore';
 import rateLimit from 'express-rate-limit';
 // @ts-ignore
 import IntaSend_raw from 'intasend-node';
-import React from 'react';
-import { renderToBuffer } from '@react-pdf/renderer';
-import InvoiceDocument from '../src/components/InvoiceDocument';
 
 dotenv.config();
 
@@ -316,27 +313,20 @@ app.get('/api/intasend/status/:orderId', async (req, res) => {
 app.get('/api/orders/:id/invoice', async (req, res) => {
   try {
     const { id } = req.params;
-    
-    if (!db) {
-      throw new Error('Firestore database not initialized. Check server logs for initialization errors.');
-    }
+    if (!db) throw new Error('Firestore not initialized.');
 
-    console.log(`Fetching order ${id} for invoice generation...`);
     const orderDoc = await db.collection('orders').doc(id).get();
-
     if (!orderDoc.exists) {
-      console.log(`Order ${id} not found in collection 'orders'`);
       return res.status(404).json({ error: 'Order not found' });
     }
 
     const orderData = orderDoc.data();
-    const order = {
-      id: id,
-      ...orderData,
-      date: orderData?.date || new Date().toISOString().split('T')[0]
-    };
+    const order = { id, ...orderData, date: orderData?.date || new Date().toISOString().split('T')[0] };
 
-    // Generate PDF
+    const React = (await import('react')).default;
+    const { renderToBuffer } = await import('@react-pdf/renderer');
+    const { default: InvoiceDocument } = await import('../src/components/InvoiceDocument.js');
+
     const buffer = await renderToBuffer(React.createElement(InvoiceDocument, { order }) as any);
 
     res.setHeader('Content-Type', 'application/pdf');
@@ -344,15 +334,7 @@ app.get('/api/orders/:id/invoice', async (req, res) => {
     res.send(buffer);
   } catch (error: any) {
     console.error('Invoice Generation Error:', error);
-    // Include more details if it's a gRPC error
-    const statusCode = error.code || 'unknown';
-    const details = error.details || error.message;
-    res.status(500).json({ 
-      error: 'Failed to generate invoice', 
-      message: error.message,
-      code: statusCode, 
-      details: details
-    });
+    res.status(500).json({ error: 'Failed to generate invoice', message: error.message });
   }
 });
 
