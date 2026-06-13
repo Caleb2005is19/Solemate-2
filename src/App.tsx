@@ -18,6 +18,8 @@ const Dashboard = lazy(() => import('./pages/Dashboard').then(m => ({ default: m
 const MyOrders = lazy(() => import('./pages/MyOrders').then(m => ({ default: m.MyOrders })));
 const Profile = lazy(() => import('./pages/Profile').then(m => ({ default: m.Profile })));
 const StressTest = lazy(() => import('./pages/StressTest').then(m => ({ default: m.StressTest })));
+const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy').then(m => ({ default: m.PrivacyPolicy })));
+const TermsOfService = lazy(() => import('./pages/TermsOfService').then(m => ({ default: m.TermsOfService })));
 
 // Loading component
 const PageLoader = () => (
@@ -48,6 +50,8 @@ export default function App() {
                     <Route path="/my-orders" element={<MyOrders />} />
                     <Route path="/profile" element={<Profile />} />
                     <Route path="/stress-test" element={<StressTest />} />
+                    <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+                    <Route path="/terms-of-service" element={<TermsOfService />} />
                     <Route path="*" element={<Home />} />
                   </Routes>
                 </Suspense>

@@ -28,19 +28,22 @@ export const db = app ? getFirestore(app, firebaseConfig.firestoreDatabaseId || 
 export const auth = app ? getAuth(app) : null as any;
 export const storage = app ? getStorage(app) : null as any;
 export const googleProvider = new GoogleAuthProvider();
-// Request Google Sheets Sync permission
-googleProvider.addScope('https://www.googleapis.com/auth/spreadsheets');
 
 import { setSheetsToken } from './services/googleSheetsService';
 
-export const loginWithGoogle = async () => {
+export const loginWithGoogle = async (requestSheetsScope: unknown = false) => {
   if (!auth) {
     throw new Error("Firebase is not initialized. Please check your VITE_FIREBASE_API_KEY.");
   }
+  const needsSheets = requestSheetsScope === true;
   try {
-    const result = await signInWithPopup(auth, googleProvider);
+    const provider = new GoogleAuthProvider();
+    if (needsSheets) {
+      provider.addScope('https://www.googleapis.com/auth/spreadsheets');
+    }
+    const result = await signInWithPopup(auth, provider);
     const credential = GoogleAuthProvider.credentialFromResult(result);
-    if (credential?.accessToken) {
+    if (credential?.accessToken && needsSheets) {
       setSheetsToken(credential.accessToken);
     }
     return result.user;

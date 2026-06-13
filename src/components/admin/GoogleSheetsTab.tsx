@@ -72,7 +72,7 @@ export function GoogleSheetsTab() {
     setLoading(true);
     setErrorMessage(null);
     try {
-      const user = await loginWithGoogle();
+      const user = await loginWithGoogle(true);
       if (user) {
         setAuthorized(hasSheetsToken());
         setAuthEmail(user.email);

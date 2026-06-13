@@ -48,6 +48,8 @@ export function Footer() {
             <ul className="space-y-4 text-zinc-400 text-sm">
               <li><Link to="/profile" className="hover:text-orange-500 transition-colors">My Account</Link></li>
               <li><Link to="/my-orders" className="hover:text-orange-500 transition-colors">Track Order</Link></li>
+              <li><Link to="/privacy-policy" className="hover:text-orange-500 transition-colors">Privacy Policy</Link></li>
+              <li><Link to="/terms-of-service" className="hover:text-orange-500 transition-colors">Terms of Service</Link></li>
               <li><a href="#" className="hover:text-orange-500 transition-colors">Shipping Policy</a></li>
               <li><a href="#" className="hover:text-orange-500 transition-colors">Returns & Exchanges</a></li>
             </ul>
@@ -73,8 +75,13 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="pt-8 border-t border-white/10 text-center text-zinc-500 text-xs">
+        <div className="pt-8 border-t border-white/10 flex flex-col md:flex-row justify-between items-center gap-4 text-center text-zinc-500 text-xs">
           <p>© {new Date().getFullYear()} Solemate.co.ke. All rights reserved. Authentic Sneakers Kenya.</p>
+          <div className="flex gap-4">
+            <Link to="/privacy-policy" className="hover:text-zinc-300 transition-colors">Privacy Policy</Link>
+            <span>•</span>
+            <Link to="/terms-of-service" className="hover:text-zinc-300 transition-colors">Terms of Service</Link>
+          </div>
         </div>
       </div>
     </footer>
