@@ -2,19 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { useCart } from '../context/CartContext';
 import { useStore } from '../context/StoreContext';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, Truck } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Truck, UserCircle, Store, KeyRound } from 'lucide-react';
 import { motion } from 'motion/react';
 import { formatPrice } from '../utils';
 import { DELIVERY_AREAS } from '../constants';
 import { SEO } from '../components/SEO';
 import { ImageWithSkeleton } from '../components/ImageWithSkeleton';
 import { initiateStkPush, checkPaymentStatus, loadIntasendScript, setupIntaSendCheckout } from '../services/payments';
-import { db } from '../firebase';
+import { db, loginWithGoogle } from '../firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 
 export function Checkout() {
   const { items, cartTotal, cartCount, clearCart } = useCart();
-  const { addOrder, currentUser, userProfile } = useStore();
+  const { addOrder, currentUser, userProfile, featureToggles } = useStore();
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'mpesa' | 'card'>('mpesa');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -137,6 +137,15 @@ export function Checkout() {
   const [selectedCity, setSelectedCity] = useState(userProfile?.city || 'Nairobi CBD');
   const [deliveryFee, setDeliveryFee] = useState(0);
 
+  const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup'>('delivery');
+  const [selectedPickupStation, setSelectedPickupStation] = useState('Solemate Nairobi Showroom (CBD - Kenya Cinema Plaza, 4th Floor)');
+
+  const PICKUP_STATIONS = [
+    { name: 'Solemate Nairobi Showroom (CBD - Kenya Cinema Plaza, 4th Floor)', hours: 'Mon-Sat: 8am - 8pm' },
+    { name: 'Westlands Mall Pickup Point (Ground Floor kiosk)', hours: 'Mon-Sat: 9am - 7pm' },
+    { name: 'Kilimani / Junction Mall Hub (Gate 2)', hours: 'Mon-Sat: 9am - 6pm' }
+  ];
+
   // Auto-fill form state
   const [formData, setFormData] = useState({
     email: '',
@@ -162,9 +171,13 @@ export function Checkout() {
   }, [userProfile]);
 
   useEffect(() => {
-    const area = DELIVERY_AREAS.find(a => a.name === selectedCity);
-    setDeliveryFee(area ? area.fee : 0);
-  }, [selectedCity]);
+    if (deliveryMethod === 'pickup') {
+      setDeliveryFee(0);
+    } else {
+      const area = DELIVERY_AREAS.find(a => a.name === selectedCity);
+      setDeliveryFee(area ? area.fee : 0);
+    }
+  }, [selectedCity, deliveryMethod]);
 
   const discountAmount = appliedCoupon ? (cartTotal * appliedCoupon.discountPercentage) / 100 : 0;
   const subtotalAfterDiscount = cartTotal - discountAmount;
@@ -179,6 +192,13 @@ export function Checkout() {
     const form = e.target as HTMLFormElement;
     const fData = new FormData(form);
     const phone = fData.get('phone') as string;
+    
+    const finalLocation = deliveryMethod === 'pickup' 
+      ? selectedPickupStation 
+      : (fData.get('location') as string || '');
+    const finalCity = deliveryMethod === 'pickup'
+      ? 'Showroom Pickup'
+      : selectedCity;
     
     const orderId = Math.random().toString(36).substr(2, 9);
     const sellerIds = Array.from(new Set(items.map(item => item.sellerId).filter(Boolean) as string[]));
@@ -198,8 +218,8 @@ export function Checkout() {
             lastName: fData.get('lastName') as string,
             email: fData.get('email') as string,
             phone,
-            location: fData.get('location') as string,
-            city: selectedCity,
+            location: finalLocation,
+            city: finalCity,
           },
           items: [...items],
           subtotal: cartTotal,
@@ -301,8 +321,8 @@ export function Checkout() {
             lastName: fData.get('lastName') as string,
             email: fData.get('email') as string,
             phone,
-            location: fData.get('location') as string,
-            city: selectedCity,
+            location: finalLocation,
+            city: finalCity,
           },
           items: [...items],
           subtotal: cartTotal,
@@ -360,6 +380,12 @@ export function Checkout() {
 
   const completeOrder = (fData: FormData, orderId: string, phone: string) => {
     const sellerIds = Array.from(new Set(items.map(item => item.sellerId).filter(Boolean) as string[]));
+    const finalLocation = deliveryMethod === 'pickup' 
+      ? selectedPickupStation 
+      : (fData.get('location') as string || '');
+    const finalCity = deliveryMethod === 'pickup'
+      ? 'Showroom Pickup'
+      : selectedCity;
     
     addOrder({
       id: orderId,
@@ -370,8 +396,8 @@ export function Checkout() {
         lastName: fData.get('lastName') as string,
         email: fData.get('email') as string,
         phone,
-        location: fData.get('location') as string,
-        city: selectedCity,
+        location: finalLocation,
+        city: finalCity,
       },
       items: [...items],
       subtotal: cartTotal,
@@ -440,6 +466,47 @@ export function Checkout() {
         >
           Continue Shopping
         </Link>
+      </div>
+    );
+  }
+
+  if (!currentUser && featureToggles?.enableGuestCheckout === false) {
+    return (
+      <div className="min-h-[75vh] flex flex-col items-center justify-center p-6 text-center max-w-md mx-auto my-12 animate-in fade-in zoom-in-95 duration-500 font-sans">
+        <div className="w-20 h-20 bg-orange-50 text-orange-500 rounded-[2rem] flex items-center justify-center mb-6 shadow-md shadow-orange-50/50">
+          <UserCircle className="w-10 h-10" />
+        </div>
+        <h1 className="text-3xl font-black text-zinc-900 tracking-tight mb-3">
+          Sign In to Checkout
+        </h1>
+        <p className="text-zinc-500 mb-8 text-sm leading-relaxed">
+          Guest checkout is disabled by the store administrator. Please login with Google to finalize your order details and secure your sneakers.
+        </p>
+        <button
+          type="button"
+          onClick={() => loginWithGoogle()}
+          className="w-full flex items-center justify-center gap-3 py-4 px-6 bg-zinc-900 hover:bg-zinc-800 text-white rounded-2xl font-bold transition-all shadow-lg shadow-zinc-200 active:scale-[0.98]"
+        >
+          <svg className="w-5 h-5 text-white" viewBox="0 0 24 24">
+            <path
+              fill="currentColor"
+              d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+            />
+            <path
+              fill="currentColor"
+              d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+            />
+            <path
+              fill="currentColor"
+              d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+            />
+            <path
+              fill="currentColor"
+              d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+            />
+          </svg>
+          Sign In with Google
+        </button>
       </div>
     );
   }
@@ -514,63 +581,160 @@ export function Checkout() {
                   </div>
                 </div>
 
-                {/* Shipping Info */}
+                 {/* Shipping Info */}
                 <div>
-                  <h3 className="text-lg font-bold text-zinc-900 mb-4">Delivery Address</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label htmlFor="firstName" className="block text-sm font-medium text-zinc-700 mb-1">First name</label>
-                      <input
-                        type="text"
-                        id="firstName"
-                        name="firstName"
-                        required
-                        value={formData.firstName}
-                        onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                        className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all"
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="lastName" className="block text-sm font-medium text-zinc-700 mb-1">Last name</label>
-                      <input
-                        type="text"
-                        id="lastName"
-                        name="lastName"
-                        required
-                        value={formData.lastName}
-                        onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                        className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all"
-                      />
-                    </div>
-                    <div className="sm:col-span-2">
-                      <label htmlFor="location" className="block text-sm font-medium text-zinc-700 mb-1">Location / Estate / Building</label>
-                      <input
-                        type="text"
-                        id="location"
-                        name="location"
-                        required
-                        value={formData.location}
-                        onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                        className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all"
-                        placeholder="e.g. Kilimani, Yaya Centre"
-                      />
-                    </div>
-                    <div className="sm:col-span-2">
-                      <label htmlFor="city" className="block text-sm font-medium text-zinc-700 mb-1">City / Town</label>
-                      <select
-                        id="city"
-                        name="city"
-                        required
-                        value={selectedCity}
-                        onChange={(e) => setSelectedCity(e.target.value)}
-                        className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all bg-white"
-                      >
-                        {DELIVERY_AREAS.map(area => (
-                          <option key={area.name} value={area.name}>{area.name} (KSh {area.fee})</option>
-                        ))}
-                      </select>
-                    </div>
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-bold text-zinc-900">
+                      {deliveryMethod === 'pickup' ? 'Store Pickup Details' : 'Delivery Address'}
+                    </h3>
+                    
+                    {featureToggles?.enablePickupStation !== false && (
+                      <div className="flex bg-zinc-100 p-1 rounded-xl">
+                        <button
+                          type="button"
+                          onClick={() => setDeliveryMethod('delivery')}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                            deliveryMethod === 'delivery'
+                              ? 'bg-white text-zinc-900 shadow-sm'
+                              : 'text-zinc-500 hover:text-zinc-900'
+                          }`}
+                        >
+                          <Truck className="w-3.5 h-3.5" />
+                          Delivery
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeliveryMethod('pickup')}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                            deliveryMethod === 'pickup'
+                              ? 'bg-white text-zinc-900 shadow-sm'
+                              : 'text-zinc-500 hover:text-zinc-900'
+                          }`}
+                        >
+                          <Store className="w-3.5 h-3.5" />
+                          Pickup
+                        </button>
+                      </div>
+                    )}
                   </div>
+
+                  {deliveryMethod === 'pickup' ? (
+                    <div className="space-y-6 animate-in fade-in duration-300">
+                      {/* Pickup Station Selection */}
+                      <div className="bg-orange-50/50 rounded-2xl p-5 border border-orange-100/50 text-left">
+                        <p className="text-xs font-black text-orange-600 uppercase tracking-wider mb-3">Choose a showroom pickup station:</p>
+                        <div className="space-y-3">
+                          {PICKUP_STATIONS.map((station) => (
+                            <label
+                              key={station.name}
+                              className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                                selectedPickupStation === station.name
+                                  ? 'border-orange-500 bg-white shadow-sm'
+                                  : 'border-zinc-100 bg-zinc-50/50 hover:bg-zinc-50'
+                              }`}
+                              onClick={() => setSelectedPickupStation(station.name)}
+                            >
+                              <input
+                                type="radio"
+                                name="pickupStationSelection"
+                                value={station.name}
+                                checked={selectedPickupStation === station.name}
+                                onChange={() => setSelectedPickupStation(station.name)}
+                                className="mt-1 accent-orange-500"
+                              />
+                              <div>
+                                <span className="block text-sm font-bold text-zinc-900">{station.name}</span>
+                                <span className="block text-xs text-zinc-400 mt-1">{station.hours}</span>
+                              </div>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Customer Name details */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label htmlFor="firstName" className="block text-sm font-medium text-zinc-700 mb-1">First name</label>
+                          <input
+                            type="text"
+                            id="firstName"
+                            name="firstName"
+                            required
+                            value={formData.firstName}
+                            onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                            className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all"
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor="lastName" className="block text-sm font-medium text-zinc-700 mb-1">Last name</label>
+                          <input
+                            type="text"
+                            id="lastName"
+                            name="lastName"
+                            required
+                            value={formData.lastName}
+                            onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                            className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-in fade-in duration-300 text-left">
+                      <div>
+                        <label htmlFor="firstName" className="block text-sm font-medium text-zinc-700 mb-1">First name</label>
+                        <input
+                          type="text"
+                          id="firstName"
+                          name="firstName"
+                          required
+                          value={formData.firstName}
+                          onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                          className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all"
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="lastName" className="block text-sm font-medium text-zinc-700 mb-1">Last name</label>
+                        <input
+                          type="text"
+                          id="lastName"
+                          name="lastName"
+                          required
+                          value={formData.lastName}
+                          onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                          className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all"
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label htmlFor="location" className="block text-sm font-medium text-zinc-700 mb-1">Location / Estate / Building</label>
+                        <input
+                          type="text"
+                          id="location"
+                          name="location"
+                          required={deliveryMethod === 'delivery'}
+                          value={formData.location}
+                          onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                          className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all"
+                          placeholder="e.g. Kilimani, Yaya Centre"
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label htmlFor="city" className="block text-sm font-medium text-zinc-700 mb-1">City / Town</label>
+                        <select
+                          id="city"
+                          name="city"
+                          required={deliveryMethod === 'delivery'}
+                          value={selectedCity}
+                          onChange={(e) => setSelectedCity(e.target.value)}
+                          className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all bg-white animate-in"
+                        >
+                          {DELIVERY_AREAS.map(area => (
+                            <option key={area.name} value={area.name}>{area.name} (KSh {area.fee})</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Payment Info */}
@@ -684,39 +848,41 @@ export function Checkout() {
               </div>
 
               {/* Promo Coupon Form */}
-              <div className="border-t border-zinc-100 pt-6 pb-2">
-                <label className="text-xs font-black text-zinc-400 uppercase tracking-wider block mb-2">Have a coupon code?</label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={couponCode}
-                    onChange={(e) => setCouponCode(e.target.value)}
-                    placeholder="e.g. SOLE20, WELCOME10"
-                    disabled={isValidatingCoupon || appliedCoupon !== null}
-                    className="flex-1 px-4 py-2 border border-zinc-200 rounded-xl text-sm outline-none uppercase font-bold focus:ring-2 focus:ring-orange-500 bg-zinc-50 disabled:opacity-60"
-                  />
-                  {appliedCoupon ? (
-                    <button
-                      type="button"
-                      onClick={handleRemoveCoupon}
-                      className="px-4 py-2 bg-zinc-100 hover:bg-zinc-200 text-zinc-600 rounded-xl text-xs font-bold transition-all"
-                    >
-                      Remove
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={handleApplyCoupon}
-                      disabled={!couponCode.trim() || isValidatingCoupon}
-                      className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50"
-                    >
-                      {isValidatingCoupon ? 'Checking...' : 'Apply'}
-                    </button>
-                  )}
+              {featureToggles?.enableCoupons !== false && (
+                <div className="border-t border-zinc-100 pt-6 pb-2">
+                  <label className="text-xs font-black text-zinc-400 uppercase tracking-wider block mb-2">Have a coupon code?</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={couponCode}
+                      onChange={(e) => setCouponCode(e.target.value)}
+                      placeholder="e.g. SOLE20, WELCOME10"
+                      disabled={isValidatingCoupon || appliedCoupon !== null}
+                      className="flex-1 px-4 py-2 border border-zinc-200 rounded-xl text-sm outline-none uppercase font-bold focus:ring-2 focus:ring-orange-500 bg-zinc-50 disabled:opacity-60"
+                    />
+                    {appliedCoupon ? (
+                      <button
+                        type="button"
+                        onClick={handleRemoveCoupon}
+                        className="px-4 py-2 bg-zinc-100 hover:bg-zinc-200 text-zinc-600 rounded-xl text-xs font-bold transition-all"
+                      >
+                        Remove
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleApplyCoupon}
+                        disabled={!couponCode.trim() || isValidatingCoupon}
+                        className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50"
+                      >
+                        {isValidatingCoupon ? 'Checking...' : 'Apply'}
+                      </button>
+                    )}
+                  </div>
+                  {couponError && <p className="text-red-500 text-xs mt-1.5 font-semibold">{couponError}</p>}
+                  {couponSuccess && <p className="text-green-600 text-xs mt-1.5 font-semibold">{couponSuccess}</p>}
                 </div>
-                {couponError && <p className="text-red-500 text-xs mt-1.5 font-semibold">{couponError}</p>}
-                {couponSuccess && <p className="text-green-600 text-xs mt-1.5 font-semibold">{couponSuccess}</p>}
-              </div>
+              )}
 
               <div className="border-t border-zinc-100 pt-6 space-y-3">
                 <div className="flex justify-between text-sm text-zinc-500">

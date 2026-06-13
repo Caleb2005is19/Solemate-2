@@ -140,7 +140,7 @@ const getStyleAdvice = (product: Product) => {
 export function ProductDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { products, currentUser } = useStore();
+  const { products, currentUser, featureToggles } = useStore();
   const { addToCart, toggleWishlist, isInWishlist, addToRecentlyViewed } = useCart();
   
   const product = products.find(p => p.id === id);
@@ -395,7 +395,7 @@ export function ProductDetail() {
                 </button>
               </div>
 
-              {reviews.length > 0 && (
+              {featureToggles?.enableReviews !== false && reviews.length > 0 && (
                 <div className="flex items-center gap-2 mb-4">
                   <div className="flex items-center gap-0.5">
                     {[1, 2, 3, 4, 5].map((star) => (
@@ -600,7 +600,8 @@ export function ProductDetail() {
         </section>
 
         {/* User Reviews Section */}
-        <section className="mt-24 pt-16 border-t border-zinc-100">
+        {featureToggles?.enableReviews !== false && (
+          <section className="mt-24 pt-16 border-t border-zinc-100">
           <div className="flex flex-col lg:flex-row gap-12 lg:gap-20">
             {/* Review Summary */}
             <div className="lg:w-1/3">
@@ -808,6 +809,7 @@ export function ProductDetail() {
             </div>
           </div>
         </section>
+        )}
 
         {/* Related Products Section */}
         <div className="mt-24 pt-16 border-t border-zinc-100">

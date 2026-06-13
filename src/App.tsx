@@ -2,6 +2,7 @@ import React, { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { CartProvider } from './context/CartContext';
 import { StoreProvider } from './context/StoreContext';
+import { ThemeAndSettingsManager } from './components/ThemeAndSettingsManager';
 import { Navbar } from './components/Navbar';
 import { CartDrawer } from './components/CartDrawer';
 import { Footer } from './components/Footer';
@@ -32,36 +33,38 @@ export default function App() {
   return (
     <ErrorBoundary>
       <StoreProvider>
-        <CartProvider>
-          <Router>
-            <ScrollToTop />
-            <div className="min-h-screen bg-white font-sans text-zinc-900 selection:bg-orange-500/30">
-              <Navbar />
-              <CartDrawer />
-              <main>
-                <Suspense fallback={<PageLoader />}>
-                  <Routes>
-                    <Route path="/" element={<Home />} />
-                    <Route path="/shop" element={<Shop />} />
-                    <Route path="/product/:id" element={<ProductDetail />} />
-                    <Route path="/checkout" element={<Checkout />} />
-                    <Route path="/admin" element={<Dashboard role="admin" />} />
-                    <Route path="/seller/:sellerId" element={<Dashboard role="seller" />} />
-                    <Route path="/my-orders" element={<MyOrders />} />
-                    <Route path="/profile" element={<Profile />} />
-                    <Route path="/stress-test" element={<StressTest />} />
-                    <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-                    <Route path="/terms-of-service" element={<TermsOfService />} />
-                    <Route path="*" element={<Home />} />
-                  </Routes>
-                </Suspense>
-              </main>
-              
-              <Footer />
-              <BackToTop />
-            </div>
-          </Router>
-        </CartProvider>
+        <ThemeAndSettingsManager>
+          <CartProvider>
+            <Router>
+              <ScrollToTop />
+              <div className="min-h-screen bg-white font-sans text-zinc-900 selection:bg-orange-500/30">
+                <Navbar />
+                <CartDrawer />
+                <main>
+                  <Suspense fallback={<PageLoader />}>
+                    <Routes>
+                      <Route path="/" element={<Home />} />
+                      <Route path="/shop" element={<Shop />} />
+                      <Route path="/product/:id" element={<ProductDetail />} />
+                      <Route path="/checkout" element={<Checkout />} />
+                      <Route path="/admin" element={<Dashboard role="admin" />} />
+                      <Route path="/seller/:sellerId" element={<Dashboard role="seller" />} />
+                      <Route path="/my-orders" element={<MyOrders />} />
+                      <Route path="/profile" element={<Profile />} />
+                      <Route path="/stress-test" element={<StressTest />} />
+                      <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+                      <Route path="/terms-of-service" element={<TermsOfService />} />
+                      <Route path="*" element={<Home />} />
+                    </Routes>
+                  </Suspense>
+                </main>
+                
+                <Footer />
+                <BackToTop />
+              </div>
+            </Router>
+          </CartProvider>
+        </ThemeAndSettingsManager>
       </StoreProvider>
     </ErrorBoundary>
   );
