@@ -71,6 +71,7 @@ export function Navbar() {
               <button
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
                 className="p-2 rounded-md text-zinc-400 hover:text-zinc-900 focus:outline-none"
+                aria-label={isMobileMenuOpen ? "Close main navigation menu" : "Open main navigation menu"}
               >
                 {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
               </button>
@@ -99,11 +100,12 @@ export function Navbar() {
               <button 
                 onClick={() => setIsSearchOpen(!isSearchOpen)}
                 className="p-2 text-zinc-400 hover:text-zinc-900 transition-colors"
+                aria-label={isSearchOpen ? "Close search drawer" : "Open search drawer"}
               >
                 <Search className="h-5 w-5" />
               </button>
               
-              <Link to="/shop?wishlist=true" className="p-2 text-zinc-400 hover:text-zinc-900 transition-colors relative hidden sm:block">
+              <Link to="/shop?wishlist=true" aria-label={`View wishlist (contains ${wishlistItems.length} items)`} className="p-2 text-zinc-400 hover:text-zinc-900 transition-colors relative hidden sm:block">
                 <Heart className="h-5 w-5" />
                 {wishlistItems.length > 0 && (
                   <span className="absolute top-1 right-1 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-orange-500 rounded-full">
@@ -116,6 +118,7 @@ export function Navbar() {
                 <button 
                   onClick={() => currentUser ? setIsProfileOpen(!isProfileOpen) : handleLogin()}
                   className="p-2 text-zinc-400 hover:text-zinc-900 transition-colors flex items-center gap-2"
+                  aria-label={currentUser ? `User profile menu. Managed email: ${currentUser.email}` : "Sign in to account with Google"}
                 >
                   {currentUser ? (
                     currentUser.photoURL ? (
@@ -216,6 +219,7 @@ export function Navbar() {
               <button
                 onClick={() => setIsCartOpen(true)}
                 className="p-2 text-zinc-400 hover:text-zinc-900 transition-colors relative"
+                aria-label={`Open shopping cart drawer (contains ${cartCount} items)`}
               >
                 <ShoppingBag className="h-5 w-5" />
                 {cartCount > 0 && (

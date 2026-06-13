@@ -17,6 +17,21 @@ export function ImageWithSkeleton({
 }: ImageWithSkeletonProps) {
   const [isLoaded, setIsLoaded] = useState(false);
 
+  let optimizedSrc = src;
+  if (src && src.includes('images.unsplash.com')) {
+    optimizedSrc = src
+      .replace(/q=\d+/, 'q=70') // Optimize compression quality
+      .replace(/w=\d+/, (match) => {
+        const width = parseInt(match.replace('w=', ''), 10);
+        if (loading === 'lazy' && width > 600) {
+          return 'w=600'; // Limit lazy grid images to efficient dimensions
+        } else if (width > 1200) {
+          return 'w=1000'; // Limit high priority banner items
+        }
+        return match;
+      });
+  }
+
   return (
     <div className={`relative overflow-hidden ${containerClassName}`}>
       <AnimatePresence>
@@ -32,7 +47,7 @@ export function ImageWithSkeleton({
       </AnimatePresence>
       
       <img
-        src={src}
+        src={optimizedSrc}
         alt={alt}
         onLoad={() => setIsLoaded(true)}
         className={`transition-opacity duration-700 ease-in-out ${isLoaded ? 'opacity-100' : 'opacity-0'} ${className}`}

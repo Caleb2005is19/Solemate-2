@@ -68,6 +68,7 @@ export function ProductCard({ product, onQuickView }: ProductCardProps) {
               e.preventDefault();
               toggleWishlist(product);
             }}
+            aria-label={isWishlisted ? `Remove ${product.name} from wishlist` : `Add ${product.name} to wishlist`}
             className={`p-2.5 rounded-full backdrop-blur-md transition-all duration-300 shadow-lg ${
               isWishlisted 
                 ? 'bg-red-500 text-white' 
@@ -82,6 +83,7 @@ export function ProductCard({ product, onQuickView }: ProductCardProps) {
               e.preventDefault();
               onQuickView?.(product);
             }}
+            aria-label={`Quick view options for ${product.brand} ${product.name}`}
             className="p-2.5 bg-white/90 backdrop-blur-md rounded-full text-zinc-400 hover:text-orange-500 hover:scale-110 transition-all duration-300 shadow-lg sm:opacity-0 sm:group-hover:opacity-100 sm:translate-x-4 sm:group-hover:translate-x-0"
           >
             <Eye className="w-4 h-4" />
@@ -89,6 +91,7 @@ export function ProductCard({ product, onQuickView }: ProductCardProps) {
 
           <button 
             onClick={handleCopyLink}
+            aria-label={`Copy link to share ${product.name}`}
             className={`p-2.5 bg-white/90 backdrop-blur-md rounded-full transition-all duration-300 shadow-lg sm:opacity-0 sm:group-hover:opacity-100 sm:translate-x-4 sm:group-hover:translate-x-0 ${
               copied ? 'text-green-500' : 'text-zinc-400 hover:text-blue-500 hover:scale-110'
             }`}

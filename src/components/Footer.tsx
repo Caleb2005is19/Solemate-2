@@ -19,13 +19,13 @@ export function Footer() {
               Nairobi's premium destination for authentic sneakers and footwear. We bring you the latest drops and timeless classics.
             </p>
             <div className="flex gap-4">
-              <a href="#" className="p-2 bg-white/5 rounded-full hover:bg-orange-500 transition-colors">
+              <a href="#" aria-label="Solemate Instagram page" className="p-2 bg-white/5 rounded-full hover:bg-orange-500 transition-colors">
                 <Instagram className="w-5 h-5" />
               </a>
-              <a href="#" className="p-2 bg-white/5 rounded-full hover:bg-orange-500 transition-colors">
+              <a href="#" aria-label="Solemate Facebook page" className="p-2 bg-white/5 rounded-full hover:bg-orange-500 transition-colors">
                 <Facebook className="w-5 h-5" />
               </a>
-              <a href="#" className="p-2 bg-white/5 rounded-full hover:bg-orange-500 transition-colors">
+              <a href="#" aria-label="Solemate Twitter page" className="p-2 bg-white/5 rounded-full hover:bg-orange-500 transition-colors">
                 <Twitter className="w-5 h-5" />
               </a>
             </div>
@@ -33,7 +33,7 @@ export function Footer() {
 
           {/* Quick Links */}
           <div>
-            <h4 className="font-bold text-lg mb-6">Quick Links</h4>
+            <p className="font-bold text-lg mb-6 text-white">Quick Links</p>
             <ul className="space-y-4 text-zinc-400 text-sm">
               <li><Link to="/shop" className="hover:text-orange-500 transition-colors">Shop All</Link></li>
               <li><Link to="/shop?gender=Men" className="hover:text-orange-500 transition-colors">Men's Collection</Link></li>
@@ -44,7 +44,7 @@ export function Footer() {
 
           {/* Customer Service */}
           <div>
-            <h4 className="font-bold text-lg mb-6">Customer Service</h4>
+            <p className="font-bold text-lg mb-6 text-white">Customer Service</p>
             <ul className="space-y-4 text-zinc-400 text-sm">
               <li><Link to="/profile" className="hover:text-orange-500 transition-colors">My Account</Link></li>
               <li><Link to="/my-orders" className="hover:text-orange-500 transition-colors">Track Order</Link></li>
@@ -57,7 +57,7 @@ export function Footer() {
 
           {/* Contact Info */}
           <div>
-            <h4 className="font-bold text-lg mb-6">Contact Us</h4>
+            <p className="font-bold text-lg mb-6 text-white">Contact Us</p>
             <ul className="space-y-4 text-zinc-400 text-sm">
               <li className="flex items-start gap-3">
                 <MapPin className="w-5 h-5 text-orange-500 flex-shrink-0" />
