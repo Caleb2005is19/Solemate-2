@@ -37,7 +37,7 @@ function hexToRgb(hex: string): string {
 }
 
 export function ThemeAndSettingsManager({ children }: { children: React.ReactNode }) {
-  const { themeSettings, siteSettings, featureToggles, currentUser, isAdmin } = useStore();
+  const { themeSettings, siteSettings, featureToggles, currentUser, isAdmin, setIsAuthModalOpen } = useStore();
 
   // 1. Dynamic Meta Title, SEO, Favicon updating
   useEffect(() => {
@@ -232,7 +232,7 @@ export function ThemeAndSettingsManager({ children }: { children: React.ReactNod
           </div>
           
           <button 
-            onClick={() => loginWithGoogle()}
+            onClick={() => setIsAuthModalOpen(true)}
             className="flex items-center gap-2 text-xs font-bold text-zinc-500 hover:text-zinc-900 bg-white px-4 py-2.5 rounded-2xl border border-zinc-100 shadow-sm transition-all active:scale-95"
           >
             <KeyRound className="w-3.5 h-3.5 text-zinc-400" />

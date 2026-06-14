@@ -40,7 +40,8 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
     loading,
     siteSettings,
     announcements,
-    contactMessages
+    contactMessages,
+    setIsAuthModalOpen
   } = useStore();
   
   const currentSellerId = role === 'seller' ? sellerId : null;
@@ -93,10 +94,10 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
           <h2 className="text-2xl font-bold text-zinc-900 mb-2">Admin Access Required</h2>
           <p className="text-zinc-500 mb-6">Please sign in with an authorized administrator account to access this portal.</p>
           <button 
-            onClick={loginWithGoogle}
+            onClick={() => setIsAuthModalOpen(true)}
             className="w-full py-3 bg-zinc-900 text-white rounded-xl font-bold hover:bg-zinc-800 transition-colors"
           >
-            Sign in with Google
+            Sign In / Sign Up
           </button>
         </div>
       </div>

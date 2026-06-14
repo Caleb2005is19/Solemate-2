@@ -5,6 +5,7 @@ import { StoreProvider } from './context/StoreContext';
 import { ThemeAndSettingsManager } from './components/ThemeAndSettingsManager';
 import { Navbar } from './components/Navbar';
 import { CartDrawer } from './components/CartDrawer';
+import { AuthModal } from './components/AuthModal';
 import { Footer } from './components/Footer';
 import BackToTop from './components/BackToTop';
 import ScrollToTop from './components/ScrollToTop';
@@ -38,6 +39,7 @@ export default function App() {
             <Router>
               <ScrollToTop />
               <div className="min-h-screen bg-white font-sans text-zinc-900 selection:bg-orange-500/30">
+                <AuthModal />
                 <Navbar />
                 <CartDrawer />
                 <main>

@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Ticket, Plus, Trash2, CheckCircle2, AlertTriangle, Calendar, Users, Eye, EyeOff, Sparkles, RefreshCw } from 'lucide-react';
-import { db } from '../../firebase';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+import { db, auth } from '../../firebase';
 import { formatPrice } from '../../utils';
 
 interface CouponItem {
@@ -28,30 +27,28 @@ export function CouponsTab() {
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Get Bearer token for safe admin request routing
+  const getAuthHeaders = async () => {
+    const idToken = auth?.currentUser ? await auth.currentUser.getIdToken() : '';
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${idToken}`,
+    };
+  };
+
   const fetchCoupons = async () => {
     try {
       setRefreshing(true);
-      if (!db) {
-        console.warn('Firestore is not initialized.');
-        setLoading(false);
-        setRefreshing(false);
-        return;
+      const headers = await getAuthHeaders();
+      const res = await fetch('/api/admin/coupons', { headers });
+      
+      if (!res.ok) {
+        throw new Error(await res.text() || 'Failed to fetch coupons');
       }
-      const querySnapshot = await getDocs(collection(db, 'coupons'));
-      const list: CouponItem[] = [];
-      querySnapshot.forEach((docSnap) => {
-        const data = docSnap.data();
-        list.push({
-          id: docSnap.id,
-          code: data.code,
-          discountPercentage: Number(data.discountPercentage ?? data.discount ?? 0),
-          isActive: data.isActive !== false,
-          maxUses: data.maxUses ?? 100,
-          usedCount: data.usedCount ?? 0,
-          expiryDate: data.expiryDate || '',
-        });
-      });
-      setCoupons(list);
+      const data = await res.json();
+      if (data.success) {
+        setCoupons(data.coupons || []);
+      }
     } catch (err: any) {
       console.error('Error fetching coupons on client:', err);
     } finally {
@@ -87,11 +84,6 @@ export function CouponsTab() {
       return;
     }
 
-    if (!db) {
-      setFormError('Firebase is not initialized. Please configure API keys first.');
-      return;
-    }
-
     setIsSubmitting(true);
     try {
       const couponPayload = {
@@ -103,7 +95,20 @@ export function CouponsTab() {
         expiryDate: newExpiry || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Defaults to 30 days
       };
 
-      await addDoc(collection(db, 'coupons'), couponPayload);
+      const headers = await getAuthHeaders();
+      const res = await fetch('/api/admin/coupons', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(couponPayload)
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        let errMsg = 'Save error';
+        try { errMsg = JSON.parse(errText).error || errText; } catch { errMsg = errText; }
+        throw new Error(errMsg);
+      }
+
       setFormSuccess(`Coupon "${formattedCode}" created successfully!`);
       setNewCode('');
       setNewDiscount(15);
@@ -116,15 +121,21 @@ export function CouponsTab() {
   };
 
   const handleToggleActive = async (coupon: CouponItem) => {
-    if (!db) return;
     try {
       const nextActiveState = !coupon.isActive;
       // Sync local state immediately for instant feedback
       setCoupons(prev => prev.map(c => c.id === coupon.id ? { ...c, isActive: nextActiveState } : c));
 
-      await updateDoc(doc(db, 'coupons', coupon.id), {
-        isActive: nextActiveState
+      const headers = await getAuthHeaders();
+      const res = await fetch(`/api/admin/coupons/${coupon.id}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ isActive: nextActiveState })
       });
+
+      if (!res.ok) {
+        throw new Error(await res.text());
+      }
     } catch (err) {
       console.error('Error toggling coupon status:', err);
       // Rollback
@@ -134,13 +145,20 @@ export function CouponsTab() {
 
   const handleDeleteCoupon = async (id: string) => {
     if (!window.confirm('Are you sure you want to delete this coupon? The coupon will no longer be valid for users.')) return;
-    if (!db) return;
     try {
       // Optimistic delete
       const previousCoupons = [...coupons];
       setCoupons(prev => prev.filter(c => c.id !== id));
 
-      await deleteDoc(doc(db, 'coupons', id));
+      const headers = await getAuthHeaders();
+      const res = await fetch(`/api/admin/coupons/${id}`, {
+        method: 'DELETE',
+        headers
+      });
+
+      if (!res.ok) {
+        throw new Error(await res.text());
+      }
     } catch (err) {
       console.error('Error deleting coupon:', err);
       await fetchCoupons(); // revert
@@ -148,21 +166,26 @@ export function CouponsTab() {
   };
 
   const seedSampleCoupons = async () => {
-    if (!db) return;
     setLoading(true);
     try {
       const samples = [
         { code: 'SOLE20', discountPercentage: 20, isActive: true, maxUses: 200, usedCount: 14, expiryDate: '2026-12-31' },
-         { code: 'WELCOME10', discountPercentage: 10, isActive: true, maxUses: 500, usedCount: 88, expiryDate: '2026-08-30' },
-         { code: 'KICKS15', discountPercentage: 15, isActive: true, maxUses: 100, usedCount: 3, expiryDate: '2026-06-30' },
-         { code: 'VIP30', discountPercentage: 30, isActive: false, maxUses: 50, usedCount: 50, expiryDate: '2026-05-15' }
+        { code: 'WELCOME10', discountPercentage: 10, isActive: true, maxUses: 500, usedCount: 88, expiryDate: '2026-08-30' },
+        { code: 'KICKS15', discountPercentage: 15, isActive: true, maxUses: 100, usedCount: 3, expiryDate: '2026-06-30' },
+        { code: 'VIP30', discountPercentage: 30, isActive: false, maxUses: 50, usedCount: 50, expiryDate: '2026-05-15' }
       ];
 
-      for (const sample of samples) {
-        if (!coupons.some(c => c.code === sample.code)) {
-          await addDoc(collection(db, 'coupons'), sample);
-        }
+      const headers = await getAuthHeaders();
+      const res = await fetch('/api/admin/coupons/seed', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ samples })
+      });
+
+      if (!res.ok) {
+        throw new Error(await res.text());
       }
+
       await fetchCoupons();
     } catch (err) {
       console.error('Error seeding coupons:', err);

@@ -109,11 +109,14 @@ interface StoreContextType {
   updateHomepageSection: (id: string, updates: Partial<HomepageSection>) => Promise<void>;
   deleteHomepageSection: (id: string) => Promise<void>;
   reorderHomepageSections: (sections: HomepageSection[]) => Promise<void>;
+  isAuthModalOpen: boolean;
+  setIsAuthModalOpen: (val: boolean) => void;
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [sellers, setSellers] = useState<Seller[]>([]);
@@ -561,7 +564,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       contentBlocks, addContentBlock, updateContentBlock, deleteContentBlock,
       announcements, addAnnouncement, updateAnnouncement, deleteAnnouncement,
       contactMessages, addContactMessage, updateContactMessage, deleteContactMessage,
-      homepageSections, addHomepageSection, updateHomepageSection, deleteHomepageSection, reorderHomepageSections
+      homepageSections, addHomepageSection, updateHomepageSection, deleteHomepageSection, reorderHomepageSections,
+      isAuthModalOpen, setIsAuthModalOpen
     }}>
       {children}
     </StoreContext.Provider>

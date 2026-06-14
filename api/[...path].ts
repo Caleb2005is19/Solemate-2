@@ -471,7 +471,169 @@ app.get('/api/intasend/publishable-key', (req, res) => {
   res.json({ publishableKey: process.env.INTASEND_PUBLISHABLE_KEY || '' });
 });
 
-// Validate Coupon codes for Checkout discount triggers (Fallback static catalog)
+// Helper middleware to verify admin requests securely
+async function verifyAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Unauthorized: Missing token' });
+    }
+    const token = authHeader.split('Bearer ')[1];
+    const decodedToken = await admin.auth().verifyIdToken(token);
+    
+    // Check if user has direct admin email or admin role in DB
+    const isOwnerByEmail = decodedToken.email === 'carlisat19@gmail.com';
+    let isAdminRole = false;
+    
+    if (!isOwnerByEmail && db) {
+      const userDoc = await db.collection('users').doc(decodedToken.uid).get();
+      if (userDoc.exists && userDoc.data()?.role === 'admin') {
+        isAdminRole = true;
+      }
+    }
+
+    if (isOwnerByEmail || isAdminRole) {
+      (req as any).user = decodedToken;
+      next();
+    } else {
+      res.status(403).json({ error: 'Forbidden: Admin access required' });
+    }
+  } catch (error: any) {
+    console.error('Admin verification failed:', error.message);
+    res.status(401).json({ error: 'Unauthorized: Invalid token' });
+  }
+}
+
+// Secure Admin Coupon CRUD endpoints - completely bypass firestore rules via admin sdk
+app.get('/api/admin/coupons', verifyAdmin, async (req, res) => {
+  try {
+    if (!db) {
+      return res.status(500).json({ error: 'Database is not initialized' });
+    }
+    const querySnapshot = await db.collection('coupons').get();
+    const list: any[] = [];
+    querySnapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      list.push({
+        id: docSnap.id,
+        code: data.code,
+        discountPercentage: Number(data.discountPercentage ?? data.discount ?? 0),
+        isActive: data.isActive !== false,
+        maxUses: data.maxUses ?? 100,
+        usedCount: data.usedCount ?? 0,
+        expiryDate: data.expiryDate || '',
+      });
+    });
+    res.json({ success: true, coupons: list });
+  } catch (error: any) {
+    console.error('Fetch admin coupons error:', error);
+    res.status(500).json({ error: 'Failed to fetch coupons', message: error.message });
+  }
+});
+
+app.post('/api/admin/coupons', verifyAdmin, async (req, res) => {
+  try {
+    if (!db) return res.status(500).json({ error: 'Database not initialized' });
+    const { code, discountPercentage, isActive, maxUses, usedCount, expiryDate } = req.body;
+    
+    const docRef = await db.collection('coupons').add({
+      code: String(code).trim().toUpperCase(),
+      discountPercentage: Number(discountPercentage),
+      isActive: isActive !== false,
+      maxUses: Number(maxUses ?? 100),
+      usedCount: Number(usedCount ?? 0),
+      expiryDate: expiryDate || ''
+    });
+    
+    res.json({ success: true, id: docRef.id });
+  } catch (error: any) {
+    console.error('Create coupon error:', error);
+    res.status(500).json({ error: 'Failed to create coupon', message: error.message });
+  }
+});
+
+app.put('/api/admin/coupons/:id', verifyAdmin, async (req, res) => {
+  try {
+    if (!db) return res.status(500).json({ error: 'Database not initialized' });
+    const { id } = req.params;
+    const body = req.body;
+    
+    const updateData: any = {};
+    if (body.code !== undefined) updateData.code = String(body.code).toUpperCase();
+    if (body.discountPercentage !== undefined) updateData.discountPercentage = Number(body.discountPercentage);
+    if (body.isActive !== undefined) updateData.isActive = !!body.isActive;
+    if (body.maxUses !== undefined) updateData.maxUses = Number(body.maxUses);
+    if (body.usedCount !== undefined) updateData.usedCount = Number(body.usedCount);
+    if (body.expiryDate !== undefined) updateData.expiryDate = body.expiryDate;
+    
+    await db.collection('coupons').doc(id).update(updateData);
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Update coupon error:', error);
+    res.status(500).json({ error: 'Failed to update coupon', message: error.message });
+  }
+});
+
+app.delete('/api/admin/coupons/:id', verifyAdmin, async (req, res) => {
+  try {
+    if (!db) return res.status(500).json({ error: 'Database not initialized' });
+    const { id } = req.params;
+    await db.collection('coupons').doc(id).delete();
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Delete coupon error:', error);
+    res.status(500).json({ error: 'Failed to delete coupon', message: error.message });
+  }
+});
+
+app.post('/api/admin/coupons/seed', verifyAdmin, async (req, res) => {
+  try {
+    if (!db) return res.status(500).json({ error: 'Database not initialized' });
+    const { samples } = req.body;
+    if (!samples || !Array.isArray(samples)) {
+      return res.status(400).json({ error: 'Samples active list is required' });
+    }
+    
+    // Check existing coupons to prevent duplicates
+    const snapshot = await db.collection('coupons').get();
+    const existingCodes = new Set<string>();
+    snapshot.forEach(docSnap => {
+      if (docSnap.data().code) {
+        existingCodes.add(String(docSnap.data().code).trim().toUpperCase());
+      }
+    });
+
+    const batch = db.batch();
+    let seededCount = 0;
+    
+    for (const sample of samples) {
+      const codeUpper = String(sample.code).trim().toUpperCase();
+      if (!existingCodes.has(codeUpper)) {
+        const docRef = db.collection('coupons').doc();
+        batch.set(docRef, {
+          code: codeUpper,
+          discountPercentage: Number(sample.discountPercentage),
+          isActive: sample.isActive !== false,
+          maxUses: Number(sample.maxUses ?? 100),
+          usedCount: Number(sample.usedCount ?? 0),
+          expiryDate: sample.expiryDate || ''
+        });
+        seededCount++;
+      }
+    }
+    
+    if (seededCount > 0) {
+      await batch.commit();
+    }
+    
+    res.json({ success: true, seededCount });
+  } catch (error: any) {
+    console.error('Seed coupons error:', error);
+    res.status(500).json({ error: 'Failed to seed coupons', message: error.message });
+  }
+});
+
+// Validate Coupon codes for Checkout discount triggers
 app.get('/api/coupons/validate', async (req, res) => {
   try {
     const code = (req.query.code as string || '').trim().toUpperCase();
@@ -479,7 +641,55 @@ app.get('/api/coupons/validate', async (req, res) => {
       return res.status(400).json({ error: 'Coupon code is required' });
     }
 
-    // Preseed standardized e-commerce promotion codes
+    // 1. Try Admin SDK to securely fetch coupons from raw database first (completely bypasses rules)
+    if (db) {
+      try {
+        const querySnapshot = await db.collection('coupons').where('code', '==', code).get();
+        if (!querySnapshot.empty) {
+          const docSnap = querySnapshot.docs[0];
+          const data = docSnap.data();
+          const isActive = data.isActive !== false;
+          const maxUses = data.maxUses ?? 100;
+          const usedCount = data.usedCount ?? 0;
+          const discountPercentage = Number(data.discountPercentage ?? data.discount ?? 0);
+          
+          let expired = false;
+          if (data.expiryDate) {
+            let expiryDateObj: Date;
+            if (data.expiryDate.toDate) {
+              expiryDateObj = data.expiryDate.toDate();
+            } else {
+              expiryDateObj = new Date(data.expiryDate);
+            }
+            if (!isNaN(expiryDateObj.getTime()) && expiryDateObj < new Date()) {
+              expired = true;
+            }
+          }
+
+          if (!isActive) {
+            return res.status(400).json({ error: 'This coupon is currently inactive' });
+          }
+
+          if (expired) {
+            return res.status(400).json({ error: 'This coupon code has expired' });
+          }
+
+          if (usedCount >= maxUses) {
+            return res.status(400).json({ error: 'This coupon has reached its maximum uses' });
+          }
+
+          return res.json({
+            success: true,
+            code,
+            discountPercentage
+          });
+        }
+      } catch (dbErr: any) {
+        console.error('Backend Admin coupon check failed, continuing with fallback:', dbErr.message);
+      }
+    }
+
+    // 2. Preseed standardized e-commerce promotion codes fallback catalog
     const fallbackCoupons: Record<string, number> = {
       'SOLE20': 20,
       'WELCOME10': 10,

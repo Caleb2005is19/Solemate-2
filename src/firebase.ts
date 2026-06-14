@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 // Use Vite glob imports to load config if and only if it exists at build time.
@@ -49,6 +49,35 @@ export const loginWithGoogle = async (requestSheetsScope: unknown = false) => {
     return result.user;
   } catch (error) {
     console.error("Error signing in with Google", error);
+    throw error;
+  }
+};
+
+export const signUpWithEmail = async (email: string, password: string, displayName?: string) => {
+  if (!auth) {
+    throw new Error("Firebase is not initialized. Please check your VITE_FIREBASE_API_KEY.");
+  }
+  try {
+    const result = await createUserWithEmailAndPassword(auth, email.trim(), password);
+    if (displayName && result.user) {
+      await updateProfile(result.user, { displayName: displayName.trim() });
+    }
+    return result.user;
+  } catch (error) {
+    console.error("Error creating email account", error);
+    throw error;
+  }
+};
+
+export const signInWithEmail = async (email: string, password: string) => {
+  if (!auth) {
+    throw new Error("Firebase is not initialized. Please check your VITE_FIREBASE_API_KEY.");
+  }
+  try {
+    const result = await signInWithEmailAndPassword(auth, email.trim(), password);
+    return result.user;
+  } catch (error) {
+    console.error("Error signing in with email", error);
     throw error;
   }
 };

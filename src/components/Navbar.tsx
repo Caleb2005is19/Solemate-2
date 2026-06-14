@@ -8,28 +8,15 @@ import { motion, AnimatePresence } from 'motion/react';
 
 export function Navbar() {
   const { cartCount, setIsCartOpen, wishlistItems, searchQuery, setSearchQuery } = useCart();
-  const { currentUser, isAdmin, currentSellerId } = useStore();
+  const { currentUser, isAdmin, currentSellerId, setIsAuthModalOpen } = useStore();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  const handleLogin = async () => {
-    setError(null);
-    try {
-      await loginWithGoogle();
-    } catch (err: any) {
-      console.error("Login failed:", err);
-      if (err.code === 'auth/operation-not-allowed') {
-        setError("Google Sign-In is not enabled. Please check Firebase Console.");
-      } else if (err.code === 'auth/unauthorized-domain') {
-        setError("This domain is not authorized for Google Sign-In.");
-      } else {
-        setError("Failed to sign in with Google. Please try again.");
-      }
-      setTimeout(() => setError(null), 5000);
-    }
+  const handleLogin = () => {
+    setIsAuthModalOpen(true);
   };
 
   const handleSearch = (e: React.FormEvent) => {
