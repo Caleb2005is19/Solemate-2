@@ -5,6 +5,7 @@ import { useCart } from '../context/CartContext';
 import { useStore } from '../context/StoreContext';
 import { loginWithGoogle, logout } from '../firebase';
 import { motion, AnimatePresence } from 'motion/react';
+import { Logo } from './Logo';
 
 export function Navbar() {
   const { cartCount, setIsCartOpen, wishlistItems, searchQuery, setSearchQuery } = useCart();
@@ -66,11 +67,8 @@ export function Navbar() {
 
             {/* Logo */}
             <div className="flex-1 flex justify-center sm:justify-start">
-              <Link to="/" className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
-                  <span className="text-white font-bold text-xl leading-none">S</span>
-                </div>
-                <span className="font-bold text-xl tracking-tight text-zinc-900">Solemate.co.ke</span>
+              <Link to="/" className="flex items-center gap-2 group" aria-label="Solemate Home">
+                <Logo variant="horizontal" size={38} />
               </Link>
             </div>
 

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="500" height="500">
+  <rect width="500" height="500" rx="100" fill="#F36F21"/>
+  <g transform="translate(0, 30)">
+    <!-- Shoe Upper Body in White -->
+    <path d="M 120 150 C 135 70 190 40 240 45 C 295 50 350 110 425 150 C 490 185 540 235 490 255 C 430 280 320 290 220 240 C 170 215 110 190 120 150 Z" fill="#FFFFFF" />
+    
+    <!-- Three Accent Stripes in Orange -->
+    <line x1="245" y1="95" x2="270" y2="180" stroke="#F36F21" stroke-width="16" stroke-linecap="round" />
+    <line x1="290" y1="115" x2="315" y2="190" stroke="#F36F21" stroke-width="16" stroke-linecap="round" />
+    <line x1="335" y1="145" x2="360" y2="205" stroke="#F36F21" stroke-width="16" stroke-linecap="round" />
+
+    <!-- Sole in White -->
+    <path d="M 95 220 C 125 215 220 265 320 270 C 420 275 480 250 490 280 C 495 315 370 335 255 325 C 155 315 90 245 95 220 Z" fill="#FFFFFF" />
+  </g>
+</svg>

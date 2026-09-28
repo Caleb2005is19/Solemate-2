@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Phone, Mail, MapPin, Instagram, Facebook, Twitter } from 'lucide-react';
+import { Logo } from './Logo';
 
 export function Footer() {
   return (
@@ -9,11 +10,16 @@ export function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-12">
           {/* Brand */}
           <div className="space-y-4">
-            <Link to="/" className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-xl leading-none">S</span>
+            <Link to="/" className="flex items-center gap-2.5 group" aria-label="Solemate Home">
+              <Logo variant="icon" size={34} color="#f97316" />
+              <div className="flex flex-col leading-none">
+                <span className="font-black text-xl tracking-tight text-white">
+                  Solemate<span className="text-orange-500">.co.ke</span>
+                </span>
+                <span className="text-[9px] font-bold tracking-[0.25em] text-zinc-400 uppercase -mt-0.5">
+                  SOLE MATE KE
+                </span>
               </div>
-              <span className="font-bold text-xl tracking-tight">Solemate.co.ke</span>
             </Link>
             <p className="text-zinc-400 text-sm leading-relaxed">
               Nairobi's premium destination for authentic sneakers and footwear. We bring you the latest drops and timeless classics.

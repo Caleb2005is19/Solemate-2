@@ -3,6 +3,7 @@ import { X, Mail, Lock, User, LogIn, UserPlus, Eye, EyeOff, AlertCircle, CheckCi
 import { signUpWithEmail, signInWithEmail, loginWithGoogle } from '../firebase';
 import { useStore } from '../context/StoreContext';
 import { motion, AnimatePresence } from 'motion/react';
+import { Logo } from './Logo';
 
 export function AuthModal() {
   const { isAuthModalOpen, setIsAuthModalOpen } = useStore();
@@ -140,10 +141,9 @@ export function AuthModal() {
 
           {/* Modal Branding Header */}
           <div className="p-6 pb-4 border-b border-zinc-100 flex flex-col items-center">
-            <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center mb-2 shadow-md shadow-orange-500/20">
-              <span className="text-white font-black text-2xl leading-none">S</span>
+            <div className="mb-2">
+              <Logo variant="full" size={76} color="#f97316" />
             </div>
-            <h2 className="text-xl font-bold tracking-tight text-zinc-900">Welcome to Solemate</h2>
             <p className="text-xs text-zinc-500 mt-1">Nairobi's Premium Sneaker Marketplace</p>
           </div>
 
