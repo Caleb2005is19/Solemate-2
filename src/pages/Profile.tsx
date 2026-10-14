@@ -3,13 +3,17 @@ import { useStore } from '../context/StoreContext';
 import { auth } from '../firebase';
 import { signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
 import { motion } from 'motion/react';
-import { Package, LogOut, User as UserIcon, MapPin, Clock, CheckCircle2, Edit2, Save } from 'lucide-react';
+import { Package, LogOut, User as UserIcon, MapPin, Clock, CheckCircle2, Edit2, Save, Printer, FileText, Loader2 } from 'lucide-react';
 import { formatPrice } from '../utils';
 import { ImageWithSkeleton } from '../components/ImageWithSkeleton';
+import { printOrders } from '../utils/printInvoice';
+import { downloadOrderPdf } from '../utils/pdfGenerator';
 
 export function Profile() {
-  const { currentUser, userProfile, updateUserProfile, orders } = useStore();
+  const { currentUser, userProfile, updateUserProfile, orders, siteSettings } = useStore();
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [downloadingOrderId, setDownloadingOrderId] = useState<string | null>(null);
+  const [downloadedOrderId, setDownloadedOrderId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'orders' | 'address'>('orders');
   const [isEditingAddress, setIsEditingAddress] = useState(false);
   const [addressForm, setAddressForm] = useState({
@@ -161,9 +165,57 @@ export function Profile() {
                               })}
                             </p>
                           </div>
-                          <div className="text-left sm:text-right">
-                            <p className="text-sm text-zinc-500 mb-1">Total Amount</p>
-                            <p className="text-xl font-black text-zinc-900">{formatPrice(order.total)}</p>
+                          <div className="flex flex-col sm:items-end gap-2">
+                            <div className="text-left sm:text-right">
+                              <p className="text-xs text-zinc-500 mb-0.5">Total Amount</p>
+                              <p className="text-xl font-black text-zinc-900">{formatPrice(order.total)}</p>
+                            </div>
+                            <div className="flex items-center gap-1.5 flex-wrap sm:justify-end">
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  try {
+                                    setDownloadingOrderId(order.id);
+                                    await downloadOrderPdf(order, siteSettings || undefined);
+                                    setDownloadedOrderId(order.id);
+                                    setTimeout(() => setDownloadedOrderId(null), 3000);
+                                  } catch (err) {
+                                    console.error('Failed to download PDF:', err);
+                                  } finally {
+                                    setDownloadingOrderId(null);
+                                  }
+                                }}
+                                disabled={downloadingOrderId === order.id}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-zinc-900 hover:bg-zinc-800 rounded-xl transition shadow-xs disabled:opacity-50"
+                                title="Download PDF receipt"
+                              >
+                                {downloadingOrderId === order.id ? (
+                                  <>
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin text-orange-400" />
+                                    <span>Generating...</span>
+                                  </>
+                                ) : downloadedOrderId === order.id ? (
+                                  <>
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                                    <span>Saved!</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <FileText className="w-3.5 h-3.5 text-orange-400" />
+                                    <span>PDF</span>
+                                  </>
+                                )}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => printOrders(order, siteSettings || undefined)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-zinc-700 bg-zinc-100 hover:bg-zinc-200 rounded-xl transition shadow-xs"
+                                title="Print order receipt"
+                              >
+                                <Printer className="w-3.5 h-3.5 text-orange-500" />
+                                <span>Print</span>
+                              </button>
+                            </div>
                           </div>
                         </div>
 

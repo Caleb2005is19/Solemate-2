@@ -9,12 +9,15 @@ import { Logo } from './Logo';
 
 export function Navbar() {
   const { cartCount, setIsCartOpen, wishlistItems, searchQuery, setSearchQuery } = useCart();
-  const { currentUser, isAdmin, currentSellerId, setIsAuthModalOpen } = useStore();
+  const { currentUser, isAdmin, currentSellerId, setIsAuthModalOpen, siteSettings } = useStore();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
+
+  const contactPhone = siteSettings?.phoneNumbers?.[0] || siteSettings?.whatsappNumber || '+254 700 000 000';
+  const cleanTel = contactPhone.replace(/[^\d+]/g, '');
 
   const handleLogin = () => {
     setIsAuthModalOpen(true);
@@ -33,10 +36,17 @@ export function Navbar() {
       {/* Top Bar */}
       <div className="bg-zinc-900 text-white text-xs sm:text-sm py-2 px-4 text-center flex justify-center items-center gap-4">
         <span>🚚 Free Delivery in Nairobi CBD</span>
-        <span className="hidden sm:inline">|</span>
+        <span className="hidden sm:inline text-zinc-600">|</span>
         <span className="hidden sm:inline">📦 Countrywide Delivery via Fargo Courier</span>
-        <span className="hidden sm:inline">|</span>
-        <span className="flex items-center gap-1"><Phone className="w-3 h-3"/> +254 700 000 000</span>
+        <span className="hidden sm:inline text-zinc-600">|</span>
+        <a 
+          href={`tel:${cleanTel}`}
+          className="flex items-center gap-1.5 hover:text-orange-400 transition-colors font-medium text-white"
+          title="Call store support directly"
+        >
+          <Phone className="w-3 h-3 text-orange-500" />
+          <span>{contactPhone}</span>
+        </a>
       </div>
       
       <nav className="w-full bg-white/90 backdrop-blur-md border-b border-zinc-200 shadow-sm">

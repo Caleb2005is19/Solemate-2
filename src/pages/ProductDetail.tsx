@@ -12,6 +12,7 @@ import { ImageZoom } from '../components/ImageZoom';
 import { Product, Review } from '../types';
 import { ShoppingCart, X, Info, Send, User } from 'lucide-react';
 import { reviewService } from '../services/reviewService';
+import { getWhatsAppChatUrl } from '../utils/contactHelpers';
 
 const SIZES = [7, 7.5, 8, 8.5, 9, 9.5, 10, 10.5, 11, 11.5, 12, 13];
 
@@ -140,7 +141,7 @@ const getStyleAdvice = (product: Product) => {
 export function ProductDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { products, currentUser, featureToggles } = useStore();
+  const { products, currentUser, featureToggles, siteSettings } = useStore();
   const { addToCart, toggleWishlist, isInWishlist, addToRecentlyViewed } = useCart();
   
   const product = products.find(p => p.id === id);
@@ -289,7 +290,10 @@ export function ProductDetail() {
     addToCart(product, selectedSize, selectedColor || undefined);
   };
 
-  const whatsAppUrl = `https://wa.me/254700000000?text=${encodeURIComponent(`Hello Solemate, I would like to order:\n\n*${product?.name}*\nColor: ${selectedColor || 'Default'}\nSize: US ${selectedSize || 'Not selected'}\nPrice: ${formatPrice(product?.price || 0)}\n\nPlease confirm availability.`)}`;
+  const businessName = siteSettings?.businessName || 'Solemate';
+  const targetPhone = siteSettings?.whatsappNumber || siteSettings?.phoneNumbers?.[0] || '254700000000';
+  const whatsAppMessage = `Hello ${businessName}, I would like to order:\n\n*${product?.name}*\nColor: ${selectedColor || 'Default'}\nSize: US ${selectedSize || 'Not selected'}\nPrice: ${formatPrice(product?.price || 0)}\n\nPlease confirm availability.`;
+  const whatsAppUrl = getWhatsAppChatUrl(targetPhone, whatsAppMessage);
 
   // Get current images based on selected color or general images
   const currentImages = product.colors?.find(c => c.name === selectedColor)?.images || product.images || [product.image];
@@ -964,8 +968,8 @@ export function ProductDetail() {
                   <div className="flex gap-3">
                     <button
                       onClick={() => {
-                        if (!qvSize) return alert('Please select a size');
-                        addToCart(quickViewProduct, qvSize, qvColor || undefined);
+                        const sizeToUse = qvSize || 9;
+                        addToCart(quickViewProduct, sizeToUse, qvColor || undefined);
                         setQuickViewProduct(null);
                       }}
                       className="flex-1 py-4 bg-zinc-900 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-orange-500 transition-colors shadow-xl flex items-center justify-center gap-2"

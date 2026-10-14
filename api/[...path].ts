@@ -313,28 +313,59 @@ app.get('/api/intasend/status/:orderId', async (req, res) => {
 app.get('/api/orders/:id/invoice', async (req, res) => {
   try {
     const { id } = req.params;
-    if (!db) throw new Error('Firestore not initialized.');
+    let order: any = null;
 
-    const orderDoc = await db.collection('orders').doc(id).get();
-    if (!orderDoc.exists) {
-      return res.status(404).json({ error: 'Order not found' });
+    if (db) {
+      try {
+        const orderDoc = await db.collection('orders').doc(id).get();
+        if (orderDoc.exists) {
+          const orderData = orderDoc.data();
+          order = { id, ...orderData, date: orderData?.date || new Date().toISOString() };
+        }
+      } catch (dbErr: any) {
+        console.warn('Could not read order from Firestore directly in backend:', dbErr.message);
+      }
     }
 
-    const orderData = orderDoc.data();
-    const order = { id, ...orderData, date: orderData?.date || new Date().toISOString().split('T')[0] };
+    if (!order) {
+      return res.status(404).send(`
+        <!DOCTYPE html>
+        <html>
+        <head><title>Invoice Not Found - Solemate.co.ke</title><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; text-align: center; padding: 60px 20px; color: #18181b; background: #fafafa;">
+          <div style="max-width: 480px; margin: 0 auto; background: white; padding: 36px; border-radius: 16px; border: 1px solid #e4e4e7; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+            <div style="font-size: 24px; font-weight: 900; color: #f97316; margin-bottom: 8px;">Solemate.co.ke</div>
+            <h2 style="font-size: 18px; font-weight: 700; margin-bottom: 12px;">Invoice #${id.slice(-8).toUpperCase()}</h2>
+            <p style="color: #71717a; font-size: 14px; line-height: 1.5; margin-bottom: 24px;">
+              Order details can be previewed and printed directly from your account.
+            </p>
+            <div style="display: flex; justify-content: center; gap: 12px;">
+              <a href="/dashboard" style="display: inline-block; padding: 10px 20px; background: #f97316; color: white; text-decoration: none; border-radius: 8px; font-weight: 700; font-size: 13px;">Go to Dashboard</a>
+              <a href="/profile" style="display: inline-block; padding: 10px 20px; background: #f4f4f5; color: #18181b; text-decoration: none; border-radius: 8px; font-weight: 700; font-size: 13px;">My Orders</a>
+            </div>
+          </div>
+        </body>
+        </html>
+      `);
+    }
 
-    const React = (await import('react')).default;
-    const { renderToBuffer } = await import('@react-pdf/renderer');
-    const { default: InvoiceDocument } = await import('../src/components/InvoiceDocument.js');
-
-    const buffer = await renderToBuffer(React.createElement(InvoiceDocument, { order }) as any);
-
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename=invoice-${id.slice(-8).toUpperCase()}.pdf`);
-    res.send(buffer);
+    const { generateFullPrintDocument } = await import('../src/utils/printInvoice.ts');
+    const html = generateFullPrintDocument(order);
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.send(html);
   } catch (error: any) {
     console.error('Invoice Generation Error:', error);
-    res.status(500).json({ error: 'Failed to generate invoice', message: error.message });
+    res.status(500).send(`
+      <!DOCTYPE html>
+      <html>
+      <head><title>Invoice Error - Solemate.co.ke</title><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+      <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; text-align: center; padding: 60px 20px; color: #18181b;">
+        <h3 style="color: #ef4444;">Could not load invoice</h3>
+        <p style="color: #71717a;">${error.message}</p>
+        <p><a href="/dashboard" style="color: #f97316; font-weight: 700;">Return to Dashboard</a></p>
+      </body>
+      </html>
+    `);
   }
 });
 

@@ -5,264 +5,445 @@ import {
   Text,
   View,
   StyleSheet,
-  Font,
 } from '@react-pdf/renderer';
-
-// Register a font for professional look if needed, but defaults are fine for now
-// Standard fonts: Helvetica, Times-Roman, Courier
+import type { Order, SiteSettings } from '../services/types';
 
 const styles = StyleSheet.create({
   page: {
-    padding: 40,
-    fontSize: 10,
+    padding: 36,
+    fontSize: 9,
     fontFamily: 'Helvetica',
     color: '#18181b', // zinc-900
+    backgroundColor: '#ffffff',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 40,
-    borderBottom: 1,
-    borderBottomColor: '#f4f4f5', // zinc-100
-    paddingBottom: 20,
+    marginBottom: 28,
+    borderBottom: 2,
+    borderBottomColor: '#f97316', // orange-500
+    paddingBottom: 16,
   },
   logoSection: {
     flexDirection: 'column',
   },
-  logo: {
-    fontSize: 20,
+  logoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  logoMain: {
+    fontSize: 22,
     fontWeight: 'black',
-    color: '#f97316', // orange-500
-    marginBottom: 4,
+    color: '#18181b',
   },
-  companyInfo: {
-    fontSize: 8,
-    color: '#71717a', // zinc-500
+  logoHighlight: {
+    fontSize: 22,
+    fontWeight: 'black',
+    color: '#f97316',
   },
-  invoiceInfo: {
-    textAlign: 'right',
-  },
-  invoiceTitle: {
-    fontSize: 24,
+  tagline: {
+    fontSize: 7.5,
     fontWeight: 'bold',
+    color: '#71717a',
+    textTransform: 'uppercase',
+    letterSpacing: 1.5,
+    marginBottom: 6,
+  },
+  companyDetail: {
+    fontSize: 8,
+    color: '#52525b',
+    marginBottom: 1,
+  },
+  invoiceMeta: {
+    textAlign: 'right',
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+  },
+  invoiceBadge: {
+    backgroundColor: '#fff7ed',
+    border: 1,
+    borderColor: '#ffedd5',
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 4,
+    marginBottom: 6,
+  },
+  invoiceBadgeText: {
+    fontSize: 8,
+    fontWeight: 'bold',
+    color: '#c2410c',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  invoiceNumber: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#18181b',
     marginBottom: 4,
   },
-  invoiceDetail: {
-    fontSize: 9,
+  metaRow: {
+    fontSize: 8,
     color: '#71717a',
     marginBottom: 2,
   },
-  section: {
-    marginBottom: 30,
-  },
-  sectionTitle: {
-    fontSize: 10,
+  metaValue: {
     fontWeight: 'bold',
-    textTransform: 'uppercase',
-    color: '#71717a',
-    marginBottom: 8,
-    borderBottom: 1,
-    borderBottomColor: '#f4f4f5',
-    paddingBottom: 4,
+    color: '#27272a',
   },
-  billingInfo: {
+  infoGrid: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    backgroundColor: '#fafafa',
+    padding: 14,
+    borderRadius: 8,
+    border: 1,
+    borderColor: '#f4f4f5',
+    marginBottom: 22,
   },
-  addressBlock: {
-    width: '45%',
+  infoCol: {
+    width: '48%',
   },
-  addressLabel: {
+  infoColTitle: {
+    fontSize: 8,
     fontWeight: 'bold',
-    marginBottom: 2,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    color: '#71717a',
+    marginBottom: 6,
+    borderBottom: 1,
+    borderBottomColor: '#e4e4e7',
+    paddingBottom: 2,
   },
-  addressText: {
+  infoName: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#18181b',
+    marginBottom: 3,
+  },
+  infoText: {
+    fontSize: 8.5,
     color: '#3f3f46',
-    marginBottom: 1,
+    marginBottom: 2,
   },
   table: {
     width: 'auto',
-    marginBottom: 30,
+    marginBottom: 20,
+    border: 1,
+    borderColor: '#e4e4e7',
+    borderRadius: 6,
+    overflow: 'hidden',
   },
   tableHeader: {
     flexDirection: 'row',
-    backgroundColor: '#fafafa',
+    backgroundColor: '#f4f4f5',
     borderBottom: 1,
-    borderBottomColor: '#f4f4f5',
-    padding: 8,
+    borderBottomColor: '#e4e4e7',
+    paddingVertical: 7,
+    paddingHorizontal: 10,
   },
   tableRow: {
     flexDirection: 'row',
     borderBottom: 1,
     borderBottomColor: '#f4f4f5',
-    padding: 8,
+    paddingVertical: 7,
+    paddingHorizontal: 10,
   },
-  colDescription: { width: '50%' },
-  colQty: { width: '15%', textAlign: 'center' },
-  colPrice: { width: '15%', textAlign: 'right' },
-  colTotal: { width: '20%', textAlign: 'right' },
-  headerText: {
-    fontSize: 8,
+  colNum: { width: '8%', textAlign: 'center' },
+  colDesc: { width: '48%' },
+  colQty: { width: '12%', textAlign: 'center' },
+  colPrice: { width: '16%', textAlign: 'right' },
+  colTotal: { width: '16%', textAlign: 'right' },
+  thText: {
+    fontSize: 7.5,
     fontWeight: 'bold',
     color: '#71717a',
     textTransform: 'uppercase',
   },
-  itemText: {
-    fontSize: 9,
+  itemTitle: {
+    fontSize: 8.5,
+    fontWeight: 'bold',
+    color: '#18181b',
+  },
+  itemSub: {
+    fontSize: 7.5,
+    color: '#ea580c',
+    marginTop: 1,
+  },
+  tdText: {
+    fontSize: 8.5,
+    color: '#27272a',
   },
   totalsSection: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    justifyContent: 'space-between',
+    marginBottom: 28,
   },
-  totalsTable: {
-    width: '40%',
+  paymentSummary: {
+    width: '50%',
+    padding: 12,
+    backgroundColor: '#fafafa',
+    borderRadius: 6,
+    border: 1,
+    borderColor: '#f4f4f5',
   },
-  totalRow: {
+  paymentSummaryTitle: {
+    fontSize: 8,
+    fontWeight: 'bold',
+    textTransform: 'uppercase',
+    color: '#71717a',
+    marginBottom: 6,
+  },
+  paymentRow: {
+    fontSize: 8,
+    color: '#52525b',
+    marginBottom: 2,
+  },
+  totalsBox: {
+    width: '45%',
+  },
+  calcRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 4,
+    paddingVertical: 3,
+  },
+  calcLabel: {
+    fontSize: 8.5,
+    color: '#71717a',
+  },
+  calcVal: {
+    fontSize: 8.5,
+    fontWeight: 'bold',
+    color: '#27272a',
   },
   grandTotalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 8,
-    paddingTop: 8,
+    marginTop: 6,
+    paddingTop: 6,
     borderTop: 2,
-    borderTopColor: '#18181b',
+    borderTopColor: '#f97316',
   },
   grandTotalLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: 'bold',
+    color: '#18181b',
   },
-  grandTotalValue: {
+  grandTotalVal: {
     fontSize: 12,
-    fontWeight: 'bold',
-    color: '#f97316',
+    fontWeight: 'black',
+    color: '#ea580c',
   },
   footer: {
-    position: 'absolute',
-    bottom: 30,
-    left: 40,
-    right: 40,
-    textAlign: 'center',
     borderTop: 1,
-    borderTopColor: '#f4f4f5',
-    paddingTop: 20,
+    borderTopColor: '#e4e4e7',
+    paddingTop: 14,
+    textAlign: 'center',
+    position: 'absolute',
+    bottom: 28,
+    left: 36,
+    right: 36,
   },
-  footerText: {
+  footerHeading: {
     fontSize: 8,
-    color: '#a1a1aa',
-    marginBottom: 4,
+    fontWeight: 'bold',
+    color: '#27272a',
+    marginBottom: 3,
+  },
+  footerSub: {
+    fontSize: 7,
+    color: '#71717a',
+    lineHeight: 1.3,
   },
 });
 
 interface InvoiceProps {
-  order: any;
+  order: Order;
+  siteSettings?: Partial<SiteSettings>;
 }
 
-const InvoiceDocument: React.FC<InvoiceProps> = ({ order }) => {
-  const formatPrice = (amount: number) => `KES ${(amount || 0).toLocaleString()}`;
+export const InvoiceDocument: React.FC<InvoiceProps> = ({ order, siteSettings }) => {
+  const formatPrice = (val: number) => `KES ${Math.round(val || 0).toLocaleString()}`;
 
-  if (!order) {
-    return (
-      <Document>
-        <Page size="A4" style={styles.page}>
-          <Text>Loading invoice details...</Text>
-        </Page>
-      </Document>
-    );
-  }
+  const customerInfo = order?.customerInfo || {
+    firstName: 'Customer',
+    lastName: '',
+    email: 'N/A',
+    phone: 'N/A',
+    location: 'N/A',
+    city: 'N/A',
+  };
 
-  const orderId = (order.id || '').slice(-8).toUpperCase();
-  const customerInfo = order.customerInfo || { firstName: '', lastName: '', email: '', phone: '', location: '', city: '' };
-  const items = order.items || [];
-  const total = order.total || 0;
-  const deliveryFee = order.deliveryFee || 0;
+  const orderId = (order?.id || 'ORDER').slice(-8).toUpperCase();
+  const fullOrderId = order?.id || 'N/A';
+  const orderDate = order?.date 
+    ? new Date(order.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+    : new Date().toLocaleDateString();
+
+  const businessName = siteSettings?.businessName || 'Solemate.co.ke';
+  const phone = siteSettings?.phoneNumbers?.[0] || '+254 700 000 000';
+  const email = siteSettings?.contactEmail || 'contact@solemate.co.ke';
+
+  const items = order?.items || [];
+  const deliveryFee = Number(order?.deliveryFee) || 0;
+  const total = Number(order?.total) || 0;
+  const discount = Number(order?.discount) || 0;
+  const subtotal = Number(order?.subtotal) || (total - deliveryFee + discount);
 
   return (
-    <Document>
+    <Document title={`Invoice-${orderId}`} author={businessName}>
       <Page size="A4" style={styles.page}>
-        {/* Header */}
+        {/* Header Section */}
         <View style={styles.header}>
           <View style={styles.logoSection}>
-            <Text style={styles.logo}>SOLEMATE</Text>
-            <Text style={styles.companyInfo}>Premium Footwear & Sneakers</Text>
-            <Text style={styles.companyInfo}>Nairobi, Kenya</Text>
-            <Text style={styles.companyInfo}>contact@solemate.co.ke</Text>
+            <View style={styles.logoRow}>
+              <Text style={styles.logoMain}>Solemate</Text>
+              <Text style={styles.logoHighlight}>.co.ke</Text>
+            </View>
+            <Text style={styles.tagline}>Authentic Footwear & Sneakers • Kenya</Text>
+            <Text style={styles.companyDetail}>{businessName}</Text>
+            <Text style={styles.companyDetail}>{email} • {phone}</Text>
           </View>
-          <View style={styles.invoiceInfo}>
-            <Text style={styles.invoiceTitle}>INVOICE</Text>
-            <Text style={styles.invoiceDetail}>INV-{orderId}</Text>
-            <Text style={styles.invoiceDetail}>Date: {order.date || ''}</Text>
-            <Text style={styles.invoiceDetail}>Status: {order.paymentStatus || 'Pending'}</Text>
+
+          <View style={styles.invoiceMeta}>
+            <View style={styles.invoiceBadge}>
+              <Text style={styles.invoiceBadgeText}>Official Invoice / Receipt</Text>
+            </View>
+            <Text style={styles.invoiceNumber}>INV-{orderId}</Text>
+            <Text style={styles.metaRow}>
+              Date: <Text style={styles.metaValue}>{orderDate}</Text>
+            </Text>
+            <Text style={styles.metaRow}>
+              Payment: <Text style={styles.metaValue}>{order.paymentStatus || 'Pending'}</Text>
+            </Text>
+            {order.mpesaReceipt && (
+              <Text style={styles.metaRow}>
+                Receipt: <Text style={styles.metaValue}>{order.mpesaReceipt}</Text>
+              </Text>
+            )}
           </View>
         </View>
 
-        {/* Customer & Shipping */}
-        <View style={styles.section}>
-          <View style={styles.billingInfo}>
-            <View style={styles.addressBlock}>
-              <Text style={styles.sectionTitle}>Bill To</Text>
-              <Text style={styles.addressLabel}>{(customerInfo.firstName || '')} {(customerInfo.lastName || '')}</Text>
-              <Text style={styles.addressText}>{customerInfo.email || ''}</Text>
-              <Text style={styles.addressText}>{customerInfo.phone || ''}</Text>
-            </View>
-            <View style={styles.addressBlock}>
-              <Text style={styles.sectionTitle}>Shipping Detail</Text>
-              <Text style={styles.addressText}>{customerInfo.location || ''}</Text>
-              <Text style={styles.addressText}>{customerInfo.city || ''}</Text>
-              <Text style={styles.addressText}>Method: {order.paymentMethod || ''}</Text>
-            </View>
+        {/* Customer & Delivery Section */}
+        <View style={styles.infoGrid}>
+          <View style={styles.infoCol}>
+            <Text style={styles.infoColTitle}>Customer (Billed To)</Text>
+            <Text style={styles.infoName}>
+              {(customerInfo.firstName || 'Valued')} {(customerInfo.lastName || 'Customer')}
+            </Text>
+            <Text style={styles.infoText}>Email: {customerInfo.email || 'N/A'}</Text>
+            <Text style={styles.infoText}>Phone: {customerInfo.phone || 'N/A'}</Text>
+          </View>
+
+          <View style={styles.infoCol}>
+            <Text style={styles.infoColTitle}>Delivery Destination</Text>
+            <Text style={styles.infoName}>{customerInfo.location || 'Local Delivery'}</Text>
+            <Text style={styles.infoText}>Town / City: {customerInfo.city || 'Nairobi, Kenya'}</Text>
+            <Text style={styles.infoText}>
+              Delivery Method: {deliveryFee === 0 ? 'Free Standard Delivery' : 'Express Delivery'}
+            </Text>
           </View>
         </View>
 
         {/* Items Table */}
         <View style={styles.table}>
           <View style={styles.tableHeader}>
-            <View style={styles.colDescription}><Text style={styles.headerText}>Description</Text></View>
-            <View style={styles.colQty}><Text style={styles.headerText}>Qty</Text></View>
-            <View style={styles.colPrice}><Text style={styles.headerText}>Price</Text></View>
-            <View style={styles.colTotal}><Text style={styles.headerText}>Total</Text></View>
+            <View style={styles.colNum}><Text style={styles.thText}>#</Text></View>
+            <View style={styles.colDesc}><Text style={styles.thText}>Item & Options</Text></View>
+            <View style={styles.colQty}><Text style={styles.thText}>Qty</Text></View>
+            <View style={styles.colPrice}><Text style={styles.thText}>Price</Text></View>
+            <View style={styles.colTotal}><Text style={styles.thText}>Total</Text></View>
           </View>
 
-          {items.map((item: any, index: number) => (
-            <View key={index} style={styles.tableRow}>
-              <View style={styles.colDescription}>
-                <Text style={styles.itemText}>{item.name || ''}</Text>
-                {item.brand && <Text style={[styles.companyInfo, { marginTop: 2 }]}>{item.brand}</Text>}
+          {items.map((item, index) => {
+            const qty = Number(item.quantity) || 1;
+            const price = Number(item.price) || 0;
+            const lineTotal = qty * price;
+            return (
+              <View key={index} style={styles.tableRow}>
+                <View style={styles.colNum}>
+                  <Text style={styles.tdText}>{index + 1}</Text>
+                </View>
+                <View style={styles.colDesc}>
+                  <Text style={styles.itemTitle}>{item.name || 'Footwear'}</Text>
+                  <Text style={styles.itemSub}>
+                    Size: EU {item.selectedSize || 'Standard'}
+                    {item.selectedColor ? ` • Color: ${item.selectedColor}` : ''}
+                    {item.brand ? ` • ${item.brand}` : ''}
+                  </Text>
+                </View>
+                <View style={styles.colQty}>
+                  <Text style={styles.tdText}>{qty}</Text>
+                </View>
+                <View style={styles.colPrice}>
+                  <Text style={styles.tdText}>{formatPrice(price)}</Text>
+                </View>
+                <View style={styles.colTotal}>
+                  <Text style={[styles.tdText, { fontWeight: 'bold' }]}>{formatPrice(lineTotal)}</Text>
+                </View>
               </View>
-              <View style={styles.colQty}><Text style={styles.itemText}>{item.quantity || 0}</Text></View>
-              <View style={styles.colPrice}><Text style={styles.itemText}>{formatPrice(item.price)}</Text></View>
-              <View style={styles.colTotal}><Text style={styles.itemText}>{formatPrice((item.price || 0) * (item.quantity || 0))}</Text></View>
-            </View>
-          ))}
+            );
+          })}
         </View>
 
-        {/* Totals */}
+        {/* Summary & Totals */}
         <View style={styles.totalsSection}>
-          <View style={styles.totalsTable}>
-            <View style={styles.totalRow}>
-              <Text style={styles.invoiceDetail}>Subtotal</Text>
-              <Text style={styles.invoiceDetail}>{formatPrice(total - deliveryFee)}</Text>
+          <View style={styles.paymentSummary}>
+            <Text style={styles.paymentSummaryTitle}>Payment Information</Text>
+            <Text style={styles.paymentRow}>
+              Method: <Text style={{ fontWeight: 'bold' }}>{order.paymentMethod || 'M-Pesa / Card'}</Text>
+            </Text>
+            <Text style={styles.paymentRow}>
+              Status: <Text style={{ fontWeight: 'bold', color: order.paymentStatus === 'Paid' ? '#15803d' : '#b45309' }}>
+                {order.paymentStatus || 'Pending'}
+              </Text>
+            </Text>
+            {order.mpesaReceipt && (
+              <Text style={styles.paymentRow}>
+                M-Pesa Ref: <Text style={{ fontWeight: 'bold' }}>{order.mpesaReceipt}</Text>
+              </Text>
+            )}
+            <Text style={[styles.paymentRow, { marginTop: 4, fontSize: 7, color: '#a1a1aa' }]}>
+              Order ID: {fullOrderId}
+            </Text>
+          </View>
+
+          <View style={styles.totalsBox}>
+            <View style={styles.calcRow}>
+              <Text style={styles.calcLabel}>Subtotal</Text>
+              <Text style={styles.calcVal}>{formatPrice(subtotal)}</Text>
             </View>
-            {deliveryFee > 0 && (
-              <View style={styles.totalRow}>
-                <Text style={styles.invoiceDetail}>Delivery Fee</Text>
-                <Text style={styles.invoiceDetail}>{formatPrice(deliveryFee)}</Text>
+
+            {discount > 0 && (
+              <View style={styles.calcRow}>
+                <Text style={[styles.calcLabel, { color: '#ea580c' }]}>
+                  Discount {order.couponCode ? `(${order.couponCode})` : ''}
+                </Text>
+                <Text style={[styles.calcVal, { color: '#ea580c' }]}>-{formatPrice(discount)}</Text>
               </View>
             )}
+
+            <View style={styles.calcRow}>
+              <Text style={styles.calcLabel}>Delivery Fee</Text>
+              <Text style={styles.calcVal}>{deliveryFee === 0 ? 'FREE' : formatPrice(deliveryFee)}</Text>
+            </View>
+
             <View style={styles.grandTotalRow}>
-              <Text style={styles.grandTotalLabel}>Grand Total</Text>
-              <Text style={styles.grandTotalValue}>{formatPrice(total)}</Text>
+              <Text style={styles.grandTotalLabel}>Total Paid</Text>
+              <Text style={styles.grandTotalVal}>{formatPrice(total)}</Text>
             </View>
           </View>
         </View>
 
-        {/* Footer */}
+        {/* Footer Guarantee */}
         <View style={styles.footer}>
-          <Text style={styles.footerText}>Thank you for shopping at Solemate.co.ke</Text>
-          <Text style={styles.footerText}>This is a computer generated invoice. No signature required.</Text>
-          <Text style={styles.footerText}>For any issues, please contact our support team at contact@solemate.co.ke</Text>
+          <Text style={styles.footerHeading}>Authenticity Guaranteed • Hand-Inspected Quality Footwear</Text>
+          <Text style={styles.footerSub}>
+            Thank you for shopping with Solemate Kenya! This document serves as your official purchase receipt.
+          </Text>
+          <Text style={styles.footerSub}>
+            For size exchanges or support within 48 hours of delivery, contact us at {phone} or {email}.
+          </Text>
         </View>
       </Page>
     </Document>

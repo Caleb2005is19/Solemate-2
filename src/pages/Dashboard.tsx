@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
-import { LayoutDashboard, Package, ShoppingCart, Plus, Edit, Trash, Check, X, Users, Link as LinkIcon, LogOut, Upload, TrendingUp, Image as ImageIcon, DollarSign, Tag, Info, Box, Printer, Globe, Palette, ToggleLeft, FileText, Bell, Inbox, Settings, FileSpreadsheet, Ticket, Terminal } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, Plus, Edit, Trash, Check, X, Users, Link as LinkIcon, LogOut, Upload, TrendingUp, Image as ImageIcon, DollarSign, Tag, Info, Box, Printer, Globe, Palette, ToggleLeft, FileText, Bell, Inbox, Settings, FileSpreadsheet, Ticket, Terminal, PhoneCall } from 'lucide-react';
+import { ContactSettingsTab } from '../components/admin/ContactSettingsTab';
 import { SiteSettingsTab } from '../components/admin/SiteSettingsTab';
 import { GoogleSheetsTab } from '../components/admin/GoogleSheetsTab';
 import { CouponsTab } from '../components/admin/CouponsTab';
@@ -18,6 +19,9 @@ import { formatPrice } from '../utils';
 import { loginWithGoogle, logout } from '../firebase';
 import { uploadToCloudinary } from '../services/cloudinaryService';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
+import { printOrders, downloadInvoiceHtmlFile } from '../utils/printInvoice';
+import { downloadOrderPdf } from '../utils/pdfGenerator';
+import { InvoiceModal } from '../components/admin/InvoiceModal';
 
 export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
   const { sellerId } = useParams<{ sellerId: string }>();
@@ -49,11 +53,12 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
 
   const [activeTab, setActiveTab] = useState<
     'overview' | 'products' | 'inventory' | 'orders' | 'sellers' | 
-    'site-settings' | 'theme-settings' | 'feature-toggles' | 'content' | 'announcements' | 'messages' | 'homepage-builder' | 'google-sheets' | 'coupons' | 'logs'
+    'contact-details' | 'site-settings' | 'theme-settings' | 'feature-toggles' | 'content' | 'announcements' | 'messages' | 'homepage-builder' | 'google-sheets' | 'coupons' | 'logs'
   >('overview');
   const [isAddingProduct, setIsAddingProduct] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [viewingOrder, setViewingOrder] = useState<Order | null>(null);
+  const [invoiceModalOrder, setInvoiceModalOrder] = useState<Order | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -268,166 +273,21 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
 
   const handlePrintInvoice = (order: Order) => {
     if (!order) return;
-    window.open(`/api/orders/${order.id}/invoice`, '_blank');
+    printOrders(order, siteSettings || undefined);
+  };
+
+  const handlePreviewInvoice = (order: Order) => {
+    if (!order) return;
+    setInvoiceModalOrder(order);
   };
 
   const handlePrintAllInvoices = () => {
     if (!orders || orders.length === 0) {
-      alert('No orders to print.');
+      setError('No orders currently available to print.');
+      setTimeout(() => setError(null), 3500);
       return;
     }
-
-    try {
-      const printWindow = window.open('', '_blank', 'width=800,height=600');
-      if (!printWindow) {
-        alert('Popup blocked! Please allow popups for Solemate.co.ke to print invoices.');
-        return;
-      }
-
-      const allInvoicesHtml = orders.map(order => {
-        const customerInfo = order.customerInfo || { firstName: '', lastName: '', email: '', phone: '', location: '', city: '' };
-        const firstName = customerInfo.firstName || '';
-        const lastName = customerInfo.lastName || '';
-        const email = customerInfo.email || '';
-        const phone = customerInfo.phone || '';
-        const location = customerInfo.location || '';
-        const city = customerInfo.city || '';
-        const items = order.items || [];
-        const total = order.total || 0;
-        const deliveryFee = order.deliveryFee || 0;
-        const orderId = order.id || 'N/A';
-        const orderDate = order.date ? new Date(order.date).toLocaleDateString() : 'N/A';
-
-        const itemsHtml = items.map(item => {
-          const itemPrice = Number(item.price) || 0;
-          const itemQty = Number(item.quantity) || 0;
-          return `
-            <tr>
-              <td style="padding: 12px; border-bottom: 1px solid #eee;">
-                <div style="font-weight: bold;">${item.name || 'Unknown Item'}</div>
-                <div style="font-size: 12px; color: #666;">Size: ${item.selectedSize || 'N/A'}</div>
-              </td>
-              <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: center;">${itemQty}</td>
-              <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: right;">${formatPrice(itemPrice)}</td>
-              <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: right;">${formatPrice(itemPrice * itemQty)}</td>
-            </tr>
-          `;
-        }).join('');
-
-        return `
-          <div class="invoice-page">
-            <div class="header">
-              <div class="logo">Solemate.co.ke</div>
-              <div class="invoice-info">
-                <div style="font-weight: bold; font-size: 20px;">INVOICE</div>
-                <div>Order ID: #${orderId}</div>
-                <div>Date: ${orderDate}</div>
-              </div>
-            </div>
-
-            <div class="grid">
-              <div>
-                <div class="section-title">Bill To</div>
-                <div style="font-weight: bold;">${firstName} ${lastName}</div>
-                <div>${email}</div>
-                <div>${phone}</div>
-              </div>
-              <div>
-                <div class="section-title">Shipping Address</div>
-                <div>${location}</div>
-                <div>${city}</div>
-              </div>
-            </div>
-
-            <table>
-              <thead>
-                <tr>
-                  <th>Item Description</th>
-                  <th style="text-align: center;">Qty</th>
-                  <th style="text-align: right;">Price</th>
-                  <th style="text-align: right;">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${itemsHtml}
-              </tbody>
-            </table>
-
-            <div class="totals">
-              <div class="total-row">
-                <span>Subtotal</span>
-                <span>${formatPrice(total - deliveryFee)}</span>
-              </div>
-              <div class="total-row">
-                <span>Delivery Fee</span>
-                <span>${deliveryFee === 0 ? 'Free' : formatPrice(deliveryFee)}</span>
-              </div>
-              <div class="total-row grand">
-                <span>Total Amount</span>
-                <span>${formatPrice(total)}</span>
-              </div>
-            </div>
-
-            <div class="footer">
-              <p>Thank you for shopping with Solemate.co.ke!</p>
-              <p>For any inquiries, please contact us at +254 700 000 000</p>
-            </div>
-          </div>
-        `;
-      }).join('<div style="page-break-after: always;"></div>');
-
-      const content = `
-        <!DOCTYPE html>
-        <html lang="en">
-          <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Bulk Invoices</title>
-            <style>
-              body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #333; line-height: 1.5; padding: 0; margin: 0; }
-              .invoice-page { padding: 40px; }
-              .header { display: flex; justify-content: space-between; margin-bottom: 40px; border-bottom: 2px solid #f97316; padding-bottom: 20px; }
-              .logo { font-size: 24px; font-weight: bold; color: #f97316; }
-              .invoice-info { text-align: right; }
-              .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-bottom: 40px; }
-              .section-title { font-size: 12px; font-weight: bold; text-transform: uppercase; color: #999; margin-bottom: 10px; }
-              table { width: 100%; border-collapse: collapse; margin-bottom: 40px; }
-              th { text-align: left; padding: 12px; background: #f9fafb; border-bottom: 1px solid #eee; font-size: 12px; text-transform: uppercase; color: #666; }
-              .totals { margin-left: auto; width: 300px; }
-              .total-row { display: flex; justify-content: space-between; padding: 8px 0; }
-              .total-row.grand { border-top: 2px solid #eee; margin-top: 10px; padding-top: 10px; font-weight: bold; font-size: 18px; color: #f97316; }
-              .footer { margin-top: 60px; text-align: center; font-size: 12px; color: #999; border-top: 1px solid #eee; padding-top: 20px; }
-              @media print {
-                .invoice-page { padding: 0; }
-              }
-            </style>
-          </head>
-          <body>
-            ${allInvoicesHtml}
-            <script>
-              function startPrint() {
-                if (window.print_started) return;
-                window.print_started = true;
-                setTimeout(() => {
-                  window.print();
-                  window.close();
-                }, 500);
-              }
-              window.onload = startPrint;
-              setTimeout(startPrint, 2000);
-            </script>
-          </body>
-        </html>
-      `;
-
-      printWindow.document.open();
-      printWindow.document.write(content);
-      printWindow.document.close();
-    } catch (err) {
-      console.error('Printing error:', err);
-      const errorMsg = err instanceof Error ? err.message : String(err);
-      alert(`There was a problem with the printing: ${errorMsg}. Please try again.`);
-    }
+    printOrders(orders, siteSettings || undefined);
   };
 
 
@@ -506,10 +366,21 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
             <>
               <div className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mt-6 mb-2 ml-4">Settings & Site</div>
               <button
+                onClick={() => setActiveTab('contact-details')}
+                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-colors ${activeTab === 'contact-details' ? 'bg-orange-500 text-white' : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'}`}
+              >
+                <span className="flex items-center gap-3">
+                  <PhoneCall className="w-5 h-5" /> Contact Details
+                </span>
+                <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md ${activeTab === 'contact-details' ? 'bg-white/20 text-white' : 'bg-orange-500/10 text-orange-400'}`}>
+                  Easy
+                </span>
+              </button>
+              <button
                 onClick={() => setActiveTab('site-settings')}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${activeTab === 'site-settings' ? 'bg-orange-500 text-white' : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'}`}
               >
-                <Settings className="w-5 h-5" /> Site Settings
+                <Settings className="w-5 h-5" /> Full Site Settings
               </button>
               <button
                 onClick={() => setActiveTab('google-sheets')}
@@ -1196,14 +1067,21 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
                           </select>
                         </td>
                         <td className="p-4 text-sm">
-                          <div className="flex items-center gap-3">
-                            <button onClick={() => setViewingOrder(o)} className="text-orange-500 font-medium hover:underline">View Details</button>
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => setViewingOrder(o)} className="text-orange-500 font-medium hover:underline text-xs sm:text-sm">View Details</button>
                             <button 
-                              onClick={() => handlePrintInvoice(o)}
-                              className="p-2 text-zinc-400 hover:text-zinc-900 transition-colors"
-                              title="Print Invoice"
+                              onClick={() => handlePreviewInvoice(o)}
+                              className="p-1.5 text-zinc-500 hover:text-orange-600 rounded-lg hover:bg-orange-50 transition-colors"
+                              title="Preview & Print Invoice"
                             >
                               <Printer className="w-4 h-4" />
+                            </button>
+                            <button 
+                              onClick={() => downloadOrderPdf(o, siteSettings || undefined)}
+                              className="p-1.5 text-zinc-500 hover:text-zinc-900 rounded-lg hover:bg-zinc-100 transition-colors"
+                              title="Download PDF Receipt"
+                            >
+                              <FileText className="w-4 h-4 text-orange-500" />
                             </button>
                           </div>
                         </td>
@@ -1219,14 +1097,30 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
               <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
                 <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
                   <div className="p-6 border-b border-zinc-100 flex justify-between items-center sticky top-0 bg-white">
-                    <div className="flex items-center gap-4">
-                      <h2 className="text-xl font-bold text-zinc-900">Order #{viewingOrder.id}</h2>
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      <h2 className="text-lg sm:text-xl font-bold text-zinc-900">Order #{viewingOrder.id.slice(-8).toUpperCase()}</h2>
+                      <button 
+                        onClick={() => downloadOrderPdf(viewingOrder, siteSettings || undefined)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-900 text-white rounded-lg text-xs font-bold hover:bg-zinc-800 transition-colors shadow-sm"
+                        title="Download PDF Invoice"
+                      >
+                        <FileText className="w-3.5 h-3.5 text-orange-400" />
+                        <span>PDF</span>
+                      </button>
                       <button 
                         onClick={() => handlePrintInvoice(viewingOrder)}
-                        className="flex items-center gap-2 px-3 py-1.5 bg-orange-500 text-white rounded-lg text-xs font-bold hover:bg-orange-600 transition-colors shadow-sm shadow-orange-200"
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 text-white rounded-lg text-xs font-bold hover:bg-orange-600 transition-colors shadow-sm"
+                        title="Print or Save PDF"
                       >
-                        <Printer className="w-4 h-4" />
-                        Download PDF Invoice
+                        <Printer className="w-3.5 h-3.5" />
+                        <span>Print</span>
+                      </button>
+                      <button 
+                        onClick={() => handlePreviewInvoice(viewingOrder)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-100 text-zinc-700 rounded-lg text-xs font-bold hover:bg-zinc-200 transition-colors"
+                        title="Preview Invoice"
+                      >
+                        <span>Preview</span>
                       </button>
                     </div>
                     <button onClick={() => setViewingOrder(null)} className="p-2 hover:bg-zinc-100 rounded-full transition-colors">
@@ -1381,6 +1275,7 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
           </div>
         )}
 
+        {activeTab === 'contact-details' && role === 'admin' && <ContactSettingsTab />}
         {activeTab === 'site-settings' && role === 'admin' && <SiteSettingsTab />}
         {activeTab === 'google-sheets' && role === 'admin' && <GoogleSheetsTab />}
         {activeTab === 'coupons' && role === 'admin' && <CouponsTab />}
@@ -1391,6 +1286,14 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
         {activeTab === 'messages' && role === 'admin' && <MessagesTab />}
         {activeTab === 'homepage-builder' && role === 'admin' && <HomepageBuilderTab />}
         {activeTab === 'logs' && role === 'admin' && <LogsTab />}
+
+        {invoiceModalOrder && (
+          <InvoiceModal
+            order={invoiceModalOrder}
+            siteSettings={siteSettings}
+            onClose={() => setInvoiceModalOrder(null)}
+          />
+        )}
       </div>
     </div>
   );

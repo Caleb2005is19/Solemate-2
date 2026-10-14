@@ -8,9 +8,25 @@ const configs = import.meta.glob('../firebase-applet-config*.json', { eager: tru
 const configKey = '../firebase-applet-config.json';
 const appletConfig = (configs[configKey] as any)?.default || {};
 
+const resolveAuthDomain = () => {
+  // If explicitly set in environment, use that
+  const envDomain = import.meta.env.VITE_FIREBASE_AUTH_DOMAIN;
+  if (envDomain && envDomain !== 'undefined' && envDomain !== '') {
+    return envDomain;
+  }
+  if (appletConfig?.authDomain) {
+    return appletConfig.authDomain;
+  }
+  // When running on production domain solemate.co.ke, default to auth.solemate.co.ke
+  if (typeof window !== 'undefined' && window.location.hostname.includes('solemate.co.ke')) {
+    return 'auth.solemate.co.ke';
+  }
+  return undefined;
+};
+
 const firebaseConfig: any = {
   apiKey: appletConfig?.apiKey || import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: appletConfig?.authDomain || import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  authDomain: resolveAuthDomain(),
   projectId: appletConfig?.projectId || import.meta.env.VITE_FIREBASE_PROJECT_ID,
   storageBucket: appletConfig?.storageBucket || import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: appletConfig?.messagingSenderId || import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,

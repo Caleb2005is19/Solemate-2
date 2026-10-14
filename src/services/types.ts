@@ -93,6 +93,7 @@ export interface SiteSettings {
   favicon: string;
   contactEmail: string;
   phoneNumbers: string[];
+  alternatePhone?: string;
   whatsappNumber: string;
   location: string;
   googleMapsEmbed: string;
@@ -101,6 +102,7 @@ export interface SiteSettings {
     instagram?: string;
     twitter?: string;
     linkedin?: string;
+    tiktok?: string;
   };
   footerText: string;
   seo: {

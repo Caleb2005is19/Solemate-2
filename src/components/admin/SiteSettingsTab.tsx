@@ -168,6 +168,24 @@ export function SiteSettingsTab() {
           
           <div className="space-y-4">
             <div>
+              <label className="text-xs font-bold text-zinc-500 uppercase ml-1">Calling Phone Line</label>
+              <div className="relative">
+                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-orange-500" />
+                <input
+                  type="text"
+                  value={formData.phoneNumbers?.[0] || ''}
+                  onChange={e => {
+                    const currentPhones = [...(formData.phoneNumbers || [])];
+                    currentPhones[0] = e.target.value;
+                    handleInputChange('phoneNumbers', currentPhones);
+                  }}
+                  className="w-full pl-12 pr-4 py-3 rounded-2xl border border-zinc-200 focus:ring-2 focus:ring-orange-500 outline-none"
+                  placeholder="+254 700 000 000"
+                />
+              </div>
+            </div>
+
+            <div>
               <label className="text-xs font-bold text-zinc-500 uppercase ml-1">Support Email</label>
               <input
                 type="email"

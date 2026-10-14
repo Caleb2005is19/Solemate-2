@@ -1,20 +1,26 @@
 import React from 'react';
 import { X, Plus, Minus, ShoppingBag, MessageCircle } from 'lucide-react';
 import { useCart } from '../context/CartContext';
+import { useStore } from '../context/StoreContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { Link } from 'react-router-dom';
 import { formatPrice } from '../utils';
 import { ImageWithSkeleton } from './ImageWithSkeleton';
+import { getWhatsAppChatUrl } from '../utils/contactHelpers';
 
 export function CartDrawer() {
   const { isCartOpen, setIsCartOpen, items, updateQuantity, removeFromCart, cartTotal } = useCart();
+  const { siteSettings } = useStore();
+
+  const businessName = siteSettings?.businessName || 'Solemate';
+  const targetPhone = siteSettings?.whatsappNumber || siteSettings?.phoneNumbers?.[0] || '254700000000';
 
   const orderDetails = items.map(item => 
     `- ${item.name} (Color: ${item.selectedColor || 'Default'}, Size: US ${item.selectedSize}) x${item.quantity} = ${formatPrice(item.price * item.quantity)}`
   ).join('\n');
   
-  const whatsAppMessage = `Hello Solemate, I would like to place an order:\n\n${orderDetails}\n\n*Total: ${formatPrice(cartTotal)}*\n\nPlease advise on delivery.`;
-  const whatsAppUrl = `https://wa.me/254700000000?text=${encodeURIComponent(whatsAppMessage)}`;
+  const whatsAppMessage = `Hello ${businessName}, I would like to place an order:\n\n${orderDetails}\n\n*Total: ${formatPrice(cartTotal)}*\n\nPlease advise on delivery.`;
+  const whatsAppUrl = getWhatsAppChatUrl(targetPhone, whatsAppMessage);
 
   return (
     <AnimatePresence>

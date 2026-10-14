@@ -1,19 +1,23 @@
 import React, { useState } from 'react';
 import { useStore } from '../context/StoreContext';
-import { ShoppingBag, Package, ChevronRight, MapPin, Phone, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
+import { ShoppingBag, Package, ChevronRight, MapPin, Phone, Clock, CheckCircle2, AlertCircle, FileText, Printer, Loader2 } from 'lucide-react';
 import { formatPrice } from '../utils';
 import { Navigate } from 'react-router-dom';
 import { OrderStatus } from '../types';
 import { ImageWithSkeleton } from '../components/ImageWithSkeleton';
 import { initiateStkPush, checkPaymentStatus, verifyMpesaReceipt } from '../services/payments';
+import { downloadOrderPdf } from '../utils/pdfGenerator';
+import { printOrders } from '../utils/printInvoice';
 
 export function MyOrders() {
-  const { currentUser, userProfile, orders, loading } = useStore();
+  const { currentUser, userProfile, orders, loading, siteSettings } = useStore();
   const [activeOrder, setActiveOrder] = useState<string | null>(null);
   const [receiptCode, setReceiptCode] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [verifyError, setVerifyError] = useState<string | null>(null);
   const [verifySuccess, setVerifySuccess] = useState<string | null>(null);
+  const [downloadingOrderId, setDownloadingOrderId] = useState<string | null>(null);
+  const [downloadedOrderId, setDownloadedOrderId] = useState<string | null>(null);
 
   const handleVerifyReceipt = async (orderId: string) => {
     if (!receiptCode.trim()) return;
@@ -258,16 +262,55 @@ export function MyOrders() {
                           </div>
                         </div>
 
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            window.open(`/api/orders/${order.id}/invoice`, '_blank');
-                          }}
-                          className="w-full flex items-center justify-center gap-3 py-4 bg-white text-zinc-900 border-2 border-zinc-900 rounded-[2rem] font-black hover:bg-zinc-50 transition-all active:scale-95 shadow-sm"
-                        >
-                          <ShoppingBag className="w-5 h-5" />
-                          Download Receipt (PDF)
-                        </button>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <button 
+                            type="button"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              try {
+                                setDownloadingOrderId(order.id);
+                                await downloadOrderPdf(order, siteSettings || undefined);
+                                setDownloadedOrderId(order.id);
+                                setTimeout(() => setDownloadedOrderId(null), 3000);
+                              } catch (err) {
+                                console.error('Failed to download PDF:', err);
+                              } finally {
+                                setDownloadingOrderId(null);
+                              }
+                            }}
+                            disabled={downloadingOrderId === order.id}
+                            className="flex items-center justify-center gap-2.5 py-3.5 px-4 bg-zinc-900 text-white rounded-2xl font-bold text-sm hover:bg-zinc-800 transition-all active:scale-95 shadow-sm disabled:opacity-50"
+                          >
+                            {downloadingOrderId === order.id ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin text-orange-400" />
+                                <span>Generating PDF...</span>
+                              </>
+                            ) : downloadedOrderId === order.id ? (
+                              <>
+                                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                                <span>Receipt Downloaded!</span>
+                              </>
+                            ) : (
+                              <>
+                                <FileText className="w-4 h-4 text-orange-400" />
+                                <span>Download PDF Receipt</span>
+                              </>
+                            )}
+                          </button>
+
+                          <button 
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              printOrders(order, siteSettings || undefined);
+                            }}
+                            className="flex items-center justify-center gap-2 py-3.5 px-4 bg-white text-zinc-900 border-2 border-zinc-200 hover:border-zinc-900 rounded-2xl font-bold text-sm hover:bg-zinc-50 transition-all active:scale-95 shadow-sm"
+                          >
+                            <Printer className="w-4 h-4 text-zinc-600" />
+                            <span>Print / Save as PDF</span>
+                          </button>
+                        </div>
 
                         <div className="p-6 bg-orange-50 rounded-[2rem] border border-orange-100">
                           <div className="flex items-center gap-3 mb-4">

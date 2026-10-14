@@ -407,8 +407,8 @@ export function Shop() {
                   <div className="flex gap-3">
                     <button
                       onClick={() => {
-                        if (!selectedSize) return alert('Please select a size');
-                        addToCart(quickViewProduct, selectedSize, quickViewColor || undefined);
+                        const sizeToUse = selectedSize || 9;
+                        addToCart(quickViewProduct, sizeToUse, quickViewColor || undefined);
                         setQuickViewProduct(null);
                       }}
                       className="flex-1 py-4 bg-zinc-900 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-orange-500 transition-colors shadow-xl flex items-center justify-center gap-2"

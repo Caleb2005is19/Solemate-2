@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useCart } from '../context/CartContext';
 import { useStore } from '../context/StoreContext';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, Truck, UserCircle, Store, KeyRound } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Truck, UserCircle, Store, KeyRound, FileText, Printer, Loader2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { formatPrice } from '../utils';
 import { DELIVERY_AREAS } from '../constants';
@@ -11,11 +11,15 @@ import { ImageWithSkeleton } from '../components/ImageWithSkeleton';
 import { initiateStkPush, checkPaymentStatus, loadIntasendScript, setupIntaSendCheckout } from '../services/payments';
 import { db, loginWithGoogle } from '../firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
+import { downloadOrderPdf } from '../utils/pdfGenerator';
+import { printOrders } from '../utils/printInvoice';
 
 export function Checkout() {
   const { items, cartTotal, cartCount, clearCart } = useCart();
-  const { addOrder, currentUser, userProfile, featureToggles, setIsAuthModalOpen } = useStore();
+  const { addOrder, currentUser, userProfile, featureToggles, setIsAuthModalOpen, siteSettings } = useStore();
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [createdOrder, setCreatedOrder] = useState<any>(null);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'mpesa' | 'card'>('mpesa');
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
@@ -159,8 +163,7 @@ export function Checkout() {
       setPaymentError(null);
       
       try {
-        // 1. Create the order first in Pending/Unpaid state with complete coupon and VAT details
-        await addOrder({
+        const newOrder = {
           id: orderId,
           userId: currentUser?.uid,
           sellerIds,
@@ -179,11 +182,13 @@ export function Checkout() {
           vatAmount,
           total: finalTotal,
           deliveryFee,
-          status: 'Pending',
-          paymentStatus: 'Pending',
+          status: 'Pending' as const,
+          paymentStatus: 'Pending' as const,
           date: new Date().toISOString(),
           paymentMethod: 'IntaSend M-Pesa',
-        });
+        };
+        setCreatedOrder(newOrder);
+        await addOrder(newOrder);
 
         // 2. Initiate STK Push via IntaSend Payments Service
         await initiateStkPush({
@@ -262,8 +267,7 @@ export function Checkout() {
         // 2. Hydrate official client script to make inline secure iframe checkout ready
         await loadIntasendScript();
 
-        // 3. Register the order in unpaid state
-        await addOrder({
+        const newCardOrder = {
           id: orderId,
           userId: currentUser?.uid,
           sellerIds,
@@ -282,11 +286,13 @@ export function Checkout() {
           vatAmount,
           total: finalTotal,
           deliveryFee,
-          status: 'Pending',
-          paymentStatus: 'Pending',
+          status: 'Pending' as const,
+          paymentStatus: 'Pending' as const,
           date: new Date().toISOString(),
           paymentMethod: 'IntaSend Card',
-        });
+        };
+        setCreatedOrder(newCardOrder);
+        await addOrder(newCardOrder);
 
         // 4. Open the secure checkout dialog inline
         setupIntaSendCheckout({
@@ -407,16 +413,71 @@ export function Checkout() {
         >
           <CheckCircle2 className="w-12 h-12" />
         </motion.div>
-        <h1 className="text-4xl font-black text-zinc-900 mb-4 relative z-10">Order Confirmed!</h1>
-        <p className="text-lg text-zinc-500 max-w-md mx-auto mb-8 relative z-10">
-          Thank you for shopping with Solemate.co.ke. Your order has been received and our team will contact you shortly for delivery.
+        <h1 className="text-4xl font-black text-zinc-900 mb-2 relative z-10">Order Confirmed!</h1>
+        {createdOrder?.id && (
+          <div className="inline-block px-4 py-1.5 bg-orange-50 text-orange-600 rounded-full font-bold text-sm mb-4 relative z-10 border border-orange-200">
+            Order #{createdOrder.id.slice(-8).toUpperCase()}
+          </div>
+        )}
+        <p className="text-base sm:text-lg text-zinc-500 max-w-md mx-auto mb-6 relative z-10">
+          Thank you for shopping with Solemate.co.ke. Your order has been placed and our fulfillment team is preparing it for dispatch.
         </p>
-        <Link
-          to="/shop"
-          className="px-8 py-4 bg-zinc-900 text-white rounded-full font-bold hover:bg-zinc-800 transition-colors relative z-10"
-        >
-          Continue Shopping
-        </Link>
+
+        {createdOrder && (
+          <div className="flex flex-wrap items-center justify-center gap-3 mb-8 relative z-10">
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  setIsDownloadingPdf(true);
+                  await downloadOrderPdf(createdOrder, siteSettings || undefined);
+                } catch (err) {
+                  console.error('Failed to download PDF:', err);
+                } finally {
+                  setIsDownloadingPdf(false);
+                }
+              }}
+              disabled={isDownloadingPdf}
+              className="flex items-center gap-2 px-6 py-3.5 bg-zinc-900 text-white rounded-2xl font-bold text-sm hover:bg-zinc-800 transition shadow-sm disabled:opacity-50"
+            >
+              {isDownloadingPdf ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-orange-400" />
+                  <span>Generating PDF...</span>
+                </>
+              ) : (
+                <>
+                  <FileText className="w-4 h-4 text-orange-400" />
+                  <span>Download PDF Receipt</span>
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => printOrders(createdOrder, siteSettings || undefined)}
+              className="flex items-center gap-2 px-6 py-3.5 bg-white text-zinc-900 border-2 border-zinc-200 hover:border-zinc-900 rounded-2xl font-bold text-sm hover:bg-zinc-50 transition shadow-sm"
+            >
+              <Printer className="w-4 h-4 text-zinc-600" />
+              <span>Print Receipt</span>
+            </button>
+          </div>
+        )}
+
+        <div className="flex flex-wrap items-center justify-center gap-3 relative z-10">
+          <Link
+            to="/my-orders"
+            className="px-6 py-3 bg-zinc-100 hover:bg-zinc-200 text-zinc-900 rounded-full font-bold text-sm transition-colors"
+          >
+            Track in My Orders
+          </Link>
+          <Link
+            to="/shop"
+            className="px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-full font-bold text-sm transition-colors shadow-sm"
+          >
+            Continue Shopping
+          </Link>
+        </div>
       </div>
     );
   }
