@@ -39,7 +39,7 @@ export function generateSalesReportCsv(
   summary: ReportSummaryMetrics,
   filterOptions: ReportFilterOptions,
   sellers: Seller[] = [],
-  businessName = 'KicksKE'
+  businessName = 'Solemate.co.ke'
 ): string {
   const sellerMap = new Map<string, string>();
   sellers.forEach(s => sellerMap.set(s.id, s.name));
@@ -156,7 +156,7 @@ export function downloadSalesReportCsv(
   summary: ReportSummaryMetrics,
   filterOptions: ReportFilterOptions,
   sellers: Seller[] = [],
-  businessName = 'KicksKE'
+  businessName = 'Solemate.co.ke'
 ): void {
   const csvContent = generateSalesReportCsv(orders, summary, filterOptions, sellers, businessName);
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });

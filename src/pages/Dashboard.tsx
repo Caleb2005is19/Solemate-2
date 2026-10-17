@@ -14,6 +14,7 @@ import { MessagesTab } from '../components/admin/MessagesTab';
 import { HomepageBuilderTab } from '../components/admin/HomepageBuilderTab';
 import { OverviewTab } from '../components/admin/OverviewTab';
 import { SalesReportsTab } from '../components/admin/SalesReportsTab';
+import { OrdersTab } from '../components/admin/OrdersTab';
 import { LogsTab } from '../components/admin/LogsTab';
 import { Product, OrderStatus, Order, Seller } from '../types';
 import { formatPrice } from '../utils';
@@ -283,13 +284,14 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
     setInvoiceModalOrder(order);
   };
 
-  const handlePrintAllInvoices = () => {
-    if (!orders || orders.length === 0) {
+  const handlePrintAllInvoices = (ordersToPrint?: Order[]) => {
+    const targetOrders = ordersToPrint && ordersToPrint.length > 0 ? ordersToPrint : orders;
+    if (!targetOrders || targetOrders.length === 0) {
       setError('No orders currently available to print.');
       setTimeout(() => setError(null), 3500);
       return;
     }
-    printOrders(orders, siteSettings || undefined);
+    printOrders(targetOrders, siteSettings || undefined);
   };
 
 
@@ -1024,87 +1026,15 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
 
         {activeTab === 'orders' && (
           <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h1 className="text-3xl font-bold text-zinc-900">Orders</h1>
-              {orders.length > 0 && (
-                <button
-                  onClick={handlePrintAllInvoices}
-                  className="flex items-center gap-2 bg-white text-zinc-900 border border-zinc-200 px-4 py-2 rounded-xl hover:bg-zinc-50 transition-colors font-bold shadow-sm"
-                >
-                  <Printer className="w-4 h-4" />
-                  Print All Invoices
-                </button>
-              )}
-            </div>
-            <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-zinc-50 border-b border-zinc-200">
-                      <th className="p-4 font-bold text-zinc-600 text-sm">Order ID</th>
-                      <th className="p-4 font-bold text-zinc-600 text-sm">Customer</th>
-                      <th className="p-4 font-bold text-zinc-600 text-sm">Date</th>
-                      <th className="p-4 font-bold text-zinc-600 text-sm">Total</th>
-                      <th className="p-4 font-bold text-zinc-600 text-sm">Status</th>
-                      <th className="p-4 font-bold text-zinc-600 text-sm">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {orders.length === 0 ? (
-                      <tr><td colSpan={6} className="p-8 text-center text-zinc-500">No orders yet.</td></tr>
-                    ) : orders.map(o => (
-                      <tr key={o.id} className="border-b border-zinc-100 hover:bg-zinc-50">
-                        <td className="p-4 text-sm font-mono text-zinc-600">#{o.id}</td>
-                        <td className="p-4">
-                          <p className="font-bold text-zinc-900 text-sm">{o?.customerInfo?.firstName ?? ''} {o?.customerInfo?.lastName ?? ''}</p>
-                          <p className="text-xs text-zinc-500">{o?.customerInfo?.city ?? ''}</p>
-                        </td>
-                        <td className="p-4 text-sm text-zinc-600">{new Date(o.date).toLocaleDateString()}</td>
-                        <td className="p-4 text-sm font-bold text-zinc-900">{formatPrice(o.total)}</td>
-                        <td className="p-4">
-                          <select
-                            value={o.status}
-                            onChange={(e) => updateOrderStatus(o.id, e.target.value as OrderStatus)}
-                            className={`px-3 py-1 rounded-full text-xs font-bold outline-none border-none cursor-pointer ${
-                              o.status === 'Pending' ? 'bg-yellow-100 text-yellow-700' :
-                              o.status === 'Processing' ? 'bg-blue-100 text-blue-700' :
-                              o.status === 'Shipped' ? 'bg-purple-100 text-purple-700' :
-                              o.status === 'Delivered' ? 'bg-green-100 text-green-700' :
-                              'bg-red-100 text-red-700'
-                            }`}
-                          >
-                            <option value="Pending">Pending</option>
-                            <option value="Processing">Processing</option>
-                            <option value="Shipped">Shipped</option>
-                            <option value="Delivered">Delivered</option>
-                            <option value="Cancelled">Cancelled</option>
-                          </select>
-                        </td>
-                        <td className="p-4 text-sm">
-                          <div className="flex items-center gap-2">
-                            <button onClick={() => setViewingOrder(o)} className="text-orange-500 font-medium hover:underline text-xs sm:text-sm">View Details</button>
-                            <button 
-                              onClick={() => handlePreviewInvoice(o)}
-                              className="p-1.5 text-zinc-500 hover:text-orange-600 rounded-lg hover:bg-orange-50 transition-colors"
-                              title="Preview & Print Invoice"
-                            >
-                              <Printer className="w-4 h-4" />
-                            </button>
-                            <button 
-                              onClick={() => downloadOrderPdf(o, siteSettings || undefined)}
-                              className="p-1.5 text-zinc-500 hover:text-zinc-900 rounded-lg hover:bg-zinc-100 transition-colors"
-                              title="Download PDF Receipt"
-                            >
-                              <FileText className="w-4 h-4 text-orange-500" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <OrdersTab
+              orders={orders}
+              updateOrderStatus={updateOrderStatus}
+              onViewOrder={(order) => setViewingOrder(order)}
+              onPreviewInvoice={(order) => handlePreviewInvoice(order)}
+              onDownloadPdf={(order) => downloadOrderPdf(order, siteSettings || undefined)}
+              onPrintAllInvoices={handlePrintAllInvoices}
+              role={role}
+            />
 
             {/* Order Details Modal */}
             {viewingOrder && (

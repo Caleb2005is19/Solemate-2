@@ -1,23 +1,23 @@
-# Sales Reports & Seller Analytics Generator
+# Unified Customer Portal & Enhanced Order Tracking Hub
 
-A comprehensive sales reporting hub for store administrators and sellers to effortlessly analyze revenue, filter performance across customizable date ranges and categories, and export professional CSV spreadsheets and PDF summary reports with one click.
+A premium, modern customer account portal for Solemate shoppers to track their sneaker orders through an interactive fulfillment timeline, manage delivery addresses, set preferred footwear sizes, retry pending M-Pesa payments, and download certified purchase receipts.
 
 ## User Review & Critical Decisions
 
 > [!IMPORTANT]
-> Based on your confirmed preferences in Phase 1, the reporting suite will deliver both **CSV spreadsheet downloads** and **downloadable PDF reports**, equipped with multi-dimensional filtering across **Date Ranges**, **Top Products**, **Product Categories**, and **Payment/Order Status**, featuring both a **dedicated Sales Reports tab** in the admin sidebar and **per-seller report breakdowns**.
-
-- **Confirmed Decision 1 (Export Formats)**: Both raw CSV spreadsheet export (for Excel/Google Sheets accounting) and formatted downloadable PDF reports (using `@react-pdf/renderer` with store branding and summary tables).
-- **Confirmed Decision 2 (Metrics & Breakdowns)**: Date ranges (Today, 7 Days, 30 Days, This Month, Year to Date, Custom Date Range), revenue and order counts by payment status (Paid, Pending, Failed), category volume shares, top-performing products, and seller earnings.
-- **Confirmed Decision 3 (Navigation & Accessibility)**: A dedicated `Sales Reports` navigation item in the Admin Dashboard sidebar with a universal filter bar, plus quick "View Sales Report" shortcuts inside the Sellers tab and seller views.
+> The following product decisions were confirmed during the interactive interview and will guide this implementation:
+>
+> - **Profile & Footwear Personalization**: Customers can manage their personal contact details, default delivery address, and configure their **Preferred Shoe Size** (EU/US/UK size selector) and style preferences for faster checkout.
+> - **Rich Order Tracking & Payment Tools**: Every order features an **interactive visual status timeline** (Placed → Paid → Processing → Shipped → Delivered), direct **M-Pesa STK Push retry** & receipt verification for pending orders, and one-click **Solemate.co.ke PDF receipt downloads**.
+> - **Unified Account Architecture**: A single, cohesive Customer Portal with responsive navigation tabs for **Orders & Tracking**, **Profile & Sizing**, and **Delivery Addresses**, streamlining both `/profile` and `/my-orders` into one seamless experience.
 
 ---
 
 ## 1. Overview & Core Concept
 
-- **What It Does**: Provides store managers and vendor partners with a zero-friction reporting interface to inspect gross merchandise value (GMV), net revenue, order volume, average order value (AOV), and payment success rates. Users can slice data by timeframe, category, payment status, or specific vendor, and immediately export either an audit-ready CSV spreadsheet or a styled, printable PDF report.
-- **Target Audience / Persona**: Store administrators, accounting and fulfillment staff, and marketplace sellers needing fast sales insights without technical friction or manual spreadsheet tallying.
-- **Key Value**: Replaces tedious manual order scanning with instant visual breakdowns and one-click report exports for bookkeeping, tax compliance, vendor payouts, and inventory forecasting.
+- **What It Does**: Transforms the existing fragmented customer profile and order pages into a cohesive, high-touch Customer Hub. Shoppers can track order dispatch step-by-step, verify M-Pesa payments directly from their account without contacting support, manage multiple delivery drop-offs (e.g. Home vs. Office), and save their exact shoe size preferences so checkout is pre-filled.
+- **Target Audience**: Solemate footwear shoppers, repeat collectors, and customers tracking live sneaker deliveries across Nairobi and Kenya.
+- **Key Value**: Reduces customer service inquiries regarding order status and M-Pesa payment clearing; accelerates repeat purchases with pre-saved sizes and one-click re-ordering; delivers a polished luxury retail experience aligned with the Solemate brand.
 
 ---
 
@@ -25,133 +25,96 @@ A comprehensive sales reporting hub for store administrators and sellers to effo
 
 ### Key User Flows
 
-1. **Viewing Sales Health & Quick Presets**:
-   - The user opens the **Sales Reports** tab from the admin navigation bar.
-   - At the top, a clean preset selector allows one-click filtering by **Today**, **Last 7 Days**, **Last 30 Days**, **This Month**, **Year to Date**, or a **Custom Date Range**.
-   - Four core KPI tiles display **Total Sales Volume**, **Completed Revenue**, **Average Order Value**, and **Pending/Unsettled Amount** using clear tabular numerals.
+1. **Order Tracking & Fulfillment Timeline**:
+   - The customer opens the Orders tab and sees their orders sorted by newest first.
+   - Each order card displays a high-contrast visual progress bar with 4 distinct stages: *Order Placed*, *Payment Confirmed*, *Dispatched for Delivery*, and *Delivered*.
+   - If an order is still marked *Pending*, an inline payment assist card offers a one-click *"Retry M-Pesa STK Push"* button and a receipt code verification box.
+   - Completed orders offer one-click *"Download PDF Receipt"* and a *"Re-order"* button that adds the exact shoe and size directly back to the shopping bag.
 
-2. **Drilling Down by Category, Status, or Seller**:
-   - An interactive filter bar allows narrowing results by **Payment Status** (All, Paid / Completed, Pending, Cancelled / Refunded), **Product Category** (Sneakers, Boots, Loafers, etc.), and **Seller / Vendor** (All Sellers or a specific vendor account).
-   - Dynamic charts visualize sales trends over time, category revenue share, and a ranking table of top 5 best-selling items by revenue and units.
+2. **Personal Profile & Shoe Sizing Preferences**:
+   - The customer navigates to the *Profile & Sizing* tab.
+   - Interactive Shoe Size selector grid (EU 37 to EU 46, US 5 to US 12) allows selecting their primary size and fit preference (Men / Women / Unisex).
+   - Personal information form allows updating Display Name, Primary Phone Number, and Secondary WhatsApp Number.
+   - Clicking *"Save Profile"* displays an immediate success toast and syncs directly to their Firestore profile.
 
-3. **Generating & Exporting Reports**:
-   - **Download CSV**: Instantly formats all filtered transaction rows with Order ID, Date, Customer Name, Phone, Items Sold, Category, Seller, Subtotal, Discount, Delivery Fee, Total, and Payment Status into a standard CSV file.
-   - **Download PDF Report**: Generates a branded executive summary document including store header, reporting timeframe, KPI highlights, category breakdown table, seller commission summary, and top products table.
-   - **Per-Seller Direct Access**: On the Sellers management tab, each seller card features a direct **"Generate Sales Report"** button that pre-filters the report generator to that specific seller's items and payout balance.
+3. **Saved Delivery Addresses**:
+   - Customers can view and edit their primary delivery details (City, Street/Estate, House/Apartment/Office, Landmark notes for dispatch riders).
+   - Pre-fills seamlessly during subsequent checkout runs.
 
 ### Visual Identity & Theme
-
-- **Aesthetic Direction**: High-density, utilitarian SaaS dashboard complying with the Universal Frontend Design Constitution. Flat surfaces, hairline borders (`border-zinc-200 dark:border-zinc-800`), clean typography, and zero-pill metadata discipline.
-- **Color Palette & Mood**:
-  - Dominant Neutral Canvas: Crisp white (`#FFFFFF`) / dark slate (`#09090B`)
-  - Structural Surfaces: Subtle gray panels (`bg-zinc-50 dark:bg-zinc-900`)
-  - Semantic Status Tokens: Emerald (`#10B981`) for completed/paid, Amber (`#F59E0B`) for pending, Rose (`#EF4444`) for cancelled/failed
-  - Brand Accent: High-intent warm orange (`#F97316`) reserved strictly for active tab states and primary export buttons
-- **Typography & Hierarchy**:
-  - Headings: `font-bold tracking-tight text-zinc-900`
-  - Body & Labels: `font-medium text-zinc-600`
-  - Data, Timestamps & Currency: `font-mono tabular-nums` for precise alignment
-  - Metadata: Clean unboxed text separated by `·` or `/` without pill containers
-- **Component Styling & Layout**:
-  - Clean 3-zone layout: Filter & Preset Bar $\to$ KPI Summary Grid $\to$ Breakdown Grids & Transaction Data Table
-  - Tabular rows with generous hit targets, subtle hover backgrounds, and sticky export action buttons
-
-### Interactive Feedback & Motion
-
-- Smooth transitions ($\le 200\text{ms}$) on preset filter clicks with zero layout shift.
-- Export buttons show animated loading spinners during PDF rendering and CSV generation.
-- Empty states provide actionable guidance when no transactions match the selected date range.
+- **Color Palette & Accents**:
+  - Dominant Neutral Canvas: Crisp white (`#ffffff`) card containers with clean zinc hairline borders (`border-zinc-200`) on subtle off-white backgrounds (`bg-zinc-50`).
+  - Brand Accent: Signature Solemate energetic orange (`#f97316`) for active tab pill indicators, primary CTA buttons, and completed timeline steps.
+  - Dark Surface Highlights: Premium dark charcoal (`#18181b`) for executive actions (PDF downloads, Re-order buttons).
+- **Typography & Layout**:
+  - Tabular numerals (`font-mono tabular-nums`) for currency amounts, dates, and order numbers.
+  - Clean unboxed metadata separated by typographic dots (`·`).
+  - Status indicators paired with descriptive text and icons for full color-blind accessibility.
 
 ---
 
 ## 3. Key Product Decisions & Trade-Offs
 
-- **Decision 1: Client-Side Dynamic Aggregation vs. Server Query Endpoints**
-  - *Chosen Approach*: Leverage existing real-time Firestore order synchronization from `StoreContext` to compute report aggregations client-side with fallback support for server-side exports.
-  - *Why*: Instantaneous filter response without API roundtrips; admins can rapidly toggle dates and sellers without loading lag.
-  - *Alternatives Considered*: Separate backend report generation endpoints. While useful for massive datasets, the store's current order volume performs faster and smoother with reactive client computations.
+- **Decision 1: Unified Portal with Synchronized URL Routing**
+  - *Chosen Approach*: Unify `/profile` and `/my-orders` into a synchronized component architecture where `/my-orders` opens the unified portal pre-selected on the Orders tab, while `/profile` opens on the Profile tab.
+  - *Why*: Eliminates code duplication across two separate pages, ensures feature parity, and keeps customer navigation consistent.
 
-- **Decision 2: PDF Generation Architecture (`@react-pdf/renderer`)**
-  - *Chosen Approach*: Dedicated `SalesReportPdfDocument.tsx` utilizing `@react-pdf/renderer` already present in the workspace dependencies.
-  - *Why*: Produces pristine vector PDFs formatted specifically for print or digital sharing with page numbers, store contact metadata (wired to `siteSettings`), and clean data tables.
-  - *Alternatives Considered*: Browser `window.print()` only. Rejected because browser print dialogs are inconsistent, include unwanted browser headers/footers, and cannot be saved silently as an email attachment.
+- **Decision 2: Embedded Payment Resolution inside Order Cards**
+  - *Chosen Approach*: Bring M-Pesa STK Push retry and code verification directly into the order cards for any unpaid orders, rather than forcing the customer back into the checkout flow.
+  - *Why*: Reduces cart abandonment and failed order drop-offs when M-Pesa timeouts occur.
 
-- **Decision 3: Dedicated Reports Tab + Seller Quick-Actions**
-  - *Chosen Approach*: Add `sales-reports` as a primary navigation item in the Admin Dashboard sidebar, and wire a "View Sales Report" shortcut on each seller item in the `sellers` tab.
-  - *Why*: Meets the user's explicit preference for both centralized reports and seller-level reporting in the admin bar.
+- **Decision 3: Shoe Size Preference Storage in Profile**
+  - *Chosen Approach*: Store `preferredShoeSize` and `genderPreference` on the `UserProfile` document in Firestore.
+  - *Why*: Enables smart checkout pre-selection and personalized shop filtering across future shopping sessions.
 
 ---
 
 ## 4. Technical Architecture & Data Strategy
 
-### Architecture & Component Diagram
+### System Architecture Diagram
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
-│                        Admin Dashboard Navigation                       │
-│      [Overview] [Products] [Orders] [Sellers] [Sales Reports] ★        │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │
-                                    ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                     SalesReportsTab (New Component)                    │
+│                        Solemate Customer Portal                        │
+├────────────────────────────────────────────────────────────────────────┤
+│  [ Customer Hero Header ]                                              │
+│  Avatar · Customer Name · Member Since · Quick Stats (Orders / Spent)   │
+├────────────────────────────────────────────────────────────────────────┤
+│  [ Segmented Navigation Tabs ]                                         │
+│  ┌───────────────────────┬──────────────────────┬────────────────────┐ │
+│  │ 📦 Orders & Tracking  │ 👟 Profile & Sizing  │ 📍 Saved Addresses │ │
+│  └───────────────────────┴──────────────────────┴────────────────────┘ │
+├────────────────────────────────────────────────────────────────────────┤
 │                                                                        │
-│  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │ Date Presets: [Today] [7D] [30D] [This Month] [Custom Range]    │  │
-│  │ Secondary Filters: [Seller: All/Specific] [Category] [Status]    │  │
-│  └──────────────────────────────────────────────────────────────────┘  │
+│  TAB 1: ORDERS & TRACKING                                              │
+│  - Status Filter Tabs: All · In Transit · Delivered · Pending          │
+│  - Order Cards with:                                                   │
+│    * Interactive 4-Stage Visual Fulfillment Timeline                   │
+│    * Shoe Items List with Photo, Size, Quantity, Price                 │
+│    * Pending M-Pesa STK Push Retry & Receipt Input                     │
+│    * One-Click PDF Receipt Download & Native Print                     │
+│    * "Buy Again" Quick Re-order Button                                 │
 │                                                                        │
-│  ┌───────────────────┬───────────────────┬──────────────────────────┐  │
-│  │ Gross Revenue     │ Net Paid Revenue  │ Avg Order Value (AOV)   │  │
-│  │ KES 485,200       │ KES 412,000       │ KES 4,850               │  │
-│  └───────────────────┴───────────────────┴──────────────────────────┘  │
+│  TAB 2: PROFILE & SHOE SIZING                                          │
+│  - Full Name & Email                                                   │
+│  - Primary Contact Phone & Secondary Phone                             │
+│  - Interactive Sizing Matrix (EU 36 - 47)                              │
+│  - Fit Preference (Men / Women / Unisex)                               │
 │                                                                        │
-│  ┌─────────────────────────────────┬────────────────────────────────┐  │
-│  │ Revenue Trend (Recharts Area)   │ Category Share & Status Split  │  │
-│  └─────────────────────────────────┴────────────────────────────────┘  │
+│  TAB 3: DELIVERY ADDRESSES                                             │
+│  - Primary Delivery City (Nairobi CBD, Westlands, Kilimani, etc.)      │
+│  - Physical Street, Estate & House/Apartment                           │
+│  - Dispatch Rider Landmark Instructions                                │
 │                                                                        │
-│  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │ Top Selling Products (Units Sold, Revenue Contribution, Stock)   │  │
-│  └──────────────────────────────────────────────────────────────────┘  │
-│                                                                        │
-│  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │ Export Bar: [Download CSV Spreadsheet] [Download PDF Summary]    │  │
-│  └───────────────────┬───────────────────────────┬──────────────────┘  │
-└──────────────────────┼───────────────────────────┼─────────────────────┘
-                       │                           │
-                       ▼                           ▼
-        ┌─────────────────────────────┐   ┌──────────────────────────────┐
-        │ reportCsvExporter.ts        │   │ SalesReportPdfDocument.tsx   │
-        │ - RFC 4180 CSV builder      │   │ - Vector PDF Document        │
-        │ - Browser Blob auto-trigger │   │ - Branded Header & Summary   │
-        │ - Line item detail support  │   │ - Category & Seller Breakouts│
-        └─────────────────────────────┘   └──────────────────────────────┘
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Data Model & State
-
-- **Input State**: `orders`, `products`, `sellers`, and `siteSettings` from `useStore()`.
-- **Report Filter State**:
-  - `datePreset`: `'today' | '7d' | '30d' | 'this_month' | 'custom'`
-  - `startDate`: `string (YYYY-MM-DD)`
-  - `endDate`: `string (YYYY-MM-DD)`
-  - `selectedSellerId`: `string ('all' | sellerId)`
-  - `selectedCategory`: `string ('all' | category)`
-  - `selectedStatus`: `string ('all' | 'Paid' | 'Pending' | 'Cancelled')`
-- **Computed Metrics**:
-  - `totalRevenue`: Sum of order totals for non-cancelled orders.
-  - `paidRevenue`: Sum of order totals where status is `'Paid'` or `'Delivered'`.
-  - `pendingRevenue`: Sum of order totals where status is `'Pending'`.
-  - `totalOrders`: Count of matching orders.
-  - `avgOrderValue`: `totalRevenue / totalOrders`.
-  - `categoryBreakdown`: Volume and revenue grouped by item category.
-  - `topProducts`: Ranked list of products by units sold and revenue.
-  - `sellerBreakdown`: Revenue and commission attributed to each vendor.
-
-### Interactive Component & State Mapping
-
-- `Dashboard.tsx`: Register `sales-reports` tab in sidebar with `TrendingUp` or `BarChart3` icon; render `SalesReportsTab` when active; pass seller pre-selection when triggered from `Sellers` tab.
-- `src/components/admin/SalesReportsTab.tsx`: Houses the filter bar, KPI summary cards, Recharts trend graph, breakdown tables, and export triggers.
-- `src/utils/reportCsvExporter.ts`: Pure utility function to convert filtered orders and summary metrics into an RFC 4180 compliant CSV file with dynamic filename (e.g., `sales-report-2026-10-16.csv`).
-- `src/components/admin/SalesReportPdfDocument.tsx`: PDF document template utilizing `@react-pdf/renderer` for high-resolution downloadable summaries.
-- `src/components/admin/OverviewTab.tsx`: Add a quick shortcut link "View Detailed Sales Report $\to$" to seamlessly transition to the reports tab.
+### Component & State Plan
+1. **Types Update (`src/services/types.ts`)**:
+   - Extend `UserProfile` to support `preferredShoeSize?: string`, `genderPreference?: string`, and `secondaryPhone?: string`.
+2. **Refactor Profile Page (`src/pages/Profile.tsx`)**:
+   - Implement the unified portal with reactive tab switching (`orders`, `profile`, `addresses`).
+   - Integrate M-Pesa payment query and STK push handler.
+   - Embed the Solemate branded visual progress timeline.
+3. **Synchronize MyOrders Route (`src/pages/MyOrders.tsx`)**:
+   - Align `MyOrders.tsx` to mount the unified customer portal with `initialTab="orders"`.

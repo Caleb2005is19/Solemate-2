@@ -32,7 +32,7 @@ import {
 } from 'recharts';
 import { formatPrice } from '../../utils';
 import { downloadSalesReportCsv, ReportFilterOptions, ReportSummaryMetrics } from '../../utils/reportCsvExporter';
-import { downloadSalesReportPdf, previewSalesReportPdf } from '../../utils/reportPdfGenerator';
+import { downloadSalesReportPdf, previewSalesReportPdf, printSalesReportPdf } from '../../utils/reportPdfGenerator';
 import type { Order, OrderStatus } from '../../services/types';
 
 type DatePreset = 'today' | '7d' | '30d' | 'this_month' | 'this_year' | 'all' | 'custom';
@@ -69,6 +69,7 @@ export function SalesReportsTab({
   // Export Loading States
   const [isExportingCsv, setIsExportingCsv] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [isPrintingPdf, setIsPrintingPdf] = useState(false);
   const [exportNotice, setExportNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // Sync if initialSellerId changes
@@ -332,12 +333,12 @@ export function SalesReportsTab({
         summaryMetrics, 
         filterOpts, 
         sellers, 
-        siteSettings?.businessName || 'KicksKE'
+        siteSettings?.businessName || 'Solemate.co.ke'
       );
 
       setExportNotice({
         type: 'success',
-        message: `CSV report generated successfully with ${filteredOrders.length} transactions!`
+        message: `Solemate.co.ke CSV report generated successfully with ${filteredOrders.length} transactions!`
       });
       setTimeout(() => setExportNotice(null), 4000);
     } catch (err: any) {
@@ -376,7 +377,7 @@ export function SalesReportsTab({
 
       setExportNotice({
         type: 'success',
-        message: 'PDF Sales Report downloaded successfully!'
+        message: 'Solemate.co.ke PDF Sales Report downloaded successfully!'
       });
       setTimeout(() => setExportNotice(null), 4000);
     } catch (err: any) {
@@ -390,9 +391,10 @@ export function SalesReportsTab({
     }
   };
 
-  // Handler: Preview / Print PDF
-  const handlePreviewPdf = async () => {
+  // Handler: Preview / Print PDF with native printer dialogue
+  const handlePrintPdf = async () => {
     try {
+      setIsPrintingPdf(true);
       const selectedSellerObj = sellers.find(s => s.id === selectedSellerId);
       const filterOpts: ReportFilterOptions = {
         datePresetLabel: dateRangeBounds.label,
@@ -403,7 +405,7 @@ export function SalesReportsTab({
         status: selectedStatus,
       };
 
-      await previewSalesReportPdf({
+      await printSalesReportPdf({
         orders: filteredOrders,
         summary: summaryMetrics,
         filterOptions: filterOpts,
@@ -412,8 +414,20 @@ export function SalesReportsTab({
         categoryBreakdown,
         topProducts,
       });
+
+      setExportNotice({
+        type: 'success',
+        message: 'Solemate.co.ke printable report triggered. Check printer dialog or new tab.'
+      });
+      setTimeout(() => setExportNotice(null), 4000);
     } catch (err) {
       console.error(err);
+      setExportNotice({
+        type: 'error',
+        message: 'Could not open print preview. You can also click Download PDF.'
+      });
+    } finally {
+      setIsPrintingPdf(false);
     }
   };
 
@@ -501,13 +515,13 @@ export function SalesReportsTab({
           </button>
 
           <button
-            onClick={handlePreviewPdf}
-            disabled={filteredOrders.length === 0}
-            className="flex items-center gap-2 bg-white text-zinc-700 hover:bg-zinc-50 border border-zinc-200 px-4 py-2.5 rounded-xl font-bold text-sm transition-all active:scale-95 cursor-pointer"
-            title="Preview and print PDF document"
+            onClick={handlePrintPdf}
+            disabled={isPrintingPdf || filteredOrders.length === 0}
+            className="flex items-center gap-2 bg-white text-zinc-700 hover:bg-zinc-50 border border-zinc-200 px-4 py-2.5 rounded-xl font-bold text-sm transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+            title="Open printable Solemate.co.ke official PDF report"
           >
-            <Printer className="w-4 h-4 text-zinc-500" />
-            Print
+            <Printer className="w-4 h-4 text-orange-500" />
+            {isPrintingPdf ? 'Preparing...' : 'Print Report'}
           </button>
         </div>
       </div>

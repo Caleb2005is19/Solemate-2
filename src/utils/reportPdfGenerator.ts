@@ -27,12 +27,13 @@ export async function generateSalesReportPdfBlob(data: SalesReportPdfData): Prom
  * Downloads the official Sales Report PDF directly to the user's device
  */
 export async function downloadSalesReportPdf(data: SalesReportPdfData): Promise<void> {
-  const businessName = data.siteSettings?.businessName || 'KicksKE';
+  const businessName = data.siteSettings?.businessName || 'Solemate.co.ke';
+  const cleanPrefix = businessName.toLowerCase().replace(/[^a-z0-9]+/g, '_');
   const dateStr = new Date().toISOString().split('T')[0];
   const sanitizedFilter = (data.filterOptions.datePresetLabel || 'sales_report')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '_');
-  const filename = `${businessName.toLowerCase()}_sales_report_${sanitizedFilter}_${dateStr}.pdf`;
+  const filename = `${cleanPrefix}_sales_report_${sanitizedFilter}_${dateStr}.pdf`;
 
   try {
     const blob = await generateSalesReportPdfBlob(data);
@@ -56,6 +57,58 @@ export async function downloadSalesReportPdf(data: SalesReportPdfData): Promise<
 }
 
 /**
+ * Prints the Sales Report PDF directly via browser print dialog or opens printable viewer
+ */
+export async function printSalesReportPdf(data: SalesReportPdfData): Promise<void> {
+  try {
+    const blob = await generateSalesReportPdfBlob(data);
+    const url = URL.createObjectURL(blob);
+
+    // 1. Attempt invisible iframe print (native browser print dialog directly on PDF)
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = 'none';
+    iframe.src = url;
+    document.body.appendChild(iframe);
+
+    let printed = false;
+
+    iframe.onload = () => {
+      setTimeout(() => {
+        try {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+          printed = true;
+        } catch {
+          // Fallback if cross-origin or direct print blocked
+          window.open(url, '_blank');
+        }
+      }, 500);
+    };
+
+    // Cleanup after 60 seconds
+    setTimeout(() => {
+      if (!printed) {
+        try {
+          window.open(url, '_blank');
+        } catch (_) {}
+      }
+      if (document.body.contains(iframe)) {
+        document.body.removeChild(iframe);
+      }
+      URL.revokeObjectURL(url);
+    }, 60000);
+  } catch (err) {
+    console.error('Failed to print sales report PDF:', err);
+    throw err;
+  }
+}
+
+/**
  * Opens the Sales Report PDF in a new tab for previewing or printing
  */
 export async function previewSalesReportPdf(data: SalesReportPdfData): Promise<void> {
@@ -65,7 +118,7 @@ export async function previewSalesReportPdf(data: SalesReportPdfData): Promise<v
     window.open(url, '_blank');
     setTimeout(() => {
       URL.revokeObjectURL(url);
-    }, 15000);
+    }, 20000);
   } catch (err) {
     console.error('Failed to preview sales report PDF:', err);
     throw err;

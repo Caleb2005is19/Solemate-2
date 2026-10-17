@@ -3,8 +3,12 @@ export interface UserProfile {
   email: string;
   displayName: string;
   phone?: string;
+  secondaryPhone?: string;
   location?: string;
   city?: string;
+  deliveryNotes?: string;
+  preferredShoeSize?: string;
+  genderPreference?: 'Men' | 'Women' | 'Unisex';
   role?: 'admin' | 'seller' | 'client';
 }
 
