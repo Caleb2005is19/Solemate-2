@@ -13,6 +13,7 @@ import { MarketingTab } from '../components/admin/MarketingTab';
 import { MessagesTab } from '../components/admin/MessagesTab';
 import { HomepageBuilderTab } from '../components/admin/HomepageBuilderTab';
 import { OverviewTab } from '../components/admin/OverviewTab';
+import { SalesReportsTab } from '../components/admin/SalesReportsTab';
 import { LogsTab } from '../components/admin/LogsTab';
 import { Product, OrderStatus, Order, Seller } from '../types';
 import { formatPrice } from '../utils';
@@ -52,9 +53,10 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
   const currentSeller = currentSellerId ? sellers.find(s => s.id === currentSellerId) : null;
 
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'products' | 'inventory' | 'orders' | 'sellers' | 
+    'overview' | 'products' | 'inventory' | 'orders' | 'sellers' | 'sales-reports' |
     'contact-details' | 'site-settings' | 'theme-settings' | 'feature-toggles' | 'content' | 'announcements' | 'messages' | 'homepage-builder' | 'google-sheets' | 'coupons' | 'logs'
   >('overview');
+  const [selectedSellerForReport, setSelectedSellerForReport] = useState<string | 'all'>('all');
   const [isAddingProduct, setIsAddingProduct] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [viewingOrder, setViewingOrder] = useState<Order | null>(null);
@@ -362,6 +364,18 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
             </button>
           )}
 
+          <button
+            onClick={() => setActiveTab('sales-reports')}
+            className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-colors ${activeTab === 'sales-reports' ? 'bg-orange-500 text-white' : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'}`}
+          >
+            <span className="flex items-center gap-3">
+              <FileSpreadsheet className="w-5 h-5" /> Sales Reports
+            </span>
+            <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md ${activeTab === 'sales-reports' ? 'bg-white/20 text-white' : 'bg-orange-500/10 text-orange-400'}`}>
+              REPORTS
+            </span>
+          </button>
+
           {role === 'admin' && (
             <>
               <div className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mt-6 mb-2 ml-4">Settings & Site</div>
@@ -495,7 +509,7 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
         )}
 
         {activeTab === 'overview' && (
-          <OverviewTab role={role} />
+          <OverviewTab role={role} onNavigateToReports={() => setActiveTab('sales-reports')} />
         )}
 
         {activeTab === 'products' && (
@@ -1254,6 +1268,16 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
                           </td>
                           <td className="p-4 text-right">
                             <div className="flex justify-end gap-2">
+                              <button 
+                                onClick={() => {
+                                  setSelectedSellerForReport(s.id);
+                                  setActiveTab('sales-reports');
+                                }} 
+                                title="Generate Sales Report for this Seller" 
+                                className="p-2 text-zinc-400 hover:text-orange-500 transition-colors"
+                              >
+                                <FileSpreadsheet className="w-4 h-4" />
+                              </button>
                               <button onClick={() => copySellerLink(s.id)} title="Copy Secure Link" className="p-2 text-zinc-400 hover:text-orange-500 transition-colors">
                                 {copiedId === s.id ? <Check className="w-4 h-4 text-green-500" /> : <LinkIcon className="w-4 h-4" />}
                               </button>
@@ -1275,6 +1299,13 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
           </div>
         )}
 
+        {activeTab === 'sales-reports' && (
+          <SalesReportsTab 
+            initialSellerId={role === 'seller' ? currentSellerId || 'all' : selectedSellerForReport}
+            onClearSellerFilter={() => setSelectedSellerForReport('all')}
+            role={role}
+          />
+        )}
         {activeTab === 'contact-details' && role === 'admin' && <ContactSettingsTab />}
         {activeTab === 'site-settings' && role === 'admin' && <SiteSettingsTab />}
         {activeTab === 'google-sheets' && role === 'admin' && <GoogleSheetsTab />}

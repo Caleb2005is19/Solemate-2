@@ -15,8 +15,14 @@ import {
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { formatPrice } from '../../utils';
+import { FileSpreadsheet } from 'lucide-react';
 
-export function OverviewTab({ role }: { role: 'admin' | 'seller' }) {
+interface OverviewTabProps {
+  role: 'admin' | 'seller';
+  onNavigateToReports?: () => void;
+}
+
+export function OverviewTab({ role, onNavigateToReports }: OverviewTabProps) {
   const { products, orders, sellers } = useStore();
 
   const totalRevenue = orders
@@ -45,9 +51,20 @@ export function OverviewTab({ role }: { role: 'admin' | 'seller' }) {
            </h1>
            <p className="text-zinc-500 font-medium">Welcome back! Here's what's happening today.</p>
         </div>
-        <div className="px-4 py-2 bg-zinc-100 rounded-2xl flex items-center gap-2 text-zinc-600 font-bold text-sm">
-           <Clock className="w-4 h-4" />
-           {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+        <div className="flex items-center gap-3">
+          {onNavigateToReports && (
+            <button
+              onClick={onNavigateToReports}
+              className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white font-bold text-sm rounded-2xl flex items-center gap-2 shadow-lg shadow-orange-500/20 transition-all active:scale-95 cursor-pointer"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              Generate Sales Reports
+            </button>
+          )}
+          <div className="px-4 py-2 bg-zinc-100 rounded-2xl flex items-center gap-2 text-zinc-600 font-bold text-sm">
+             <Clock className="w-4 h-4" />
+             {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+          </div>
         </div>
       </div>
 
