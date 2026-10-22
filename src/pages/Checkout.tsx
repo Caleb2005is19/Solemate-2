@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useCart } from '../context/CartContext';
 import { useStore } from '../context/StoreContext';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, CheckCircle2, Truck, UserCircle, Store, KeyRound, FileText, Printer, Loader2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { formatPrice } from '../utils';
@@ -16,6 +16,7 @@ import { printOrders } from '../utils/printInvoice';
 import { useNotifications } from '../context/NotificationContext';
 
 export function Checkout() {
+  const [searchParams] = useSearchParams();
   const { items, cartTotal, cartCount, clearCart } = useCart();
   const { addOrder, currentUser, userProfile, featureToggles, setIsAuthModalOpen, siteSettings } = useStore();
   const { notify } = useNotifications();
@@ -35,6 +36,27 @@ export function Checkout() {
   const [couponError, setCouponError] = useState<string | null>(null);
   const [couponSuccess, setCouponSuccess] = useState<string | null>(null);
   const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
+
+  // Automatically apply promo coupon from ad or social share link
+  useEffect(() => {
+    const couponParam = searchParams.get('coupon');
+    if (couponParam && !appliedCoupon) {
+      const code = couponParam.trim().toUpperCase();
+      setCouponCode(code);
+      fetch(`/api/coupons/validate?code=${encodeURIComponent(code)}`)
+        .then(res => res.json())
+        .then(body => {
+          if (body.success) {
+            setAppliedCoupon({
+              code: body.code,
+              discountPercentage: Number(body.discountPercentage)
+            });
+            setCouponSuccess(`Promo "${body.code}" applied! ${body.discountPercentage}% discount added.`);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [searchParams]);
 
   const handleApplyCoupon = async () => {
     const formattedCode = couponCode.trim().toUpperCase();

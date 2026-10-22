@@ -8,6 +8,7 @@ import { loginWithGoogle, logout } from '../firebase';
 import { motion, AnimatePresence } from 'motion/react';
 import { Logo } from './Logo';
 import { HamburgerNotificationTab, NotificationToastDock } from './NotificationCenter';
+import { StickyPromoBanner } from './StickyPromoBanner';
 
 export function Navbar() {
   const { cartCount, setIsCartOpen, wishlistItems, searchQuery, setSearchQuery } = useCart();
@@ -36,6 +37,7 @@ export function Navbar() {
 
   return (
     <header className="sticky top-0 z-50 w-full">
+      <StickyPromoBanner />
       {/* Top Bar */}
       <div className="bg-zinc-900 text-white text-xs sm:text-sm py-2 px-4 text-center flex justify-center items-center gap-4">
         <span>🚚 Free Delivery in Nairobi CBD</span>

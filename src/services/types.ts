@@ -203,3 +203,27 @@ export interface AppNotification {
   link?: string;
   metadata?: Record<string, any>;
 }
+
+export interface PromoCampaign {
+  id: string;
+  title: string;
+  subtitle: string;
+  badgeText?: string;
+  placement: 'all' | 'homepage-grid' | 'shop-grid' | 'top-banner';
+  couponCode?: string;
+  discountPercentage?: number;
+  image?: string;
+  link?: string;
+  ctaText?: string;
+  startDate?: string;
+  endDate?: string;
+  active: boolean;
+  countdown: boolean;
+  theme?: 'dark' | 'orange' | 'clean';
+  utmSource?: string;
+  stats?: {
+    views?: number;
+    clicks?: number;
+  };
+  createdAt?: string;
+}

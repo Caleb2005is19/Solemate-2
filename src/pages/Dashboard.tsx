@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
-import { LayoutDashboard, Package, ShoppingCart, Plus, Edit, Trash, Check, X, Users, Link as LinkIcon, LogOut, Upload, TrendingUp, Image as ImageIcon, DollarSign, Tag, Info, Box, Printer, Globe, Palette, ToggleLeft, FileText, Bell, Inbox, Settings, FileSpreadsheet, Ticket, Terminal, PhoneCall } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, Plus, Edit, Trash, Check, X, Users, Link as LinkIcon, LogOut, Upload, TrendingUp, Image as ImageIcon, DollarSign, Tag, Info, Box, Printer, Globe, Palette, ToggleLeft, FileText, Bell, Inbox, Settings, FileSpreadsheet, Ticket, Terminal, PhoneCall, Megaphone } from 'lucide-react';
 import { ContactSettingsTab } from '../components/admin/ContactSettingsTab';
 import { SiteSettingsTab } from '../components/admin/SiteSettingsTab';
 import { GoogleSheetsTab } from '../components/admin/GoogleSheetsTab';
@@ -16,6 +16,7 @@ import { OverviewTab } from '../components/admin/OverviewTab';
 import { SalesReportsTab } from '../components/admin/SalesReportsTab';
 import { OrdersTab } from '../components/admin/OrdersTab';
 import { LogsTab } from '../components/admin/LogsTab';
+import { PromoCampaignsTab } from '../components/admin/PromoCampaignsTab';
 import { Product, OrderStatus, Order, Seller } from '../types';
 import { formatPrice } from '../utils';
 import { loginWithGoogle, logout } from '../firebase';
@@ -55,7 +56,7 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
 
   const [activeTab, setActiveTab] = useState<
     'overview' | 'products' | 'inventory' | 'orders' | 'sellers' | 'sales-reports' |
-    'contact-details' | 'site-settings' | 'theme-settings' | 'feature-toggles' | 'content' | 'announcements' | 'messages' | 'homepage-builder' | 'google-sheets' | 'coupons' | 'logs'
+    'contact-details' | 'site-settings' | 'theme-settings' | 'feature-toggles' | 'content' | 'announcements' | 'messages' | 'homepage-builder' | 'google-sheets' | 'coupons' | 'logs' | 'promo-campaigns'
   >('overview');
   const [selectedSellerForReport, setSelectedSellerForReport] = useState<string | 'all'>('all');
   const [isAddingProduct, setIsAddingProduct] = useState(false);
@@ -432,6 +433,17 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
               </button>
 
               <div className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mt-6 mb-2 ml-4">Content & Marketing</div>
+              <button
+                onClick={() => setActiveTab('promo-campaigns')}
+                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-colors ${activeTab === 'promo-campaigns' ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/20' : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'}`}
+              >
+                <span className="flex items-center gap-3">
+                  <Megaphone className="w-5 h-5" /> Ads & Promos
+                </span>
+                <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md ${activeTab === 'promo-campaigns' ? 'bg-white/20 text-white' : 'bg-orange-500 text-white font-bold'}`}>
+                  NEW
+                </span>
+              </button>
               <button
                 onClick={() => setActiveTab('content')}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${activeTab === 'content' ? 'bg-orange-500 text-white' : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'}`}
@@ -1243,6 +1255,7 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
         {activeTab === 'theme-settings' && role === 'admin' && <ThemeSettingsTab />}
         {activeTab === 'feature-toggles' && role === 'admin' && <FeatureTogglesTab />}
         {activeTab === 'content' && role === 'admin' && <ContentTab />}
+        {activeTab === 'promo-campaigns' && role === 'admin' && <PromoCampaignsTab />}
         {activeTab === 'announcements' && role === 'admin' && <MarketingTab />}
         {activeTab === 'messages' && role === 'admin' && <MessagesTab />}
         {activeTab === 'homepage-builder' && role === 'admin' && <HomepageBuilderTab />}

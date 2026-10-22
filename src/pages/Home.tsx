@@ -6,9 +6,11 @@ import { ProductCard } from '../components/ProductCard';
 import { motion } from 'motion/react';
 import { SEO } from '../components/SEO';
 import { ImageWithSkeleton } from '../components/ImageWithSkeleton';
+import { FeaturedPromoCard } from '../components/FeaturedPromoCard';
 
 export function Home() {
-  const { products, homepageSections, siteSettings } = useStore();
+  const { products, homepageSections, siteSettings, promoCampaigns } = useStore();
+  const homePromo = promoCampaigns.find(c => c.active && (c.placement === 'homepage-grid' || c.placement === 'all'));
   const featuredProducts = products.slice(0, 4);
 
   const activeSections = homepageSections.filter(s => s.active);
@@ -42,6 +44,7 @@ export function Home() {
         title={siteSettings?.seo?.title || "Home"} 
         description={siteSettings?.seo?.description || "Shop the latest premium sneakers, boots, and casual shoes at Solemate.co.ke."}
         schemaData={homeSchema}
+        promotions={promoCampaigns}
       />
       
       {activeSections.length > 0 ? (
@@ -99,11 +102,30 @@ export function Home() {
                     </div>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-                    {(section.config?.category 
-                      ? products.filter(p => p.category === section.config?.category)
-                      : products).slice(0, section.config?.limit || 4).map((product, idx) => (
-                      <ProductCard key={product.id} product={product} />
-                    ))}
+                    {(() => {
+                      const prods = (section.config?.category 
+                        ? products.filter(p => p.category === section.config?.category)
+                        : products).slice(0, homePromo ? 3 : (section.config?.limit || 4));
+                      return (
+                        <>
+                          {prods.map((product, idx) => (
+                            <React.Fragment key={product.id}>
+                              {idx === 1 && homePromo && (
+                                <div className="col-span-1">
+                                  <FeaturedPromoCard campaign={homePromo} />
+                                </div>
+                              )}
+                              <ProductCard product={product} />
+                            </React.Fragment>
+                          ))}
+                          {prods.length <= 1 && homePromo && (
+                            <div className="col-span-1">
+                              <FeaturedPromoCard campaign={homePromo} />
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
               </section>
@@ -246,17 +268,47 @@ export function Home() {
           </div>
           
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-            {featuredProducts.map((product, index) => (
-              <motion.div
-                key={product.id}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: index * 0.1 }}
-              >
-                <ProductCard product={product} />
-              </motion.div>
-            ))}
+            {(() => {
+              const displayProducts = featuredProducts.slice(0, homePromo ? 3 : 4);
+              return (
+                <>
+                  {displayProducts.map((product, index) => (
+                    <React.Fragment key={product.id}>
+                      {index === 1 && homePromo && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 20 }}
+                          whileInView={{ opacity: 1, y: 0 }}
+                          viewport={{ once: true }}
+                          transition={{ duration: 0.5, delay: 0.15 }}
+                          className="col-span-1"
+                        >
+                          <FeaturedPromoCard campaign={homePromo} />
+                        </motion.div>
+                      )}
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true }}
+                        transition={{ duration: 0.5, delay: index * 0.1 }}
+                      >
+                        <ProductCard product={product} />
+                      </motion.div>
+                    </React.Fragment>
+                  ))}
+                  {displayProducts.length <= 1 && homePromo && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ duration: 0.5 }}
+                      className="col-span-1"
+                    >
+                      <FeaturedPromoCard campaign={homePromo} />
+                    </motion.div>
+                  )}
+                </>
+              );
+            })()}
           </div>
           
           <div className="mt-12 text-center sm:hidden">

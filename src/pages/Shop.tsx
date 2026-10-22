@@ -11,9 +11,10 @@ import { formatPrice } from '../utils';
 import { ShoppingBag, Heart, Star, ChevronRight, ChevronLeft } from 'lucide-react';
 import { RecentlyViewed } from '../components/RecentlyViewed';
 import { ImageZoom } from '../components/ImageZoom';
+import { FeaturedPromoCard } from '../components/FeaturedPromoCard';
 
 export function Shop() {
-  const { products } = useStore();
+  const { products, promoCampaigns } = useStore();
   const [searchParams, setSearchParams] = useSearchParams();
   const { searchQuery, setSearchQuery, wishlistItems, addToCart, toggleWishlist, isInWishlist } = useCart();
   
@@ -115,6 +116,7 @@ export function Shop() {
         title={showWishlist ? "My Wishlist" : "Shop All Sneakers & Shoes"} 
         description="Browse our extensive collection of premium sneakers, boots, and casual shoes. Filter by brand, color, and price to find your perfect pair."
         schemaData={shopSchema}
+        promotions={promoCampaigns}
       />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
@@ -254,27 +256,63 @@ export function Shop() {
           </div>
         )}
 
-        {/* Product Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 sm:gap-8">
-          {filteredProducts.map((product, index) => (
-            <motion.div
-              key={product.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: index * 0.05 }}
-            >
-              <ProductCard 
-                product={product} 
-                onQuickView={(p) => {
-                  setQuickViewProduct(p);
-                  setSelectedSize(null);
-                  setQuickViewColor(p.color || null);
-                  setActiveImageIndex(0);
-                }} 
-              />
-            </motion.div>
-          ))}
-        </div>
+        {/* Product Grid with Featured Promo Cards */}
+        {(() => {
+          const activeShopPromos = promoCampaigns.filter(p => {
+            if (!p.active) return false;
+            if (p.placement !== 'all' && p.placement !== 'shop-grid') return false;
+            if (p.endDate && new Date(p.endDate).getTime() < Date.now()) return false;
+            return true;
+          });
+
+          return (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 sm:gap-8">
+              {filteredProducts.map((product, index) => (
+                <React.Fragment key={product.id}>
+                  {/* First Promo Card woven at position 3 */}
+                  {index === 2 && activeShopPromos[0] && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.4 }}
+                      className="col-span-1"
+                    >
+                      <FeaturedPromoCard campaign={activeShopPromos[0]} />
+                    </motion.div>
+                  )}
+
+                  {/* Second Promo Card woven at position 7 */}
+                  {index === 6 && activeShopPromos[1] && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.4 }}
+                      className="col-span-1"
+                    >
+                      <FeaturedPromoCard campaign={activeShopPromos[1]} />
+                    </motion.div>
+                  )}
+
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, delay: index * 0.05 }}
+                  >
+                    <ProductCard 
+                      product={product} 
+                      onQuickView={(p) => {
+                        setQuickViewProduct(p);
+                        setSelectedSize(null);
+                        setQuickViewColor(p.color || null);
+                        setActiveImageIndex(0);
+                      }} 
+                    />
+                  </motion.div>
+                </React.Fragment>
+              ))}
+            </div>
+          );
+        })()}
         
         {filteredProducts.length === 0 && (
           <div className="text-center py-24 bg-white rounded-3xl border border-zinc-100 mt-8">

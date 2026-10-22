@@ -715,6 +715,19 @@ app.get('/api/coupons/validate', async (req, res) => {
             discountPercentage
           });
         }
+
+        // Check promo_campaigns collection
+        const promoSnapshot = await db.collection('promo_campaigns').where('couponCode', '==', code).get();
+        if (!promoSnapshot.empty) {
+          const promoData = promoSnapshot.docs[0].data();
+          if (promoData.active !== false) {
+            return res.json({
+              success: true,
+              code,
+              discountPercentage: Number(promoData.discountPercentage || 15)
+            });
+          }
+        }
       } catch (dbErr: any) {
         console.error('Backend Admin coupon check failed, continuing with fallback:', dbErr.message);
       }
@@ -724,7 +737,12 @@ app.get('/api/coupons/validate', async (req, res) => {
     const fallbackCoupons: Record<string, number> = {
       'SOLE20': 20,
       'WELCOME10': 10,
-      'SNEAKERHEAD': 15
+      'SNEAKERHEAD': 15,
+      'AIR20': 20,
+      'FLASH24': 25,
+      'CLEAR30': 30,
+      'BUNDLE2': 15,
+      'DELIVERYFREE': 10
     };
 
     if (fallbackCoupons[code] !== undefined) {

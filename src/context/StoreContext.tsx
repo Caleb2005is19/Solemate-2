@@ -11,7 +11,8 @@ import {
   ContentBlock, 
   Announcement, 
   ContactMessage, 
-  HomepageSection 
+  HomepageSection,
+  PromoCampaign 
 } from '../types';
 import { db, auth } from '../firebase';
 import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, getDoc, query, where, Query, or, orderBy, writeBatch } from 'firebase/firestore';
@@ -109,6 +110,10 @@ interface StoreContextType {
   updateHomepageSection: (id: string, updates: Partial<HomepageSection>) => Promise<void>;
   deleteHomepageSection: (id: string) => Promise<void>;
   reorderHomepageSections: (sections: HomepageSection[]) => Promise<void>;
+  promoCampaigns: PromoCampaign[];
+  addPromoCampaign: (c: PromoCampaign) => Promise<void>;
+  updatePromoCampaign: (id: string, c: Partial<PromoCampaign>) => Promise<void>;
+  deletePromoCampaign: (id: string) => Promise<void>;
   isAuthModalOpen: boolean;
   setIsAuthModalOpen: (val: boolean) => void;
 }
@@ -133,6 +138,45 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [contactMessages, setContactMessages] = useState<ContactMessage[]>([]);
   const [homepageSections, setHomepageSections] = useState<HomepageSection[]>([]);
+  const [promoCampaigns, setPromoCampaigns] = useState<PromoCampaign[]>(() => {
+    return [
+      {
+        id: 'promo-flash-weekend',
+        title: 'Weekend Air Jordan Drop',
+        subtitle: 'Exclusive retro editions · Limited stock in Nairobi CBD',
+        badgeText: '20% OFF',
+        placement: 'all',
+        couponCode: 'AIR20',
+        discountPercentage: 20,
+        image: 'https://images.unsplash.com/photo-1552346154-21d32810aba3?auto=format&fit=crop&w=800&q=80',
+        link: '/shop?gender=Men',
+        ctaText: 'Shop Retro Drop',
+        active: true,
+        countdown: true,
+        endDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+        theme: 'dark',
+        utmSource: 'weekend_drop',
+        stats: { views: 142, clicks: 38 }
+      },
+      {
+        id: 'promo-free-delivery',
+        title: 'Free Nairobi CBD & Westlands Delivery',
+        subtitle: 'On all orders above KES 5,000 this week only',
+        badgeText: 'FREE SHIPPING',
+        placement: 'shop-grid',
+        couponCode: 'DELIVERYFREE',
+        discountPercentage: 0,
+        image: 'https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?auto=format&fit=crop&w=800&q=80',
+        link: '/shop',
+        ctaText: 'Claim Free Delivery',
+        active: true,
+        countdown: false,
+        theme: 'orange',
+        utmSource: 'free_delivery',
+        stats: { views: 89, clicks: 21 }
+      }
+    ];
+  });
   const [lastReadTimestamp, setLastReadTimestamp] = useState<number>(() => {
     const saved = localStorage.getItem('lastReadOrders');
     return saved ? parseInt(saved) : Date.now();
@@ -258,6 +302,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       console.warn('Silent fallback for homepage sections subscription:', error.message);
     });
 
+    const unsubPromos = onSnapshot(collection(db, 'promo_campaigns'), (snapshot) => {
+      if (!snapshot.empty) {
+        const list: PromoCampaign[] = [];
+        snapshot.forEach(doc => list.push({ id: doc.id, ...doc.data() } as PromoCampaign));
+        setPromoCampaigns(list);
+      }
+    }, (error) => {
+      console.warn('Silent fallback for promo_campaigns subscription:', error.message);
+    });
+
     return () => {
       unsubProducts();
       unsubSellers();
@@ -267,6 +321,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       unsubContent();
       unsubAnnouncements();
       unsubHomepage();
+      unsubPromos();
     };
   }, [currentUser]);
 
@@ -550,6 +605,36 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [currentUser]);
 
+  const addPromoCampaign = useCallback(async (c: PromoCampaign) => {
+    try {
+      await setDoc(doc(db, 'promo_campaigns', c.id), stripUndefined(c));
+      setPromoCampaigns(prev => [c, ...prev.filter(p => p.id !== c.id)]);
+    } catch (error) {
+      console.warn('Firestore fallback for adding promo campaign:', error);
+      setPromoCampaigns(prev => [c, ...prev.filter(p => p.id !== c.id)]);
+    }
+  }, []);
+
+  const updatePromoCampaign = useCallback(async (id: string, updates: Partial<PromoCampaign>) => {
+    try {
+      await updateDoc(doc(db, 'promo_campaigns', id), stripUndefined(updates));
+      setPromoCampaigns(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
+    } catch (error) {
+      console.warn('Firestore fallback for updating promo campaign:', error);
+      setPromoCampaigns(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
+    }
+  }, []);
+
+  const deletePromoCampaign = useCallback(async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'promo_campaigns', id));
+      setPromoCampaigns(prev => prev.filter(p => p.id !== id));
+    } catch (error) {
+      console.warn('Firestore fallback for deleting promo campaign:', error);
+      setPromoCampaigns(prev => prev.filter(p => p.id !== id));
+    }
+  }, []);
+
   return (
     <StoreContext.Provider value={{ 
       products, addProduct, updateProduct, deleteProduct, 
@@ -565,6 +650,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       announcements, addAnnouncement, updateAnnouncement, deleteAnnouncement,
       contactMessages, addContactMessage, updateContactMessage, deleteContactMessage,
       homepageSections, addHomepageSection, updateHomepageSection, deleteHomepageSection, reorderHomepageSections,
+      promoCampaigns, addPromoCampaign, updatePromoCampaign, deletePromoCampaign,
       isAuthModalOpen, setIsAuthModalOpen
     }}>
       {children}
