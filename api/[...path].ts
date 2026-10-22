@@ -664,6 +664,125 @@ app.post('/api/admin/coupons/seed', verifyAdmin, async (req, res) => {
   }
 });
 
+// ===============================================================
+// Promo Campaigns Database Endpoints (Direct Firestore Admin SDK)
+// ===============================================================
+
+app.get('/api/promo-campaigns', async (req, res) => {
+  try {
+    if (!db) return res.status(500).json({ error: 'Database not initialized' });
+    const snapshot = await db.collection('promo_campaigns').get();
+    const campaigns: any[] = [];
+    snapshot.forEach(doc => {
+      campaigns.push({ id: doc.id, ...doc.data() });
+    });
+    res.json({ success: true, campaigns });
+  } catch (error: any) {
+    console.error('Fetch promo campaigns error:', error);
+    res.status(500).json({ error: 'Failed to fetch promo campaigns', message: error.message });
+  }
+});
+
+app.post('/api/admin/promo-campaigns', async (req, res) => {
+  try {
+    if (!db) return res.status(500).json({ error: 'Database not initialized' });
+    const campaign = req.body;
+    if (!campaign || !campaign.id || !campaign.title) {
+      return res.status(400).json({ error: 'Campaign id and title are required' });
+    }
+    await db.collection('promo_campaigns').doc(campaign.id).set(campaign, { merge: true });
+    res.json({ success: true, id: campaign.id });
+  } catch (error: any) {
+    console.error('Save promo campaign error:', error);
+    res.status(500).json({ error: 'Failed to save promo campaign', message: error.message });
+  }
+});
+
+app.put('/api/admin/promo-campaigns/:id', async (req, res) => {
+  try {
+    if (!db) return res.status(500).json({ error: 'Database not initialized' });
+    const { id } = req.params;
+    const updates = req.body;
+    await db.collection('promo_campaigns').doc(id).set(updates, { merge: true });
+    res.json({ success: true, id });
+  } catch (error: any) {
+    console.error('Update promo campaign error:', error);
+    res.status(500).json({ error: 'Failed to update promo campaign', message: error.message });
+  }
+});
+
+app.delete('/api/admin/promo-campaigns/:id', async (req, res) => {
+  try {
+    if (!db) return res.status(500).json({ error: 'Database not initialized' });
+    const { id } = req.params;
+    await db.collection('promo_campaigns').doc(id).delete();
+    res.json({ success: true, id });
+  } catch (error: any) {
+    console.error('Delete promo campaign error:', error);
+    res.status(500).json({ error: 'Failed to delete promo campaign', message: error.message });
+  }
+});
+
+app.post('/api/admin/promo-campaigns/seed', async (req, res) => {
+  try {
+    if (!db) return res.status(500).json({ error: 'Database not initialized' });
+    const snapshot = await db.collection('promo_campaigns').get();
+    if (!snapshot.empty) {
+      return res.json({ success: true, message: 'Already seeded', count: snapshot.size });
+    }
+    const defaultPromos = [
+      {
+        id: 'promo-flash-weekend',
+        title: 'Weekend Air Jordan Drop',
+        subtitle: 'Exclusive retro editions · Limited stock in Nairobi CBD',
+        badgeText: '20% OFF',
+        placement: 'all',
+        couponCode: 'AIR20',
+        discountPercentage: 20,
+        image: 'https://images.unsplash.com/photo-1552346154-21d32810aba3?auto=format&fit=crop&w=800&q=80',
+        link: '/shop?gender=Men',
+        ctaText: 'Shop Retro Drop',
+        active: true,
+        countdown: true,
+        endDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+        theme: 'dark',
+        utmSource: 'weekend_drop',
+        stats: { views: 142, clicks: 38 },
+        createdAt: new Date().toISOString()
+      },
+      {
+        id: 'promo-free-delivery',
+        title: 'Free Nairobi CBD & Westlands Delivery',
+        subtitle: 'On all orders above KES 5,000 this week only',
+        badgeText: 'FREE SHIPPING',
+        placement: 'shop-grid',
+        couponCode: 'DELIVERYFREE',
+        discountPercentage: 0,
+        image: 'https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?auto=format&fit=crop&w=800&q=80',
+        link: '/shop',
+        ctaText: 'Claim Free Delivery',
+        active: true,
+        countdown: false,
+        theme: 'orange',
+        utmSource: 'free_delivery',
+        stats: { views: 89, clicks: 21 },
+        createdAt: new Date().toISOString()
+      }
+    ];
+
+    const batch = db.batch();
+    for (const promo of defaultPromos) {
+      batch.set(db.collection('promo_campaigns').doc(promo.id), promo);
+    }
+    await batch.commit();
+
+    res.json({ success: true, count: defaultPromos.length });
+  } catch (error: any) {
+    console.error('Seed promo campaigns error:', error);
+    res.status(500).json({ error: 'Failed to seed promo campaigns', message: error.message });
+  }
+});
+
 // Validate Coupon codes for Checkout discount triggers
 app.get('/api/coupons/validate', async (req, res) => {
   try {

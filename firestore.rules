@@ -202,5 +202,10 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin();
     }
+
+    match /promo_campaigns/{campaignId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
   }
 }

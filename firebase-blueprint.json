@@ -222,6 +222,37 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "name", "email", "message", "status", "createdAt"]
+    },
+    "PromoCampaign": {
+      "title": "Promo Campaign",
+      "description": "Marketing promotions, ads, banners and social campaigns",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "subtitle": { "type": "string" },
+        "badgeText": { "type": "string" },
+        "placement": { "type": "string", "enum": ["homepage-grid", "shop-grid", "top-banner", "all"] },
+        "couponCode": { "type": "string" },
+        "discountPercentage": { "type": "number" },
+        "image": { "type": "string" },
+        "link": { "type": "string" },
+        "ctaText": { "type": "string" },
+        "active": { "type": "boolean" },
+        "countdown": { "type": "boolean" },
+        "startDate": { "type": "string" },
+        "endDate": { "type": "string" },
+        "theme": { "type": "string", "enum": ["dark", "orange", "minimal"] },
+        "utmSource": { "type": "string" },
+        "stats": {
+          "type": "object",
+          "properties": {
+            "views": { "type": "number" },
+            "clicks": { "type": "number" }
+          }
+        }
+      },
+      "required": ["id", "title", "placement", "active"]
     }
   },
   "firestore": {
@@ -272,6 +303,10 @@
     "/coupons/{couponId}": {
       "schema": "Coupon",
       "description": "Store promo coupon codes"
+    },
+    "/promo_campaigns/{campaignId}": {
+      "schema": "PromoCampaign",
+      "description": "Marketing promotions, ads, and banners"
     }
   }
 }

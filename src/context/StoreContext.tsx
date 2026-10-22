@@ -139,6 +139,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [contactMessages, setContactMessages] = useState<ContactMessage[]>([]);
   const [homepageSections, setHomepageSections] = useState<HomepageSection[]>([]);
   const [promoCampaigns, setPromoCampaigns] = useState<PromoCampaign[]>(() => {
+    try {
+      const saved = localStorage.getItem('solemate_promo_campaigns');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
     return [
       {
         id: 'promo-flash-weekend',
@@ -302,11 +309,62 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       console.warn('Silent fallback for homepage sections subscription:', error.message);
     });
 
-    const unsubPromos = onSnapshot(collection(db, 'promo_campaigns'), (snapshot) => {
+    const unsubPromos = onSnapshot(collection(db, 'promo_campaigns'), async (snapshot) => {
       if (!snapshot.empty) {
         const list: PromoCampaign[] = [];
         snapshot.forEach(doc => list.push({ id: doc.id, ...doc.data() } as PromoCampaign));
         setPromoCampaigns(list);
+        try {
+          localStorage.setItem('solemate_promo_campaigns', JSON.stringify(list));
+        } catch {}
+      } else if (auth.currentUser?.email === 'carlisat19@gmail.com') {
+        // Auto-seed initial promo campaigns directly into Firestore so database is not empty
+        try {
+          const initialSeeds: PromoCampaign[] = [
+            {
+              id: 'promo-flash-weekend',
+              title: 'Weekend Air Jordan Drop',
+              subtitle: 'Exclusive retro editions · Limited stock in Nairobi CBD',
+              badgeText: '20% OFF',
+              placement: 'all',
+              couponCode: 'AIR20',
+              discountPercentage: 20,
+              image: 'https://images.unsplash.com/photo-1552346154-21d32810aba3?auto=format&fit=crop&w=800&q=80',
+              link: '/shop?gender=Men',
+              ctaText: 'Shop Retro Drop',
+              active: true,
+              countdown: true,
+              endDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+              theme: 'dark',
+              utmSource: 'weekend_drop',
+              stats: { views: 142, clicks: 38 },
+              createdAt: new Date().toISOString()
+            },
+            {
+              id: 'promo-free-delivery',
+              title: 'Free Nairobi CBD & Westlands Delivery',
+              subtitle: 'On all orders above KES 5,000 this week only',
+              badgeText: 'FREE SHIPPING',
+              placement: 'shop-grid',
+              couponCode: 'DELIVERYFREE',
+              discountPercentage: 0,
+              image: 'https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?auto=format&fit=crop&w=800&q=80',
+              link: '/shop',
+              ctaText: 'Claim Free Delivery',
+              active: true,
+              countdown: false,
+              theme: 'orange',
+              utmSource: 'free_delivery',
+              stats: { views: 89, clicks: 21 },
+              createdAt: new Date().toISOString()
+            }
+          ];
+          for (const s of initialSeeds) {
+            await setDoc(doc(db, 'promo_campaigns', s.id), s);
+          }
+        } catch (e) {
+          console.warn('Auto-seed promo_campaigns to Firestore error:', e);
+        }
       }
     }, (error) => {
       console.warn('Silent fallback for promo_campaigns subscription:', error.message);
@@ -606,32 +664,46 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [currentUser]);
 
   const addPromoCampaign = useCallback(async (c: PromoCampaign) => {
+    const clean = stripUndefined(c);
+    setPromoCampaigns(prev => {
+      const updated = [clean, ...prev.filter(p => p.id !== clean.id)];
+      try { localStorage.setItem('solemate_promo_campaigns', JSON.stringify(updated)); } catch {}
+      return updated;
+    });
+
     try {
-      await setDoc(doc(db, 'promo_campaigns', c.id), stripUndefined(c));
-      setPromoCampaigns(prev => [c, ...prev.filter(p => p.id !== c.id)]);
+      await setDoc(doc(db, 'promo_campaigns', clean.id), clean);
     } catch (error) {
-      console.warn('Firestore fallback for adding promo campaign:', error);
-      setPromoCampaigns(prev => [c, ...prev.filter(p => p.id !== c.id)]);
+      handleFirestoreError(error, OperationType.CREATE, `promo_campaigns/${clean.id}`);
     }
   }, []);
 
   const updatePromoCampaign = useCallback(async (id: string, updates: Partial<PromoCampaign>) => {
+    const cleanUpdates = stripUndefined(updates);
+    setPromoCampaigns(prev => {
+      const updated = prev.map(p => p.id === id ? { ...p, ...cleanUpdates } : p);
+      try { localStorage.setItem('solemate_promo_campaigns', JSON.stringify(updated)); } catch {}
+      return updated;
+    });
+
     try {
-      await updateDoc(doc(db, 'promo_campaigns', id), stripUndefined(updates));
-      setPromoCampaigns(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
+      await updateDoc(doc(db, 'promo_campaigns', id), cleanUpdates);
     } catch (error) {
-      console.warn('Firestore fallback for updating promo campaign:', error);
-      setPromoCampaigns(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
+      handleFirestoreError(error, OperationType.UPDATE, `promo_campaigns/${id}`);
     }
   }, []);
 
   const deletePromoCampaign = useCallback(async (id: string) => {
+    setPromoCampaigns(prev => {
+      const updated = prev.filter(p => p.id !== id);
+      try { localStorage.setItem('solemate_promo_campaigns', JSON.stringify(updated)); } catch {}
+      return updated;
+    });
+
     try {
       await deleteDoc(doc(db, 'promo_campaigns', id));
-      setPromoCampaigns(prev => prev.filter(p => p.id !== id));
     } catch (error) {
-      console.warn('Firestore fallback for deleting promo campaign:', error);
-      setPromoCampaigns(prev => prev.filter(p => p.id !== id));
+      handleFirestoreError(error, OperationType.DELETE, `promo_campaigns/${id}`);
     }
   }, []);
 

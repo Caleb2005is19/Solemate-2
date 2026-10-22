@@ -22,7 +22,10 @@ import {
   Ticket,
   Image as ImageIcon,
   Check,
-  X
+  X,
+  Database,
+  RefreshCw,
+  AlertCircle
 } from 'lucide-react';
 import { PromoCampaign } from '../../types';
 import { SocialAdToolkit } from './SocialAdToolkit';
@@ -34,6 +37,8 @@ export function PromoCampaignsTab() {
   const [activeSubTab, setActiveSubTab] = useState<'campaigns' | 'social-toolkit'>('campaigns');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPromo, setEditingPromo] = useState<PromoCampaign | null>(null);
+  const [feedback, setFeedback] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState<Partial<PromoCampaign>>({
@@ -139,7 +144,31 @@ export function PromoCampaignsTab() {
       };
     }
 
-    await addPromoCampaign(preset);
+    try {
+      await addPromoCampaign(preset);
+      setFeedback({ message: `Preset "${preset.title}" launched and saved to database!`, type: 'success' });
+      setTimeout(() => setFeedback(null), 4000);
+    } catch (err: any) {
+      setFeedback({ message: 'Error saving to database: ' + (err.message || String(err)), type: 'error' });
+      setTimeout(() => setFeedback(null), 5000);
+    }
+  };
+
+  const handleSyncDatabase = async () => {
+    setIsSyncing(true);
+    setFeedback(null);
+    try {
+      for (const promo of promoCampaigns) {
+        await addPromoCampaign(promo);
+      }
+      setFeedback({ message: `All ${promoCampaigns.length} campaigns verified and saved to database!`, type: 'success' });
+      setTimeout(() => setFeedback(null), 4000);
+    } catch (err: any) {
+      setFeedback({ message: 'Database save: ' + (err.message || String(err)), type: 'error' });
+      setTimeout(() => setFeedback(null), 5000);
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   const handleOpenCreate = () => {
@@ -175,32 +204,40 @@ export function PromoCampaignsTab() {
     e.preventDefault();
     if (!formData.title?.trim()) return;
 
-    if (editingPromo) {
-      await updatePromoCampaign(editingPromo.id, {
-        ...formData,
-        endDate: formData.endDate ? new Date(formData.endDate).toISOString() : undefined,
-      });
-    } else {
-      const newCampaign: PromoCampaign = {
-        id: `promo-${Date.now()}`,
-        title: formData.title.trim(),
-        subtitle: formData.subtitle?.trim() || '',
-        badgeText: formData.badgeText?.trim() || 'PROMO',
-        placement: formData.placement || 'all',
-        couponCode: formData.couponCode?.trim().toUpperCase(),
-        discountPercentage: Number(formData.discountPercentage) || 0,
-        image: formData.image || 'https://images.unsplash.com/photo-1552346154-21d32810aba3?auto=format&fit=crop&w=800&q=80',
-        link: formData.link?.trim() || '/shop',
-        ctaText: formData.ctaText?.trim() || 'Shop Now',
-        active: formData.active ?? true,
-        countdown: formData.countdown ?? true,
-        endDate: formData.endDate ? new Date(formData.endDate).toISOString() : undefined,
-        theme: formData.theme || 'dark',
-        utmSource: formData.title.toLowerCase().replace(/\s+/g, '_'),
-        stats: { views: 0, clicks: 0 },
-        createdAt: new Date().toISOString()
-      };
-      await addPromoCampaign(newCampaign);
+    try {
+      if (editingPromo) {
+        await updatePromoCampaign(editingPromo.id, {
+          ...formData,
+          endDate: formData.endDate ? new Date(formData.endDate).toISOString() : undefined,
+        });
+        setFeedback({ message: 'Campaign updated and saved to database!', type: 'success' });
+      } else {
+        const newCampaign: PromoCampaign = {
+          id: `promo-${Date.now()}`,
+          title: formData.title.trim(),
+          subtitle: formData.subtitle?.trim() || '',
+          badgeText: formData.badgeText?.trim() || 'PROMO',
+          placement: formData.placement || 'all',
+          couponCode: formData.couponCode?.trim().toUpperCase(),
+          discountPercentage: Number(formData.discountPercentage) || 0,
+          image: formData.image || 'https://images.unsplash.com/photo-1552346154-21d32810aba3?auto=format&fit=crop&w=800&q=80',
+          link: formData.link?.trim() || '/shop',
+          ctaText: formData.ctaText?.trim() || 'Shop Now',
+          active: formData.active ?? true,
+          countdown: formData.countdown ?? true,
+          endDate: formData.endDate ? new Date(formData.endDate).toISOString() : undefined,
+          theme: formData.theme || 'dark',
+          utmSource: formData.title.toLowerCase().replace(/\s+/g, '_'),
+          stats: { views: 0, clicks: 0 },
+          createdAt: new Date().toISOString()
+        };
+        await addPromoCampaign(newCampaign);
+        setFeedback({ message: 'New promo campaign created and saved to database!', type: 'success' });
+      }
+      setTimeout(() => setFeedback(null), 4000);
+    } catch (err: any) {
+      setFeedback({ message: 'Error saving to database: ' + (err.message || String(err)), type: 'error' });
+      setTimeout(() => setFeedback(null), 5000);
     }
 
     setIsModalOpen(false);
@@ -234,7 +271,18 @@ export function PromoCampaignsTab() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={handleSyncDatabase}
+            disabled={isSyncing}
+            className="flex items-center gap-2 bg-white text-zinc-800 border border-zinc-200 px-4 py-2.5 rounded-xl font-bold hover:bg-zinc-50 transition-all text-sm cursor-pointer disabled:opacity-50 shadow-xs"
+            title="Sync all active campaigns to Firestore database"
+          >
+            <RefreshCw className={`w-4 h-4 text-orange-500 ${isSyncing ? 'animate-spin' : ''}`} />
+            <span>{isSyncing ? 'Saving to Database...' : 'Save All to Database'}</span>
+          </button>
+
           <button
             type="button"
             onClick={handleOpenCreate}
@@ -245,6 +293,31 @@ export function PromoCampaignsTab() {
           </button>
         </div>
       </div>
+
+      {/* Database Feedback Banner */}
+      {feedback && (
+        <div className={`p-4 rounded-xl border flex items-center justify-between gap-3 text-sm font-medium ${
+          feedback.type === 'success' 
+            ? 'bg-emerald-50 border-emerald-200 text-emerald-800' 
+            : 'bg-amber-50 border-amber-200 text-amber-800'
+        }`}>
+          <div className="flex items-center gap-2">
+            {feedback.type === 'success' ? (
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+            ) : (
+              <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+            )}
+            <span>{feedback.message}</span>
+          </div>
+          <button 
+            type="button" 
+            onClick={() => setFeedback(null)} 
+            className="text-xs opacity-60 hover:opacity-100 p-1"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* Navigation Sub-Tabs */}
       <div className="flex items-center gap-2 border-b border-zinc-200">
