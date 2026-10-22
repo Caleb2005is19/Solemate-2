@@ -36,6 +36,7 @@ import { downloadOrderPdf } from '../utils/pdfGenerator';
 import { initiateStkPush, checkPaymentStatus, verifyMpesaReceipt } from '../services/payments';
 import { DELIVERY_AREAS } from '../constants';
 import { useSearchParams } from 'react-router-dom';
+import { useNotifications } from '../context/NotificationContext';
 import type { CartItem, Product, Order, OrderStatus } from '../types';
 
 interface ProfileProps {
@@ -60,6 +61,7 @@ const SHOE_SIZES = [
 export function Profile({ initialTab }: ProfileProps) {
   const { currentUser, userProfile, updateUserProfile, orders, siteSettings } = useStore();
   const { addToCart, setIsCartOpen } = useCart();
+  const { notify } = useNotifications();
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Active Tab: prioritize prop -> query param -> default 'orders'
@@ -169,6 +171,14 @@ export function Profile({ initialTab }: ProfileProps) {
         genderPreference: profileForm.genderPreference as any,
       });
       setProfileSaveSuccess(true);
+      notify({
+        recipient: 'customer',
+        userId: currentUser?.uid,
+        title: 'Profile Updated',
+        message: 'Your personal info and shoe size preference (EU ' + profileForm.preferredShoeSize + ') have been saved.',
+        type: 'settings',
+        link: '/profile?tab=profile'
+      });
       setTimeout(() => setProfileSaveSuccess(false), 3500);
     } catch (err) {
       console.error('Failed to update profile:', err);
@@ -188,6 +198,14 @@ export function Profile({ initialTab }: ProfileProps) {
         deliveryNotes: addressForm.deliveryNotes.trim(),
       });
       setAddressSaveSuccess(true);
+      notify({
+        recipient: 'customer',
+        userId: currentUser?.uid,
+        title: 'Delivery Address Saved',
+        message: `Default address updated to ${addressForm.location || addressForm.city}.`,
+        type: 'settings',
+        link: '/profile?tab=addresses'
+      });
       setTimeout(() => setAddressSaveSuccess(false), 3500);
     } catch (err) {
       console.error('Failed to update address:', err);

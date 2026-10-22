@@ -1,120 +1,66 @@
-# Unified Customer Portal & Enhanced Order Tracking Hub
+# Implementation Plan - Order Sorting Across Customer Portal & Admin Dashboard
 
-A premium, modern customer account portal for Solemate shoppers to track their sneaker orders through an interactive fulfillment timeline, manage delivery addresses, set preferred footwear sizes, retry pending M-Pesa payments, and download certified purchase receipts.
-
-## User Review & Critical Decisions
-
-> [!IMPORTANT]
-> The following product decisions were confirmed during the interactive interview and will guide this implementation:
->
-> - **Profile & Footwear Personalization**: Customers can manage their personal contact details, default delivery address, and configure their **Preferred Shoe Size** (EU/US/UK size selector) and style preferences for faster checkout.
-> - **Rich Order Tracking & Payment Tools**: Every order features an **interactive visual status timeline** (Placed → Paid → Processing → Shipped → Delivered), direct **M-Pesa STK Push retry** & receipt verification for pending orders, and one-click **Solemate.co.ke PDF receipt downloads**.
-> - **Unified Account Architecture**: A single, cohesive Customer Portal with responsive navigation tabs for **Orders & Tracking**, **Profile & Sizing**, and **Delivery Addresses**, streamlining both `/profile` and `/my-orders` into one seamless experience.
+Provide a comprehensive, intuitive, and responsive order sorting experience across the store so that both customers and administrators can quickly organize, inspect, and prioritize orders.
 
 ---
 
-## 1. Overview & Core Concept
+## 1. Overview & Objectives
 
-- **What It Does**: Transforms the existing fragmented customer profile and order pages into a cohesive, high-touch Customer Hub. Shoppers can track order dispatch step-by-step, verify M-Pesa payments directly from their account without contacting support, manage multiple delivery drop-offs (e.g. Home vs. Office), and save their exact shoe size preferences so checkout is pre-filled.
-- **Target Audience**: Solemate footwear shoppers, repeat collectors, and customers tracking live sneaker deliveries across Nairobi and Kenya.
-- **Key Value**: Reduces customer service inquiries regarding order status and M-Pesa payment clearing; accelerates repeat purchases with pre-saved sizes and one-click re-ordering; delivers a polished luxury retail experience aligned with the Solemate brand.
+Currently:
+- **Customer Portal (`Profile.tsx` / `MyOrders.tsx`)**: Has search by order ID / sneaker name and status tabs, but lacks order sorting controls (customers cannot sort by newest/oldest, highest/lowest price, or delivery stage).
+- **Admin Dashboard (`OrdersTab.tsx`)**: Has column header sorting and a dropdown, but lacks quick-filter sort pills, fulfillment priority sorting, and visual sort chips.
 
----
-
-## 2. User Experience & Visual Design
-
-### Key User Flows
-
-1. **Order Tracking & Fulfillment Timeline**:
-   - The customer opens the Orders tab and sees their orders sorted by newest first.
-   - Each order card displays a high-contrast visual progress bar with 4 distinct stages: *Order Placed*, *Payment Confirmed*, *Dispatched for Delivery*, and *Delivered*.
-   - If an order is still marked *Pending*, an inline payment assist card offers a one-click *"Retry M-Pesa STK Push"* button and a receipt code verification box.
-   - Completed orders offer one-click *"Download PDF Receipt"* and a *"Re-order"* button that adds the exact shoe and size directly back to the shopping bag.
-
-2. **Personal Profile & Shoe Sizing Preferences**:
-   - The customer navigates to the *Profile & Sizing* tab.
-   - Interactive Shoe Size selector grid (EU 37 to EU 46, US 5 to US 12) allows selecting their primary size and fit preference (Men / Women / Unisex).
-   - Personal information form allows updating Display Name, Primary Phone Number, and Secondary WhatsApp Number.
-   - Clicking *"Save Profile"* displays an immediate success toast and syncs directly to their Firestore profile.
-
-3. **Saved Delivery Addresses**:
-   - Customers can view and edit their primary delivery details (City, Street/Estate, House/Apartment/Office, Landmark notes for dispatch riders).
-   - Pre-fills seamlessly during subsequent checkout runs.
-
-### Visual Identity & Theme
-- **Color Palette & Accents**:
-  - Dominant Neutral Canvas: Crisp white (`#ffffff`) card containers with clean zinc hairline borders (`border-zinc-200`) on subtle off-white backgrounds (`bg-zinc-50`).
-  - Brand Accent: Signature Solemate energetic orange (`#f97316`) for active tab pill indicators, primary CTA buttons, and completed timeline steps.
-  - Dark Surface Highlights: Premium dark charcoal (`#18181b`) for executive actions (PDF downloads, Re-order buttons).
-- **Typography & Layout**:
-  - Tabular numerals (`font-mono tabular-nums`) for currency amounts, dates, and order numbers.
-  - Clean unboxed metadata separated by typographic dots (`·`).
-  - Status indicators paired with descriptive text and icons for full color-blind accessibility.
+We will implement a unified sorting engine with clear controls, responsive UI, and persistent preference.
 
 ---
 
-## 3. Key Product Decisions & Trade-Offs
+## 2. Proposed Features & Changes
 
-- **Decision 1: Unified Portal with Synchronized URL Routing**
-  - *Chosen Approach*: Unify `/profile` and `/my-orders` into a synchronized component architecture where `/my-orders` opens the unified portal pre-selected on the Orders tab, while `/profile` opens on the Profile tab.
-  - *Why*: Eliminates code duplication across two separate pages, ensures feature parity, and keeps customer navigation consistent.
+### A. Customer Portal Order Sorting (`src/pages/Profile.tsx`)
+1. **Sort State & Options**:
+   - `newest`: Date: Newest First (Default)
+   - `oldest`: Date: Oldest First
+   - `price-desc`: Amount: Highest First
+   - `price-asc`: Amount: Lowest First
+   - `status`: Delivery Progress / Stage (Pending -> Processing -> Shipped -> Delivered -> Cancelled)
+   - `items-desc`: Most Items First
+2. **Interactive UI Controls**:
+   - Add a styled sort dropdown menu next to the search bar and status filters.
+   - Add quick sort chips/buttons for one-tap mobile sorting (e.g., "Newest", "Highest Price", "In Transit").
+   - Display active sort badge and a "Reset filters" button when non-default sort or search is applied.
+3. **Smooth Client-Side Sorting**:
+   - Integrate sorting into `useMemo` alongside search query and status filters.
+   - Maintain animated layout transitions with Framer Motion when sort criteria change.
 
-- **Decision 2: Embedded Payment Resolution inside Order Cards**
-  - *Chosen Approach*: Bring M-Pesa STK Push retry and code verification directly into the order cards for any unpaid orders, rather than forcing the customer back into the checkout flow.
-  - *Why*: Reduces cart abandonment and failed order drop-offs when M-Pesa timeouts occur.
-
-- **Decision 3: Shoe Size Preference Storage in Profile**
-  - *Chosen Approach*: Store `preferredShoeSize` and `genderPreference` on the `UserProfile` document in Firestore.
-  - *Why*: Enables smart checkout pre-selection and personalized shop filtering across future shopping sessions.
+### B. Admin Dashboard Enhancements (`src/components/admin/OrdersTab.tsx`)
+1. **Quick-Access Sort Pills**:
+   - Add top-row quick pills for instant operational sorting:
+     - ⚡ **Recent First** (Date ↓)
+     - 💰 **High Value** (Total ↓)
+     - ⚠️ **Action Needed** (Pending/Processing priority)
+     - 👤 **Customer Name** (A-Z)
+2. **Fulfillment Priority Sort**:
+   - Add an intelligent "Fulfillment Priority" sort option that groups actionable orders (`Pending` & `Processing`) at the top, sorted by oldest order date first, to ensure prompt order processing.
+3. **Visual Header Badges**:
+   - Enhance table column headers with ascending/descending arrows and highlighted active states.
 
 ---
 
-## 4. Technical Architecture & Data Strategy
+## 3. User Review Required
 
-### System Architecture Diagram
+> [!NOTE]
+> Default sorting will remain **"Newest First"** so that recent orders always show up immediately upon opening the page, with all other sorting presets available on demand.
 
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│                        Solemate Customer Portal                        │
-├────────────────────────────────────────────────────────────────────────┤
-│  [ Customer Hero Header ]                                              │
-│  Avatar · Customer Name · Member Since · Quick Stats (Orders / Spent)   │
-├────────────────────────────────────────────────────────────────────────┤
-│  [ Segmented Navigation Tabs ]                                         │
-│  ┌───────────────────────┬──────────────────────┬────────────────────┐ │
-│  │ 📦 Orders & Tracking  │ 👟 Profile & Sizing  │ 📍 Saved Addresses │ │
-│  └───────────────────────┴──────────────────────┴────────────────────┘ │
-├────────────────────────────────────────────────────────────────────────┤
-│                                                                        │
-│  TAB 1: ORDERS & TRACKING                                              │
-│  - Status Filter Tabs: All · In Transit · Delivered · Pending          │
-│  - Order Cards with:                                                   │
-│    * Interactive 4-Stage Visual Fulfillment Timeline                   │
-│    * Shoe Items List with Photo, Size, Quantity, Price                 │
-│    * Pending M-Pesa STK Push Retry & Receipt Input                     │
-│    * One-Click PDF Receipt Download & Native Print                     │
-│    * "Buy Again" Quick Re-order Button                                 │
-│                                                                        │
-│  TAB 2: PROFILE & SHOE SIZING                                          │
-│  - Full Name & Email                                                   │
-│  - Primary Contact Phone & Secondary Phone                             │
-│  - Interactive Sizing Matrix (EU 36 - 47)                              │
-│  - Fit Preference (Men / Women / Unisex)                               │
-│                                                                        │
-│  TAB 3: DELIVERY ADDRESSES                                             │
-│  - Primary Delivery City (Nairobi CBD, Westlands, Kilimani, etc.)      │
-│  - Physical Street, Estate & House/Apartment                           │
-│  - Dispatch Rider Landmark Instructions                                │
-│                                                                        │
-└────────────────────────────────────────────────────────────────────────┘
-```
+---
 
-### Component & State Plan
-1. **Types Update (`src/services/types.ts`)**:
-   - Extend `UserProfile` to support `preferredShoeSize?: string`, `genderPreference?: string`, and `secondaryPhone?: string`.
-2. **Refactor Profile Page (`src/pages/Profile.tsx`)**:
-   - Implement the unified portal with reactive tab switching (`orders`, `profile`, `addresses`).
-   - Integrate M-Pesa payment query and STK push handler.
-   - Embed the Solemate branded visual progress timeline.
-3. **Synchronize MyOrders Route (`src/pages/MyOrders.tsx`)**:
-   - Align `MyOrders.tsx` to mount the unified customer portal with `initialTab="orders"`.
+## 4. Verification Plan
+
+### Automated Verification
+- Run `lint_applet` to check for syntax and TypeScript errors.
+- Run `compile_applet` to verify zero build errors.
+
+### Manual / Browser Verification
+- Open the Customer Portal (`/profile?tab=orders` or `/orders`), switch sorting between Newest, Oldest, Highest Amount, and Delivery Stage, and verify list reorders instantly.
+- Test combining search queries with sorting.
+- Open Admin Dashboard (`/admin`), test sorting with column headers, dropdown presets, and quick pills.
+- Verify responsive layout on mobile and desktop viewports.

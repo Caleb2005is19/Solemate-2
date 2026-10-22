@@ -1,15 +1,18 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ShoppingBag, Menu, Search, X, Heart, Phone, User, LogIn, LogOut, ShieldCheck, Zap } from 'lucide-react';
+import { ShoppingBag, Menu, Search, X, Heart, Phone, User, LogIn, LogOut, ShieldCheck, Zap, Bell } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useStore } from '../context/StoreContext';
+import { useNotifications } from '../context/NotificationContext';
 import { loginWithGoogle, logout } from '../firebase';
 import { motion, AnimatePresence } from 'motion/react';
 import { Logo } from './Logo';
+import { HamburgerNotificationTab, NotificationToastDock } from './NotificationCenter';
 
 export function Navbar() {
   const { cartCount, setIsCartOpen, wishlistItems, searchQuery, setSearchQuery } = useCart();
   const { currentUser, isAdmin, currentSellerId, setIsAuthModalOpen, siteSettings } = useStore();
+  const { unreadCount } = useNotifications();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -64,19 +67,28 @@ export function Navbar() {
         </AnimatePresence>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            {/* Mobile menu button */}
-            <div className="flex items-center sm:hidden">
+            {/* Hamburger menu button */}
+            <div className="flex items-center">
               <button
+                type="button"
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="p-2 rounded-md text-zinc-400 hover:text-zinc-900 focus:outline-none"
-                aria-label={isMobileMenuOpen ? "Close main navigation menu" : "Open main navigation menu"}
+                className="p-2 rounded-xl text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100 transition-colors relative cursor-pointer flex items-center gap-1.5 focus-visible:outline-hidden"
+                aria-label={isMobileMenuOpen ? "Close menu" : "Open navigation menu"}
+                aria-expanded={isMobileMenuOpen}
               >
-                {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+                {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+                <span className="hidden lg:inline text-xs font-semibold text-zinc-700">Menu</span>
+                {unreadCount > 0 && !isMobileMenuOpen && (
+                  <span 
+                    className="absolute top-1.5 right-1.5 lg:top-2 lg:right-2 w-2.5 h-2.5 bg-orange-500 rounded-full ring-2 ring-white" 
+                    title={`${unreadCount} unread notification${unreadCount === 1 ? '' : 's'}`}
+                  />
+                )}
               </button>
             </div>
 
             {/* Logo */}
-            <div className="flex-1 flex justify-center sm:justify-start">
+            <div className="flex-1 flex justify-center sm:justify-start ml-2 sm:ml-4">
               <Link to="/" className="flex items-center gap-2 group" aria-label="Solemate Home">
                 <Logo variant="horizontal" size={38} />
               </Link>
@@ -153,6 +165,25 @@ export function Navbar() {
                           <User className="w-4 h-4" />
                           My Profile
                         </Link>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsProfileOpen(false);
+                            setIsMobileMenuOpen(true);
+                          }}
+                          className="w-full flex items-center justify-between px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-50 transition-colors text-left cursor-pointer"
+                        >
+                          <span className="flex items-center gap-2">
+                            <Bell className="w-4 h-4 text-zinc-500" />
+                            Notifications
+                          </span>
+                          {unreadCount > 0 && (
+                            <span className="text-[11px] font-semibold text-orange-600 tabular-nums">
+                              {unreadCount}
+                            </span>
+                          )}
+                        </button>
 
                         <Link 
                           to="/my-orders" 
@@ -256,64 +287,81 @@ export function Navbar() {
           )}
         </AnimatePresence>
 
-        {/* Mobile Navigation */}
+        {/* Navigation & Notifications Drawer */}
         <AnimatePresence>
           {isMobileMenuOpen && (
             <motion.div
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              className="sm:hidden overflow-hidden bg-white border-b border-zinc-200"
+              transition={{ duration: 0.2 }}
+              className="overflow-hidden bg-white border-b border-zinc-200 shadow-xl"
             >
-              <div className="px-2 pt-2 pb-3 space-y-1">
-                <Link to="/" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-md text-base font-medium text-zinc-900 hover:bg-zinc-50 hover:text-orange-500">Home</Link>
-                <Link to="/shop" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-md text-base font-medium text-zinc-900 hover:bg-zinc-50 hover:text-orange-500">Shop All</Link>
-                <Link to="/shop?gender=Men" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-md text-base font-medium text-zinc-900 hover:bg-zinc-50 hover:text-orange-500">Men's</Link>
-                <Link to="/shop?gender=Women" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-md text-base font-medium text-zinc-900 hover:bg-zinc-50 hover:text-orange-500">Women's</Link>
-                <Link to="/shop?wishlist=true" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-md text-base font-medium text-zinc-900 hover:bg-zinc-50 hover:text-orange-500">My Wishlist ({wishlistItems.length})</Link>
-                <Link to="/my-orders" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-md text-base font-medium text-zinc-900 hover:bg-zinc-50 hover:text-orange-500">My Orders</Link>
-                <Link to="/profile" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-md text-base font-medium text-zinc-900 hover:bg-zinc-50 hover:text-orange-500">My Profile</Link>
-                
-                {isAdmin && (
-                  <>
-                    <div className="h-px bg-zinc-200 my-2 mx-3"></div>
-                    <Link to="/admin" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-md text-base font-bold text-orange-600 hover:bg-orange-50 uppercase tracking-wider">Admin Portal</Link>
-                  </>
-                )}
+              <div className="max-w-7xl mx-auto px-4 py-3 space-y-2">
+                {/* 1. Notifications Tab (First-class item in Hamburger Menu) */}
+                <HamburgerNotificationTab onCloseMenu={() => setIsMobileMenuOpen(false)} />
 
-                {currentSellerId && (
-                  <>
-                    <div className="h-px bg-zinc-200 my-2 mx-3"></div>
-                    <Link to={`/seller/${currentSellerId}`} onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-md text-base font-bold text-orange-600 hover:bg-orange-50 uppercase tracking-wider">Seller Portal</Link>
-                  </>
-                )}
+                {/* 2. Menu Links */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-1 text-sm font-medium">
+                  <div className="space-y-1">
+                    <p className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider px-3 py-1">Shop Collections</p>
+                    <Link to="/" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-lg text-zinc-800 hover:bg-zinc-50 hover:text-orange-600 transition-colors">Home</Link>
+                    <Link to="/shop" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-lg text-zinc-800 hover:bg-zinc-50 hover:text-orange-600 transition-colors">Shop All Sneakers</Link>
+                    <Link to="/shop?gender=Men" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-lg text-zinc-800 hover:bg-zinc-50 hover:text-orange-600 transition-colors">Men's Sneakers</Link>
+                    <Link to="/shop?gender=Women" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-lg text-zinc-800 hover:bg-zinc-50 hover:text-orange-600 transition-colors">Women's Sneakers</Link>
+                  </div>
 
-                <div className="h-px bg-zinc-200 my-2 mx-3"></div>
-                {currentUser ? (
-                  <button 
-                    onClick={() => {
-                      logout();
-                      setIsMobileMenuOpen(false);
-                    }}
-                    className="w-full text-left px-3 py-2 rounded-md text-base font-medium text-red-600 hover:bg-red-50"
-                  >
-                    Sign Out
-                  </button>
-                ) : (
-                  <button 
-                    onClick={() => {
-                      handleLogin();
-                      setIsMobileMenuOpen(false);
-                    }}
-                    className="w-full text-left px-3 py-2 rounded-md text-base font-medium text-zinc-900 hover:bg-zinc-50 hover:text-orange-500"
-                  >
-                    Sign In
-                  </button>
-                )}
+                  <div className="space-y-1">
+                    <p className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider px-3 py-1">Customer Account</p>
+                    <Link to="/shop?wishlist=true" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-lg text-zinc-800 hover:bg-zinc-50 hover:text-orange-600 transition-colors">My Wishlist ({wishlistItems.length})</Link>
+                    <Link to="/my-orders" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-lg text-zinc-800 hover:bg-zinc-50 hover:text-orange-600 transition-colors">My Orders & Tracking</Link>
+                    <Link to="/profile" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-lg text-zinc-800 hover:bg-zinc-50 hover:text-orange-600 transition-colors">My Profile & Addresses</Link>
+                  </div>
+
+                  {(isAdmin || currentSellerId) && (
+                    <div className="space-y-1">
+                      <p className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider px-3 py-1">Portals</p>
+                      {isAdmin && (
+                        <Link to="/admin" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-lg text-orange-600 font-semibold hover:bg-orange-50 transition-colors">Admin Dashboard</Link>
+                      )}
+                      {currentSellerId && (
+                        <Link to={`/seller/${currentSellerId}`} onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-lg text-orange-600 font-semibold hover:bg-orange-50 transition-colors">Seller Portal</Link>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="space-y-1">
+                    <p className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider px-3 py-1">Session</p>
+                    {currentUser ? (
+                      <button 
+                        onClick={() => {
+                          logout();
+                          setIsMobileMenuOpen(false);
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-lg text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                      >
+                        Sign Out ({currentUser.displayName || currentUser.email?.split('@')[0]})
+                      </button>
+                    ) : (
+                      <button 
+                        onClick={() => {
+                          handleLogin();
+                          setIsMobileMenuOpen(false);
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-lg text-zinc-900 font-semibold hover:bg-zinc-100 hover:text-orange-600 transition-colors cursor-pointer"
+                      >
+                        Sign In / Register
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Global Toast Dock for Real-Time Order & System Alerts */}
+        <NotificationToastDock />
       </nav>
     </header>
   );

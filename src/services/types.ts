@@ -190,3 +190,16 @@ export interface HomepageSection {
     items?: { icon?: string; title: string; description: string }[];
   };
 }
+
+export interface AppNotification {
+  id: string;
+  recipient: 'all' | 'admin' | 'customer';
+  userId?: string;
+  title: string;
+  message: string;
+  type: 'order' | 'payment' | 'inventory' | 'settings' | 'general';
+  timestamp: string;
+  read: boolean;
+  link?: string;
+  metadata?: Record<string, any>;
+}

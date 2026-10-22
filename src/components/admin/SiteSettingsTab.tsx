@@ -3,9 +3,11 @@ import { useStore } from '../../context/StoreContext';
 import { Save, Globe, Mail, Phone, MapPin, MessageSquare, Share2, Search, Type, Clock, TrendingUp, AlertCircle, Loader2 } from 'lucide-react';
 import { SiteSettings } from '../../types';
 import { uploadToCloudinary } from '../../services/cloudinaryService';
+import { useNotifications } from '../../context/NotificationContext';
 
 export function SiteSettingsTab() {
   const { siteSettings, updateSiteSettings } = useStore();
+  const { notify } = useNotifications();
   const [formData, setFormData] = useState<Partial<SiteSettings>>({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -48,6 +50,13 @@ export function SiteSettingsTab() {
     try {
       await updateSiteSettings(formData);
       setSuccess(true);
+      notify({
+        recipient: 'admin',
+        title: 'Site Settings Saved',
+        message: 'Global business and store configuration updated.',
+        type: 'settings',
+        link: '/admin'
+      });
       setTimeout(() => setSuccess(false), 3000);
     } catch (err) {
       setError('Failed to save settings. Please try again.');

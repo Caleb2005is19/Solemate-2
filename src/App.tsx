@@ -2,6 +2,7 @@ import React, { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { CartProvider } from './context/CartContext';
 import { StoreProvider } from './context/StoreContext';
+import { NotificationProvider } from './context/NotificationContext';
 import { ThemeAndSettingsManager } from './components/ThemeAndSettingsManager';
 import { Navbar } from './components/Navbar';
 import { CartDrawer } from './components/CartDrawer';
@@ -34,8 +35,9 @@ export default function App() {
   return (
     <ErrorBoundary>
       <StoreProvider>
-        <ThemeAndSettingsManager>
-          <CartProvider>
+        <NotificationProvider>
+          <ThemeAndSettingsManager>
+            <CartProvider>
             <Router>
               <ScrollToTop />
               <div className="min-h-screen bg-white font-sans text-zinc-900 selection:bg-orange-500/30">
@@ -69,7 +71,8 @@ export default function App() {
             </Router>
           </CartProvider>
         </ThemeAndSettingsManager>
-      </StoreProvider>
+      </NotificationProvider>
+    </StoreProvider>
     </ErrorBoundary>
   );
 }

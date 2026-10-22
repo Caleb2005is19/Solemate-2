@@ -13,10 +13,12 @@ import { db, loginWithGoogle } from '../firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { downloadOrderPdf } from '../utils/pdfGenerator';
 import { printOrders } from '../utils/printInvoice';
+import { useNotifications } from '../context/NotificationContext';
 
 export function Checkout() {
   const { items, cartTotal, cartCount, clearCart } = useCart();
   const { addOrder, currentUser, userProfile, featureToggles, setIsAuthModalOpen, siteSettings } = useStore();
+  const { notify } = useNotifications();
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [createdOrder, setCreatedOrder] = useState<any>(null);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
@@ -190,6 +192,23 @@ export function Checkout() {
         setCreatedOrder(newOrder);
         await addOrder(newOrder);
 
+        // Notify customer and store administration
+        notify({
+          recipient: 'customer',
+          userId: currentUser?.uid,
+          title: 'Order Placed',
+          message: `Order #${newOrder.id.slice(-6)} received (KES ${Math.round(finalTotal).toLocaleString()}). Complete your M-Pesa prompt on your phone.`,
+          type: 'order',
+          link: '/profile?tab=orders'
+        });
+        notify({
+          recipient: 'admin',
+          title: 'New Customer Order',
+          message: `Order #${newOrder.id.slice(-6)} placed by ${fData.get('firstName') || 'Customer'} (KES ${Math.round(finalTotal).toLocaleString()}).`,
+          type: 'order',
+          link: '/admin'
+        });
+
         // 2. Initiate STK Push via IntaSend Payments Service
         await initiateStkPush({
           phone,
@@ -211,6 +230,13 @@ export function Checkout() {
             if (statusData.paymentStatus === 'Paid') {
               clearInterval(pollInterval);
               setMpesaStatus('success');
+              notify({
+                recipient: 'all',
+                title: 'Payment Confirmed',
+                message: `M-Pesa payment of KES ${Math.round(finalTotal).toLocaleString()} verified for Order #${orderId.slice(-6)}.`,
+                type: 'payment',
+                link: '/profile?tab=orders'
+              });
               setTimeout(() => {
                 clearCart();
                 setIsProcessing(false);
@@ -294,6 +320,22 @@ export function Checkout() {
         setCreatedOrder(newCardOrder);
         await addOrder(newCardOrder);
 
+        notify({
+          recipient: 'customer',
+          userId: currentUser?.uid,
+          title: 'Card Order Created',
+          message: `Order #${newCardOrder.id.slice(-6)} created. Complete the payment card dialog.`,
+          type: 'order',
+          link: '/profile?tab=orders'
+        });
+        notify({
+          recipient: 'admin',
+          title: 'New Customer Order',
+          message: `Card order #${newCardOrder.id.slice(-6)} placed for KES ${Math.round(finalTotal).toLocaleString()}.`,
+          type: 'order',
+          link: '/admin'
+        });
+
         // 4. Open the secure checkout dialog inline
         setupIntaSendCheckout({
           publicKey,
@@ -312,6 +354,13 @@ export function Checkout() {
             } catch (err) {
               console.warn('Backend confirmation poll check failed but payment succeeded:', err);
             }
+            notify({
+              recipient: 'all',
+              title: 'Card Payment Succeeded',
+              message: `Payment confirmed for Order #${orderId.slice(-6)}.`,
+              type: 'payment',
+              link: '/profile?tab=orders'
+            });
             clearCart();
             setIsProcessing(false);
             setIsSubmitted(true);

@@ -21,9 +21,11 @@ import {
 } from 'lucide-react';
 import type { SiteSettings } from '../../services/types';
 import { normalizeWhatsAppNumber, formatDisplayPhone, getWhatsAppChatUrl } from '../../utils/contactHelpers';
+import { useNotifications } from '../../context/NotificationContext';
 
 export function ContactSettingsTab() {
   const { siteSettings, updateSiteSettings } = useStore();
+  const { notify } = useNotifications();
 
   const [primaryPhone, setPrimaryPhone] = useState('+254 700 000 000');
   const [alternatePhone, setAlternatePhone] = useState('');
@@ -98,6 +100,13 @@ export function ContactSettingsTab() {
 
       await updateSiteSettings(updates);
       setSaveSuccess(true);
+      notify({
+        title: 'Contact Details Updated',
+        message: 'Store phone numbers, WhatsApp line, and support email were saved and updated live.',
+        type: 'settings',
+        recipient: 'all',
+        link: '/admin'
+      });
       setTimeout(() => setSaveSuccess(false), 4000);
     } catch (err: any) {
       console.error('Failed to update contact settings:', err);

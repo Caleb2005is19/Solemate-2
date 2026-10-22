@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import type { Order, OrderStatus } from '../../services/types';
 import { formatPrice } from '../../utils';
+import { useNotifications } from '../../context/NotificationContext';
 
 export type SortField = 'date' | 'total' | 'customer' | 'status' | 'id';
 export type SortDirection = 'asc' | 'desc';
@@ -50,9 +51,27 @@ export function OrdersTab({
   onPrintAllInvoices,
   role,
 }: OrdersTabProps) {
+  const { notify } = useNotifications();
+
   // Sort state: default to newest orders first
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+
+  // Handle status update with notification
+  const handleStatusChange = async (order: Order, newStatus: OrderStatus) => {
+    try {
+      await updateOrderStatus(order.id, newStatus);
+      notify({
+        recipient: 'all',
+        title: `Order #${order.id.slice(-6)} Status: ${newStatus}`,
+        message: `Order status set to "${newStatus}" for ${order.customerInfo?.firstName || 'Customer'}.`,
+        type: 'order',
+        link: '/admin'
+      });
+    } catch (err) {
+      console.error('Failed to update order status:', err);
+    }
+  };
 
   // Filter & Search states
   const [searchQuery, setSearchQuery] = useState('');
@@ -525,7 +544,7 @@ export function OrdersTab({
                     <td className="p-4">
                       <select
                         value={o.status}
-                        onChange={(e) => updateOrderStatus(o.id, e.target.value as OrderStatus)}
+                        onChange={(e) => handleStatusChange(o, e.target.value as OrderStatus)}
                         className={`px-3 py-1.5 rounded-full text-xs font-bold outline-none border cursor-pointer transition-all shadow-xs ${
                           o.status === 'Pending' ? 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100' :
                           o.status === 'Processing' ? 'bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100' :
