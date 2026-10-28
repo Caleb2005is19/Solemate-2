@@ -252,7 +252,21 @@
           }
         }
       },
-      "required": ["id", "title", "placement", "active"]
+    "SystemLog": {
+      "title": "System Log",
+      "description": "System, error, and telemetry logs across frontend, backend, Cloudinary, Firebase, and payment services",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "epochMs": { "type": "number" },
+        "level": { "type": "string", "enum": ["info", "warn", "error"] },
+        "category": { "type": "string", "enum": ["cloudinary", "firebase", "intasend", "server", "auth", "ui", "system"] },
+        "source": { "type": "string", "enum": ["server", "client"] },
+        "message": { "type": "string" },
+        "metadata": { "type": "object" }
+      },
+      "required": ["id", "timestamp", "level", "message"]
     }
   },
   "firestore": {
@@ -307,6 +321,10 @@
     "/promo_campaigns/{campaignId}": {
       "schema": "PromoCampaign",
       "description": "Marketing promotions, ads, and banners"
+    },
+    "/system_logs/{logId}": {
+      "schema": "SystemLog",
+      "description": "Persistent application, server, Cloudinary, and transaction error logs"
     }
   }
 }

@@ -17,6 +17,12 @@ import {
 import { db, auth } from '../firebase';
 import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, getDoc, query, where, Query, or, orderBy, writeBatch } from 'firebase/firestore';
 import { onAuthStateChanged, User } from 'firebase/auth';
+import { logSystemError, initGlobalErrorListeners } from '../services/loggingService';
+
+// Initialize global error listener once
+if (typeof window !== 'undefined') {
+  initGlobalErrorListeners();
+}
 
 enum OperationType {
   CREATE = 'create',
@@ -54,6 +60,7 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
     path
   };
   console.error('Firestore Error: ', JSON.stringify(errInfo));
+  logSystemError('firebase', `Firestore ${operationType} on [${path}]: ${errInfo.error}`, errInfo, 'error').catch(() => {});
   throw new Error(JSON.stringify(errInfo));
 }
 

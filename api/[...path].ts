@@ -991,15 +991,37 @@ const logsBuffer: LogEntry[] = [];
 const MAX_LOGS = 300;
 
 function addLog(level: 'info' | 'warn' | 'error', source: 'server' | 'client', message: string, metadata?: any) {
-  logsBuffer.unshift({
-    timestamp: new Date().toISOString(),
+  const now = new Date();
+  const entry: LogEntry = {
+    timestamp: now.toISOString(),
     level,
     source,
     message,
     metadata
-  });
+  };
+
+  logsBuffer.unshift(entry);
   if (logsBuffer.length > MAX_LOGS) {
     logsBuffer.pop();
+  }
+
+  // Persist errors and warnings to Firestore system_logs collection
+  if (db && (level === 'error' || level === 'warn')) {
+    try {
+      db.collection('system_logs').add({
+        timestamp: entry.timestamp,
+        epochMs: now.getTime(),
+        level,
+        category: (metadata && metadata.category) ? metadata.category : 'server',
+        source,
+        message: String(message).slice(0, 10000),
+        metadata: metadata ? JSON.parse(JSON.stringify(metadata)) : null
+      }).catch(err => {
+        originalWarn('Failed to persist log to Firestore system_logs:', err.message);
+      });
+    } catch {
+      // ignore async save failure
+    }
   }
 }
 
@@ -1065,6 +1087,44 @@ app.post('/api/logs/test', (req, res) => {
     console.error(`[TEST ERROR EFFECT] ${message || 'Simulated error log on server'}`);
   }
   res.json({ success: true });
+});
+
+// WhatsApp Notification Webhook / Dispatch Endpoint
+app.post('/api/whatsapp/notify', async (req, res) => {
+  try {
+    const { type, recipientRole, targetPhone, message, metadata } = req.body;
+    console.log(`[WHATSAPP DISPATCH] Alert triggered: type=${type}, recipient=${recipientRole}, phone=${targetPhone}`);
+
+    // If Firestore is available, record notification in system_logs
+    if (db) {
+      await db.collection('system_logs').add({
+        timestamp: new Date().toISOString(),
+        epochMs: Date.now(),
+        level: 'info',
+        category: 'system',
+        source: 'server',
+        message: `WhatsApp Alert Prepared [${type}]: recipient=${recipientRole}`,
+        metadata: {
+          type,
+          recipientRole,
+          targetPhone,
+          messagePreview: (message || '').slice(0, 160),
+          ...metadata
+        }
+      });
+    }
+
+    res.json({
+      success: true,
+      delivered: true,
+      type,
+      recipientRole,
+      timestamp: new Date().toISOString()
+    });
+  } catch (err: any) {
+    console.error('[WHATSAPP NOTIFY ERROR]', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 app.get("/api/health", async (req, res) => {

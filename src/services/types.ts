@@ -16,6 +16,8 @@ export interface Seller {
   id: string;
   name: string;
   email: string;
+  phone?: string;
+  whatsappNumber?: string;
   status: 'Active' | 'Suspended';
   joinedDate: string;
 }
@@ -119,6 +121,14 @@ export interface SiteSettings {
   openingHours: string;
   sheetsSpreadsheetId?: string;
   sheetsSpreadsheetUrl?: string;
+  // Cloudinary credentials override
+  cloudinaryCloudName?: string;
+  cloudinaryUploadPreset?: string;
+  // WhatsApp Notification Settings
+  adminWhatsAppNumber?: string;
+  whatsappOrderAlerts?: boolean;
+  whatsappStockAlerts?: boolean;
+  whatsappNewProductAlerts?: boolean;
 }
 
 export interface ThemeSettings {
@@ -227,3 +237,15 @@ export interface PromoCampaign {
   };
   createdAt?: string;
 }
+
+export interface SystemLog {
+  id: string;
+  timestamp: string;
+  epochMs: number;
+  level: 'info' | 'warn' | 'error';
+  category: 'cloudinary' | 'firebase' | 'intasend' | 'server' | 'auth' | 'ui' | 'system';
+  source: 'server' | 'client';
+  message: string;
+  metadata?: any;
+}
+

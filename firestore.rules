@@ -207,5 +207,13 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin();
     }
+
+    match /system_logs/{logId} {
+      allow read, delete: if isAdmin();
+      allow create: if request.resource.data.message is string && 
+                       request.resource.data.message.size() < 15000 &&
+                       request.resource.data.level in ['info', 'warn', 'error'];
+      allow update: if false;
+    }
   }
 }

@@ -15,11 +15,15 @@ import {
   Clock,
   Truck,
   Package,
-  AlertCircle
+  AlertCircle,
+  MessageCircle,
+  ExternalLink
 } from 'lucide-react';
 import type { Order, OrderStatus } from '../../services/types';
 import { formatPrice } from '../../utils';
 import { useNotifications } from '../../context/NotificationContext';
+import { useStore } from '../../context/StoreContext';
+import { formatPaidOrderWhatsAppMessage, createWhatsAppUrl, sendWhatsAppNotification } from '../../services/whatsappService';
 
 export type SortField = 'date' | 'total' | 'customer' | 'status' | 'id';
 export type SortDirection = 'asc' | 'desc';
@@ -52,6 +56,8 @@ export function OrdersTab({
   role,
 }: OrdersTabProps) {
   const { notify } = useNotifications();
+  const { siteSettings, sellers } = useStore();
+  const [whatsAppModalOrder, setWhatsAppModalOrder] = useState<Order | null>(null);
 
   // Sort state: default to newest orders first
   const [sortField, setSortField] = useState<SortField>('date');
@@ -68,6 +74,19 @@ export function OrdersTab({
         type: 'order',
         link: '/admin'
       });
+
+      // Dispatch WhatsApp server alert if order is paid or marked processing
+      if (newStatus === 'Processing' || newStatus === 'Delivered') {
+        const adminPhone = siteSettings?.adminWhatsAppNumber || siteSettings?.whatsappNumber || '';
+        const msg = formatPaidOrderWhatsAppMessage(order);
+        sendWhatsAppNotification({
+          type: 'paid_order',
+          recipientRole: 'admin',
+          targetPhone: adminPhone,
+          message: msg,
+          metadata: { orderId: order.id, status: newStatus }
+        }).catch(() => {});
+      }
     } catch (err) {
       console.error('Failed to update order status:', err);
     }
@@ -584,6 +603,13 @@ export function OrdersTab({
                         >
                           <FileText className="w-4 h-4 text-orange-500" />
                         </button>
+                        <button 
+                          onClick={() => setWhatsAppModalOrder(o)}
+                          className="p-1.5 text-emerald-600 hover:text-emerald-700 rounded-lg hover:bg-emerald-50 transition-colors cursor-pointer"
+                          title="WhatsApp Dispatch & Alerts"
+                        >
+                          <MessageCircle className="w-4 h-4" />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -593,6 +619,127 @@ export function OrdersTab({
           </table>
         </div>
       </div>
+
+      {/* WhatsApp Dispatch Action Modal */}
+      {whatsAppModalOrder && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-[2rem] w-full max-w-xl shadow-2xl p-6 md:p-8 animate-in fade-in zoom-in duration-200 space-y-6">
+            <div className="flex items-center justify-between border-b border-zinc-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                  <MessageCircle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black text-zinc-900">WhatsApp Notification Hub</h3>
+                  <p className="text-xs text-zinc-500">
+                    Order #{whatsAppModalOrder.id.slice(-8).toUpperCase()} · {formatPrice(whatsAppModalOrder.total)}
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setWhatsAppModalOrder(null)}
+                className="p-2 text-zinc-400 hover:text-zinc-700 rounded-xl hover:bg-zinc-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {/* Option 1: Send to Admin WhatsApp */}
+              <div className="p-4 rounded-2xl border border-zinc-200 bg-zinc-50/50 hover:border-emerald-300 transition-colors flex items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-black text-zinc-900 uppercase">Alert Admin (Packing / Store)</span>
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">Store Staff</span>
+                  </div>
+                  <p className="text-xs text-zinc-500">
+                    Target: {siteSettings?.adminWhatsAppNumber || siteSettings?.whatsappNumber || 'Admin WhatsApp'}
+                  </p>
+                </div>
+                <a
+                  href={createWhatsAppUrl(
+                    siteSettings?.adminWhatsAppNumber || siteSettings?.whatsappNumber || '',
+                    formatPaidOrderWhatsAppMessage(whatsAppModalOrder)
+                  )}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 shrink-0"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  Text Admin
+                </a>
+              </div>
+
+              {/* Option 2: Send to Assigned Seller */}
+              {(() => {
+                const assignedSellerId = whatsAppModalOrder.items[0]?.sellerId || whatsAppModalOrder.sellerIds?.[0];
+                const seller = sellers.find(s => s.id === assignedSellerId);
+                const sellerPhone = seller?.phone || seller?.whatsappNumber || '';
+
+                return (
+                  <div className="p-4 rounded-2xl border border-zinc-200 bg-zinc-50/50 hover:border-emerald-300 transition-colors flex items-center justify-between gap-4">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs font-black text-zinc-900 uppercase">Alert Seller / Shop</span>
+                        <span className="text-[10px] font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-full border border-sky-200">Merchant</span>
+                      </div>
+                      <p className="text-xs text-zinc-500">
+                        {seller ? `Shop: ${seller.name} (${sellerPhone || seller.email})` : 'Solemate Official Store'}
+                      </p>
+                    </div>
+                    <a
+                      href={createWhatsAppUrl(
+                        sellerPhone || siteSettings?.adminWhatsAppNumber || '',
+                        formatPaidOrderWhatsAppMessage(whatsAppModalOrder, seller)
+                      )}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-white rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 shrink-0"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      Text Seller
+                    </a>
+                  </div>
+                );
+              })()}
+
+              {/* Option 3: Send Confirmation to Customer */}
+              <div className="p-4 rounded-2xl border border-zinc-200 bg-zinc-50/50 hover:border-emerald-300 transition-colors flex items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-black text-zinc-900 uppercase">Update Customer</span>
+                    <span className="text-[10px] font-bold text-orange-700 bg-orange-50 px-2 py-0.5 rounded-full border border-orange-200">Buyer</span>
+                  </div>
+                  <p className="text-xs text-zinc-500">
+                    Customer: {whatsAppModalOrder.customerInfo.firstName} ({whatsAppModalOrder.customerInfo.phone})
+                  </p>
+                </div>
+                <a
+                  href={createWhatsAppUrl(
+                    whatsAppModalOrder.customerInfo.phone,
+                    `👋 Hello ${whatsAppModalOrder.customerInfo.firstName}! Your order #${whatsAppModalOrder.id.slice(-6).toUpperCase()} at Solemate.co.ke has been confirmed and is being prepared for delivery to ${whatsAppModalOrder.customerInfo.location}. Thank you for shopping with us!`
+                  )}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-4 py-2 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-800 rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 shrink-0"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  Text Buyer
+                </a>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={() => setWhatsAppModalOrder(null)}
+                className="px-6 py-2.5 rounded-xl font-bold text-zinc-500 hover:bg-zinc-100 text-xs"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

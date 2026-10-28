@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
-import { LayoutDashboard, Package, ShoppingCart, Plus, Edit, Trash, Check, X, Users, Link as LinkIcon, LogOut, Upload, TrendingUp, Image as ImageIcon, DollarSign, Tag, Info, Box, Printer, Globe, Palette, ToggleLeft, FileText, Bell, Inbox, Settings, FileSpreadsheet, Ticket, Terminal, PhoneCall, Megaphone } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, Plus, Edit, Trash, Check, X, Users, Link as LinkIcon, LogOut, Upload, TrendingUp, Image as ImageIcon, DollarSign, Tag, Info, Box, Printer, Globe, Palette, ToggleLeft, FileText, Bell, Inbox, Settings, FileSpreadsheet, Ticket, Terminal, PhoneCall, Megaphone, Store, MessageCircle, ExternalLink } from 'lucide-react';
 import { ContactSettingsTab } from '../components/admin/ContactSettingsTab';
 import { SiteSettingsTab } from '../components/admin/SiteSettingsTab';
 import { GoogleSheetsTab } from '../components/admin/GoogleSheetsTab';
@@ -21,6 +21,8 @@ import { Product, OrderStatus, Order, Seller } from '../types';
 import { formatPrice } from '../utils';
 import { loginWithGoogle, logout } from '../firebase';
 import { uploadToCloudinary } from '../services/cloudinaryService';
+import { logSystemError } from '../services/loggingService';
+import { formatNewProductWhatsAppMessage, formatStockUpdateWhatsAppMessage, sendWhatsAppNotification, createWhatsAppUrl } from '../services/whatsappService';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { printOrders, downloadInvoiceHtmlFile } from '../utils/printInvoice';
 import { downloadOrderPdf } from '../utils/pdfGenerator';
@@ -191,38 +193,68 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
     e.preventDefault();
     setError(null);
     if (!formData.image) {
-      setError("Please upload an image for the product.");
+      setError("Please upload an image or provide an image URL for the product.");
       return;
     }
     try {
+      let assignedSellerId = formData.sellerId;
+      if (role === 'seller' && currentSellerId) {
+        assignedSellerId = currentSellerId;
+      } else if (role === 'admin') {
+        if (!assignedSellerId) {
+          assignedSellerId = sellers[0]?.id || 'seller-official';
+        }
+      }
+
       const productData: any = {
         ...formData,
+        sellerId: assignedSellerId,
         id: editingProduct ? editingProduct.id : Math.random().toString(36).substr(2, 9),
         isNew: !editingProduct,
       };
 
-      if (role === 'seller' && currentSellerId) {
-        productData.sellerId = currentSellerId;
-      } else if (role === 'admin' && formData.sellerId) {
-        productData.sellerId = formData.sellerId;
-      } else if (role === 'admin' && !formData.sellerId) {
-        setError("Please select a shop (seller) for this product.");
-        return;
-      }
-
       if (editingProduct) {
         await updateProduct(editingProduct.id, productData);
         setSuccess("Product updated successfully!");
+
+        // Trigger WhatsApp stock alert to Admin if stock changed
+        if (editingProduct.stock !== productData.stock && siteSettings?.whatsappStockAlerts !== false) {
+          const adminPhone = siteSettings?.adminWhatsAppNumber || siteSettings?.whatsappNumber || '';
+          const msg = formatStockUpdateWhatsAppMessage(productData, editingProduct.stock, productData.stock);
+          sendWhatsAppNotification({
+            type: 'stock_update',
+            recipientRole: 'admin',
+            targetPhone: adminPhone,
+            message: msg,
+            metadata: { productId: productData.id, oldStock: editingProduct.stock, newStock: productData.stock }
+          }).catch(() => {});
+        }
       } else {
         await addProduct(productData as Product);
         setSuccess("Product created successfully!");
+
+        // Trigger WhatsApp new product alert to Admin
+        if (siteSettings?.whatsappNewProductAlerts !== false) {
+          const sellerObj = sellers.find(s => s.id === assignedSellerId);
+          const adminPhone = siteSettings?.adminWhatsAppNumber || siteSettings?.whatsappNumber || '';
+          const msg = formatNewProductWhatsAppMessage(productData, sellerObj?.name || 'Solemate Official');
+          sendWhatsAppNotification({
+            type: 'new_product',
+            recipientRole: 'admin',
+            targetPhone: adminPhone,
+            message: msg,
+            metadata: { productId: productData.id, name: productData.name }
+          }).catch(() => {});
+        }
       }
+
       setIsAddingProduct(false);
       setEditingProduct(null);
-      setFormData({ name: '', brand: '', price: 0, originalPrice: 0, image: '', images: [], category: 'Sneakers', gender: 'Unisex', color: '', colors: [], description: '', inStock: true, stock: 0, sellerId: '' });
+      setFormData({ name: '', brand: '', price: 0, originalPrice: 0, image: '', images: [], category: 'Sneakers', gender: 'Unisex', color: '', colors: [], description: '', inStock: true, stock: 10, sellerId: role === 'seller' ? (currentSellerId || '') : (sellers[0]?.id || 'seller-official') });
       setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
       console.error("Error saving product:", err);
+      logSystemError('firebase', `Failed to save product: ${err.message}`, { formData }, 'error');
       setError(err.message || "Failed to save product.");
     }
   };
@@ -236,13 +268,38 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
       setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
       console.error("Error deleting product:", err);
+      logSystemError('firebase', `Failed to delete product: ${err.message}`, { productToDelete }, 'error');
       setError("Failed to delete product.");
     }
   };
 
   const openEdit = (p: Product) => {
     setEditingProduct(p);
-    setFormData(p);
+    setFormData({
+      ...p,
+      sellerId: p.sellerId || (role === 'seller' ? currentSellerId || '' : sellers[0]?.id || 'seller-official')
+    });
+    setIsAddingProduct(true);
+  };
+
+  const startAddProduct = () => {
+    setEditingProduct(null);
+    setFormData({
+      name: '',
+      brand: '',
+      price: 0,
+      originalPrice: 0,
+      image: '',
+      images: [],
+      category: 'Sneakers',
+      gender: 'Unisex',
+      color: '',
+      colors: [],
+      description: '',
+      inStock: true,
+      stock: 10,
+      sellerId: role === 'seller' ? (currentSellerId || '') : (sellers[0]?.id || 'seller-official')
+    });
     setIsAddingProduct(true);
   };
 
@@ -531,7 +588,7 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
             <div className="flex justify-between items-center">
               <h1 className="text-3xl font-bold text-zinc-900">Products</h1>
               <button
-                onClick={() => { setEditingProduct(null); setFormData({ name: '', brand: '', price: 0, originalPrice: 0, image: '', category: 'Sneakers', gender: 'Unisex', color: '', description: '', inStock: true, sellerId: '' }); setIsAddingProduct(true); }}
+                onClick={startAddProduct}
                 className="flex items-center gap-2 bg-zinc-900 text-white px-6 py-3 rounded-2xl hover:bg-zinc-800 transition-all shadow-lg shadow-zinc-200 active:scale-95"
               >
                 <Plus className="w-5 h-5" /> 
@@ -610,6 +667,32 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
                               className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-not-allowed" 
                             />
                           </div>
+
+                          {/* Direct Image URL input fallback */}
+                          <div className="space-y-1.5 pt-2">
+                            <div className="flex items-center justify-between">
+                              <label className="text-[11px] font-black uppercase text-zinc-400 tracking-wider">
+                                Or Paste Image URL
+                              </label>
+                              <button
+                                type="button"
+                                onClick={() => setFormData({...formData, image: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=800&q=80'})}
+                                className="text-[10px] font-bold text-orange-600 hover:underline"
+                              >
+                                Sample Shoe
+                              </button>
+                            </div>
+                            <input
+                              type="url"
+                              placeholder="https://images.unsplash.com/... or CDN link"
+                              value={formData.image || ''}
+                              onChange={(e) => setFormData({...formData, image: e.target.value})}
+                              className="w-full text-xs font-medium px-3.5 py-2.5 rounded-xl border border-zinc-200 bg-zinc-50 focus:bg-white focus:ring-2 focus:ring-orange-500 outline-none"
+                            />
+                            <p className="text-[10px] text-zinc-400">
+                              Use this if Cloudinary upload fails or credentials need setup.
+                            </p>
+                          </div>
                         </div>
 
                         <div className="space-y-4">
@@ -642,7 +725,62 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
                       </div>
 
                       {/* Right Column: Form Fields */}
-                      <div className="lg:col-span-8 space-y-8">
+                      <div className="lg:col-span-8 space-y-6">
+
+                        {/* Shop / Seller Assignment Section */}
+                        <div className="bg-orange-50/70 border border-orange-200/80 rounded-3xl p-5 space-y-3">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <Store className="w-5 h-5 text-orange-600 shrink-0" />
+                              <div>
+                                <span className="text-xs font-black uppercase tracking-wider text-orange-950">
+                                  Shop (Seller) Assignment
+                                </span>
+                                <span className="text-rose-500 font-black ml-1">*</span>
+                              </div>
+                            </div>
+                            {role === 'admin' ? (
+                              <span className="text-[11px] font-bold text-orange-700 bg-white px-3 py-1 rounded-full border border-orange-200 shadow-xs self-start sm:self-auto">
+                                Admin Mode: Select Shop
+                              </span>
+                            ) : (
+                              <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
+                                Linked to Your Account
+                              </span>
+                            )}
+                          </div>
+
+                          {role === 'admin' ? (
+                            <div className="space-y-1.5">
+                              <select 
+                                value={formData.sellerId || (sellers[0]?.id || 'seller-official')} 
+                                onChange={e => setFormData({...formData, sellerId: e.target.value})} 
+                                className="w-full px-4 py-3 rounded-2xl border border-orange-300 bg-white text-zinc-900 font-bold focus:ring-2 focus:ring-orange-500 outline-none text-sm shadow-sm"
+                              >
+                                <option value="seller-official">Solemate Official (Main Brand Store)</option>
+                                {sellers.map(s => (
+                                  <option key={s.id} value={s.id}>
+                                    🏪 {s.name} ({s.email}) — Status: {s.status}
+                                  </option>
+                                ))}
+                              </select>
+                              <p className="text-[11px] text-zinc-500 pl-1">
+                                Choose which seller or shop owns this shoe. This resolves the seller error on product creation & editing.
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-between bg-white px-4 py-3 rounded-2xl border border-orange-100 shadow-sm">
+                              <div>
+                                <p className="font-bold text-sm text-zinc-900">{currentSeller?.name || 'Your Shop'}</p>
+                                <p className="text-xs text-zinc-500">{currentSeller?.email || 'Seller Account'}</p>
+                              </div>
+                              <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">
+                                Active Storefront
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
                         {/* Basic Info Section */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                           <div className="space-y-1">
