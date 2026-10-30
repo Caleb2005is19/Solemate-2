@@ -269,6 +269,7 @@ export interface CatalogBatchJob {
     fileName?: string;
   }[];
   products: Product[];
+  productsCount?: number;
   error?: string | null;
   createdAt: string;
   updatedAt: string;

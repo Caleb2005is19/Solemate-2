@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   X, 
   Upload, 
@@ -74,6 +74,7 @@ export function MassProductImportModal({
   const [error, setError] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const pollingRef = useRef<any>(null);
 
   // Poll for job status when analyzing
   const startJobPolling = (jobId: string) => {
