@@ -17,20 +17,24 @@ import {
   CheckCircle2, 
   RotateCcw,
   Eye,
-  SlidersHorizontal
+  SlidersHorizontal,
+  ArrowRight,
+  WifiOff,
+  Clock,
+  Sparkle
 } from 'lucide-react';
-import { Product, Seller } from '../../types';
+import { Product, Seller, CatalogBatchJob } from '../../types';
 import { useStore } from '../../context/StoreContext';
 import { uploadToCloudinary } from '../../services/cloudinaryService';
 import { logSystemError } from '../../services/loggingService';
-import { sendWhatsAppNotification, formatNewProductWhatsAppMessage } from '../../services/whatsappService';
-import imageCompression from 'browser-image-compression';
+import { sendWhatsAppNotification } from '../../services/whatsappService';
 
 interface MassProductImportModalProps {
   isOpen: boolean;
   onClose: () => void;
   sellers: Seller[];
   onSuccess: (count: number) => void;
+  reviewJob?: CatalogBatchJob | null;
 }
 
 interface SelectedFileItem {
@@ -47,24 +51,66 @@ export function MassProductImportModal({
   isOpen,
   onClose,
   sellers,
-  onSuccess
+  onSuccess,
+  reviewJob
 }: MassProductImportModalProps) {
   const { addProductsBatch, siteSettings } = useStore();
   
   // Stages: 'upload' -> 'analyzing' -> 'review' -> 'saving'
-  const [stage, setStage] = useState<'upload' | 'analyzing' | 'review' | 'saving'>('upload');
+  const [stage, setStage] = useState<'upload' | 'analyzing' | 'review' | 'saving'>(
+    reviewJob && reviewJob.products && reviewJob.products.length > 0 ? 'review' : 'upload'
+  );
   const [files, setFiles] = useState<SelectedFileItem[]>([]);
-  const [defaultSellerId, setDefaultSellerId] = useState<string>(sellers[0]?.id || 'seller-official');
+  const [defaultSellerId, setDefaultSellerId] = useState<string>(reviewJob?.sellerId || sellers[0]?.id || 'seller-official');
   const [isDragging, setIsDragging] = useState(false);
+  const [activeJobId, setActiveJobId] = useState<string | null>(reviewJob?.id || null);
+  const [canWorkInBackground, setCanWorkInBackground] = useState(false);
   
   // Progress & Analysis
-  const [statusMessage, setStatusMessage] = useState('');
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [generatedProducts, setGeneratedProducts] = useState<Product[]>([]);
-  const [analysisMethod, setAnalysisMethod] = useState<string>('');
+  const [statusMessage, setStatusMessage] = useState(reviewJob?.statusMessage || '');
+  const [uploadProgress, setUploadProgress] = useState(reviewJob?.progressPercent || 0);
+  const [generatedProducts, setGeneratedProducts] = useState<Product[]>(reviewJob?.products || []);
+  const [analysisMethod, setAnalysisMethod] = useState<string>('gemini-background-worker');
   const [error, setError] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Poll for job status when analyzing
+  const startJobPolling = (jobId: string) => {
+    if (pollingRef.current) clearInterval(pollingRef.current);
+
+    pollingRef.current = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/catalog/jobs/${jobId}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.success && data.job) {
+          const job = data.job;
+          setUploadProgress(job.progressPercent || 0);
+          setStatusMessage(job.statusMessage || 'AI is sorting photos in background...');
+
+          if (job.status === 'completed' && Array.isArray(job.products) && job.products.length > 0) {
+            if (pollingRef.current) clearInterval(pollingRef.current);
+            setGeneratedProducts(job.products);
+            setStage('review');
+            setAnalysisMethod('gemini-background-worker');
+          } else if (job.status === 'failed') {
+            if (pollingRef.current) clearInterval(pollingRef.current);
+            setError(job.error || 'AI background worker failed to process batch.');
+            setStage('upload');
+          }
+        }
+      } catch {
+        // silent poll error
+      }
+    }, 2500);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    };
+  }, []);
 
   if (!isOpen) return null;
 
@@ -152,7 +198,7 @@ export function MassProductImportModal({
     });
   };
 
-  // Start Mass Analysis Pipeline with automatic chunking (prevents 413 Payload Too Large)
+  // Start Asynchronous Background Catalog Pipeline with Chunked Upload
   const startMassCatalogCreation = async () => {
     if (files.length === 0) {
       setError('Please select at least 1 shoe photo to continue.');
@@ -161,53 +207,62 @@ export function MassProductImportModal({
 
     setStage('analyzing');
     setError(null);
-    setStatusMessage(`Preparing ${files.length} photos for AI catalog analysis...`);
+    setStatusMessage(`Initializing background catalog job for ${files.length} photos...`);
     setUploadProgress(5);
+    setCanWorkInBackground(false);
 
     try {
-      const BATCH_SIZE = 10;
-      const totalBatches = Math.ceil(files.length / BATCH_SIZE);
-      const allAccumulatedProducts: Product[] = [];
-      let detectedMethod = 'gemini-3.8-flash';
+      // 1. Create Job in backend
+      const createRes = await fetch('/api/catalog/jobs/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          totalPhotos: files.length,
+          sellerId: defaultSellerId,
+          sellerName: sellers.find(s => s.id === defaultSellerId)?.name,
+          geminiApiKey: siteSettings?.geminiApiKey
+        })
+      });
 
-      for (let b = 0; b < totalBatches; b++) {
-        const startIdx = b * BATCH_SIZE;
-        const endIdx = Math.min(startIdx + BATCH_SIZE, files.length);
-        const batchFiles = files.slice(startIdx, endIdx);
+      const createData = await createRes.json();
+      if (!createRes.ok || !createData.jobId) {
+        throw new Error(createData.error || 'Failed to initialize catalog job on server.');
+      }
+      const jobId = createData.jobId;
+      setActiveJobId(jobId);
 
-        setStatusMessage(`Processing batch ${b + 1} of ${totalBatches} (photos ${startIdx + 1} to ${endIdx} of ${files.length})...`);
-        const batchProgress = Math.round(((b) / totalBatches) * 85) + 5;
-        setUploadProgress(batchProgress);
+      // 2. Upload in lightweight micro-chunks of 5 photos (completely prevents 413 & timeouts)
+      const CHUNK_SIZE = 5;
+      const totalChunks = Math.ceil(files.length / CHUNK_SIZE);
 
-        const preparedItems: { id: string; url: string; base64?: string; mimeType: string; fileName: string }[] = [];
+      for (let c = 0; c < totalChunks; c++) {
+        const startIdx = c * CHUNK_SIZE;
+        const endIdx = Math.min(startIdx + CHUNK_SIZE, files.length);
+        const chunkFiles = files.slice(startIdx, endIdx);
 
-        // 1. Optimize each image in this small batch
-        for (const item of batchFiles) {
-          // Compact thumbnail for AI vision (~20KB)
+        setStatusMessage(`Compressing & uploading chunk ${c + 1} of ${totalChunks} (photos ${startIdx + 1} to ${endIdx} of ${files.length})...`);
+        const chunkProgress = Math.round(((c + 1) / totalChunks) * 100);
+        setUploadProgress(chunkProgress);
+
+        const chunkItems: { id: string; url: string; base64?: string; mimeType: string; fileName: string }[] = [];
+        for (const item of chunkFiles) {
           let aiBase64 = '';
           try {
-            const aiDataUrl = await createOptimizedImageData(item.file, 420, 0.55);
+            const aiDataUrl = await createOptimizedImageData(item.file, 380, 0.5);
             aiBase64 = aiDataUrl.split(',')[1] || '';
-          } catch {
-            // fallback
-          }
+          } catch {}
 
-          // Optimized store display image (~50KB) or Cloudinary URL
           let finalImageUrl = '';
           try {
             const cloudRes = await uploadToCloudinary(item.file);
-            if (cloudRes?.secure_url) {
-              finalImageUrl = cloudRes.secure_url;
-            }
-          } catch {
-            // Cloudinary not configured or offline -> use lightweight web data URL
-          }
+            if (cloudRes?.secure_url) finalImageUrl = cloudRes.secure_url;
+          } catch {}
 
           if (!finalImageUrl) {
-            finalImageUrl = await createOptimizedImageData(item.file, 680, 0.68);
+            finalImageUrl = await createOptimizedImageData(item.file, 650, 0.65);
           }
 
-          preparedItems.push({
+          chunkItems.push({
             id: item.id,
             url: finalImageUrl,
             base64: aiBase64,
@@ -216,52 +271,30 @@ export function MassProductImportModal({
           });
         }
 
-        // 2. Call server AI batch analyzer for this small batch
-        const response = await fetch('/api/catalog/ai-batch-analyze', {
+        const chunkRes = await fetch(`/api/catalog/jobs/${jobId}/upload-chunk`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            items: preparedItems,
-            defaultSellerId,
-            batchIndex: b,
-            totalBatches,
-            geminiApiKey: siteSettings?.geminiApiKey
+            chunkIndex: c,
+            totalChunks,
+            items: chunkItems
           })
         });
 
-        const rawResponseText = await response.text();
-        let data: any;
-        try {
-          data = JSON.parse(rawResponseText);
-        } catch {
-          if (response.status === 413) {
-            throw new Error(`Batch ${b + 1} exceeded payload limit. The server rejected the request size.`);
-          }
-          throw new Error(`Server returned HTTP ${response.status}: ${rawResponseText.slice(0, 120)}`);
+        if (!chunkRes.ok) {
+          const raw = await chunkRes.text();
+          throw new Error(`Upload error on chunk ${c + 1}: ${raw.slice(0, 100)}`);
         }
-
-        if (!response.ok || !data.success || !Array.isArray(data.products)) {
-          throw new Error(data.error || data.message || `Failed to analyze batch ${b + 1} of photos.`);
-        }
-
-        if (data.method) {
-          detectedMethod = data.method;
-        }
-
-        allAccumulatedProducts.push(...data.products);
       }
 
-      if (allAccumulatedProducts.length === 0) {
-        throw new Error('No products could be generated from the uploaded photos.');
-      }
+      // 3. Upload is fully finished! Server worker takes over.
+      setCanWorkInBackground(true);
+      setStatusMessage(`All ${files.length} photos uploaded safely! The AI worker is sorting, authenticating, and grouping shoes in the background.`);
 
-      setUploadProgress(100);
-      setStatusMessage('Catalog generation complete! Review your products below.');
-      setAnalysisMethod(detectedMethod);
-      setGeneratedProducts(allAccumulatedProducts);
-      setStage('review');
+      // 4. Start polling for results
+      startJobPolling(jobId);
     } catch (err: any) {
-      console.error('Error during AI mass catalog generation:', err);
+      console.error('Error during AI mass catalog upload:', err);
       logSystemError('ui', `AI mass catalog creation error: ${err.message}`, { filesCount: files.length }, 'error');
       setError(err.message || 'Error processing photos. Please try again.');
       setStage('upload');
@@ -281,6 +314,77 @@ export function MassProductImportModal({
     setGeneratedProducts(prev => prev.filter((_, i) => i !== index));
   };
 
+  // Detach an angle image into its own independent shoe
+  const detachAngleToNewProduct = (productIndex: number, imageIndex: number) => {
+    const parent = generatedProducts[productIndex];
+    if (!parent || !parent.images || !parent.images[imageIndex]) return;
+
+    const detachedImageUrl = parent.images[imageIndex];
+    const remainingImages = parent.images.filter((_, i) => i !== imageIndex);
+
+    const updated = [...generatedProducts];
+    updated[productIndex] = {
+      ...parent,
+      images: remainingImages
+    };
+
+    const newShoe: Product = {
+      id: `prod_${Date.now()}_det_${Math.random().toString(36).substring(2, 6)}`,
+      name: `${parent.name} (Alternative)`,
+      brand: parent.brand,
+      category: parent.category,
+      gender: parent.gender,
+      color: parent.color,
+      price: parent.price,
+      originalPrice: parent.originalPrice,
+      image: detachedImageUrl,
+      images: [],
+      description: parent.description,
+      stock: 10,
+      inStock: true,
+      sellerId: parent.sellerId || defaultSellerId,
+      isNew: true
+    };
+
+    updated.splice(productIndex + 1, 0, newShoe);
+    setGeneratedProducts(updated);
+  };
+
+  // Delete an angle image with 1 click
+  const deleteAngleImage = (productIndex: number, imageIndex: number) => {
+    setGeneratedProducts(prev => {
+      const copy = [...prev];
+      const target = copy[productIndex];
+      if (target && target.images) {
+        copy[productIndex] = {
+          ...target,
+          images: target.images.filter((_, i) => i !== imageIndex)
+        };
+      }
+      return copy;
+    });
+  };
+
+  // Promote angle image to primary hero
+  const promoteAngleToHero = (productIndex: number, imageIndex: number) => {
+    setGeneratedProducts(prev => {
+      const copy = [...prev];
+      const target = copy[productIndex];
+      if (target && target.images) {
+        const oldHero = target.image;
+        const newHero = target.images[imageIndex];
+        const newImages = target.images.filter((_, i) => i !== imageIndex);
+        if (oldHero) newImages.unshift(oldHero);
+        copy[productIndex] = {
+          ...target,
+          image: newHero,
+          images: newImages
+        };
+      }
+      return copy;
+    });
+  };
+
   // Save all generated products to Firestore
   const handleSaveAllToCatalog = async () => {
     if (generatedProducts.length === 0) return;
@@ -291,12 +395,17 @@ export function MassProductImportModal({
       // 1. Commit all products to Firestore database using batch write
       await addProductsBatch(generatedProducts);
 
-      // 2. Dispatch WhatsApp summary notification to Admin
+      // 2. Dismiss job from backend
+      if (activeJobId) {
+        fetch(`/api/catalog/jobs/${activeJobId}/dismiss`, { method: 'POST' }).catch(() => {});
+      }
+
+      // 3. Dispatch WhatsApp summary notification to Admin
       if (siteSettings?.whatsappNewProductAlerts !== false) {
         const adminPhone = siteSettings?.adminWhatsAppNumber || siteSettings?.whatsappNumber || '';
         const summaryMsg = `✨ *MASS AI CATALOG IMPORT COMPLETE*\n\n` +
           `• *Total Products Created:* ${generatedProducts.length}\n` +
-          `• *Photos Grouped & Processed:* ${files.length}\n` +
+          `• *Photos Grouped & Processed:* ${files.length || generatedProducts.length}\n` +
           `• *Assigned Shop:* ${sellers.find(s => s.id === defaultSellerId)?.name || 'Solemate Official'}\n\n` +
           `*Newly Added Shoes:*\n` +
           generatedProducts.map((p, i) => `${i + 1}. ${p.name} — KES ${p.price.toLocaleString()}`).join('\n') +
@@ -311,7 +420,7 @@ export function MassProductImportModal({
         }).catch(() => {});
       }
 
-      // 3. Log success
+      // 4. Log success
       logSystemError('firebase', `Mass photo auto-catalog saved: ${generatedProducts.length} products created.`, {
         productsCount: generatedProducts.length,
         method: analysisMethod
@@ -496,9 +605,9 @@ export function MassProductImportModal({
             </div>
           )}
 
-          {/* STAGE 2: ANALYZING ANIMATION */}
+          {/* STAGE 2: ANALYZING / BACKGROUND PROCESSING */}
           {stage === 'analyzing' && (
-            <div className="py-16 flex flex-col items-center justify-center text-center space-y-6 max-w-md mx-auto">
+            <div className="py-12 flex flex-col items-center justify-center text-center space-y-6 max-w-lg mx-auto">
               <div className="relative">
                 <div className="w-24 h-24 rounded-full border-4 border-orange-500/20 border-t-orange-500 animate-spin flex items-center justify-center">
                 </div>
@@ -508,37 +617,85 @@ export function MassProductImportModal({
               </div>
 
               <div className="space-y-2">
-                <h3 className="text-xl font-black text-zinc-900">
-                  Analyzing Shoes & Building Catalogue
+                <div className="flex items-center justify-center gap-2">
+                  <span className="px-3 py-1 bg-orange-100 text-orange-800 rounded-full text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5" /> Paced Background Worker
+                  </span>
+                  {canWorkInBackground && (
+                    <span className="px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
+                      <WifiOff className="w-3.5 h-3.5" /> Offline Safe
+                    </span>
+                  )}
+                </div>
+
+                <h3 className="text-xl md:text-2xl font-black text-zinc-900">
+                  {canWorkInBackground ? 'AI is Sorting Photos in Background' : 'Uploading Photos to Server...'}
                 </h3>
-                <p className="text-xs text-zinc-500 leading-relaxed">
-                  {statusMessage}
+                <p className="text-xs text-zinc-600 leading-relaxed font-medium">
+                  {statusMessage || 'Sorting shoes and grouping angles without timeouts...'}
                 </p>
               </div>
 
               {/* Progress Bar */}
               <div className="w-full space-y-2">
-                <div className="w-full bg-zinc-100 h-2.5 rounded-full overflow-hidden">
+                <div className="w-full bg-zinc-100 h-3 rounded-full overflow-hidden p-0.5 border border-zinc-200">
                   <div 
-                    className="bg-gradient-to-r from-orange-500 to-amber-500 h-full transition-all duration-300 rounded-full"
-                    style={{ width: `${uploadProgress}%` }}
+                    className="bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 h-full transition-all duration-300 rounded-full"
+                    style={{ width: `${Math.max(5, uploadProgress)}%` }}
                   />
                 </div>
-                <div className="flex justify-between text-[11px] font-mono text-zinc-400">
-                  <span>Processing {files.length} photos</span>
-                  <span>{uploadProgress}%</span>
+                <div className="flex justify-between text-xs font-mono text-zinc-500 font-bold">
+                  <span>Processing {files.length} Photos</span>
+                  <span className="text-orange-600">{uploadProgress}%</span>
                 </div>
               </div>
 
-              <div className="bg-zinc-50 border border-zinc-200/80 rounded-2xl p-4 text-[11px] text-zinc-500 text-left space-y-1.5 w-full">
-                <p className="font-bold text-zinc-700 flex items-center gap-1.5">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                  What AI is doing right now:
-                </p>
-                <p>• Grouping multi-angle shots (side, sole, box) into single shoes</p>
-                <p>• Identifying authentic models (Jordan 4, Dunk, Timberland, Samba...)</p>
-                <p>• Pricing according to Kenyan retail trends (KES 4,500 - 8,500)</p>
-              </div>
+              {/* Offline Safe Notice & Option to Close */}
+              {canWorkInBackground ? (
+                <div className="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 rounded-3xl p-5 text-left w-full space-y-3 shadow-xs">
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0">
+                      <Check className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-black text-emerald-950">
+                        All {files.length} Photos Uploaded Safely!
+                      </h4>
+                      <p className="text-xs text-emerald-800 mt-0.5 leading-relaxed">
+                        The AI worker is sorting and grouping them on the server at a steady 2-second pace so it never times out. You don't have to keep this window open or stay connected to Wi-Fi.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-2.5 pt-1">
+                    <button
+                      type="button"
+                      onClick={onClose}
+                      className="flex-1 bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2.5 rounded-2xl font-black text-xs transition-all shadow-md active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <span>Close & Work in Background</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {}}
+                      className="px-4 py-2.5 bg-white border border-emerald-300 text-emerald-900 rounded-2xl font-bold text-xs hover:bg-emerald-50 transition-colors"
+                    >
+                      Stay & Watch Live
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-zinc-50 border border-zinc-200/80 rounded-2xl p-4 text-[11px] text-zinc-500 text-left space-y-1.5 w-full">
+                  <p className="font-bold text-zinc-700 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    Why Background Upload is Better:
+                  </p>
+                  <p>• 5-photo micro-chunks prevent HTTP 413 "Request Entity Too Large" errors</p>
+                  <p>• Off-screen canvas compression eliminates mobile memory crashes</p>
+                  <p>• Dual-model auto-failover prevents 503 high-demand hiccups</p>
+                </div>
+              )}
             </div>
           )}
 
@@ -553,10 +710,10 @@ export function MassProductImportModal({
                   </div>
                   <div>
                     <h4 className="text-sm font-black text-emerald-950">
-                      Successfully Grouped {files.length} Photos into {generatedProducts.length} Complete Shoes!
+                      Successfully Sorted {files.length || generatedProducts.length} Photos into {generatedProducts.length} Complete Shoes!
                     </h4>
                     <p className="text-xs text-emerald-700">
-                      Review, adjust prices or names below, then click "Save All to Store" to publish immediately.
+                      Review, adjust prices or names below, detach any misgrouped angle into its own shoe, then click "Save All to Store".
                     </p>
                   </div>
                 </div>
@@ -692,20 +849,55 @@ export function MassProductImportModal({
                       </div>
                     </div>
 
-                    {/* Secondary Gallery Angles Preview */}
+                    {/* Secondary Gallery Angles with Detach / Delete controls */}
                     {p.images && p.images.length > 0 && (
-                      <div className="space-y-1">
-                        <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">
-                          Grouped Gallery Angles ({p.images.length})
-                        </span>
-                        <div className="flex gap-2 overflow-x-auto py-1">
+                      <div className="space-y-1.5 bg-zinc-50/60 p-3 rounded-2xl border border-zinc-200/60">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-black text-zinc-500 uppercase tracking-wider flex items-center gap-1">
+                            <Layers className="w-3 h-3" /> Grouped Angles ({p.images.length})
+                          </span>
+                          <span className="text-[10px] text-zinc-400">
+                            Hover angle to detach or delete
+                          </span>
+                        </div>
+
+                        <div className="flex gap-2.5 overflow-x-auto py-1">
                           {p.images.map((imgUrl, imgIdx) => (
-                            <img
-                              key={imgIdx}
-                              src={imgUrl}
-                              alt="Angle"
-                              className="w-12 h-12 object-cover rounded-lg border border-zinc-200 shrink-0"
-                            />
+                            <div key={imgIdx} className="relative group/angle w-16 h-16 rounded-xl overflow-hidden border border-zinc-200 bg-white shrink-0 shadow-xs">
+                              <img
+                                src={imgUrl}
+                                alt={`Angle ${imgIdx + 1}`}
+                                className="w-full h-full object-cover"
+                              />
+
+                              {/* Action Overlay */}
+                              <div className="absolute inset-0 bg-black/75 opacity-0 group-hover/angle:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 p-1">
+                                <button
+                                  type="button"
+                                  onClick={() => detachAngleToNewProduct(idx, imgIdx)}
+                                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[8px] font-black py-0.5 transition-colors cursor-pointer"
+                                  title="Detach photo into separate standalone shoe"
+                                >
+                                  Detach
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => promoteAngleToHero(idx, imgIdx)}
+                                  className="w-full bg-orange-600 hover:bg-orange-700 text-white rounded text-[8px] font-black py-0.5 transition-colors cursor-pointer"
+                                  title="Make this the primary hero photo"
+                                >
+                                  Set Hero
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => deleteAngleImage(idx, imgIdx)}
+                                  className="w-full bg-rose-600 hover:bg-rose-700 text-white rounded text-[8px] font-black py-0.5 transition-colors cursor-pointer"
+                                  title="Delete this photo from shoe"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </div>
                           ))}
                         </div>
                       </div>

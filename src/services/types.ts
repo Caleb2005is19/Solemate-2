@@ -251,3 +251,27 @@ export interface SystemLog {
   metadata?: any;
 }
 
+export interface CatalogBatchJob {
+  id: string;
+  sellerId: string;
+  sellerName?: string;
+  status: 'uploading' | 'queued' | 'processing' | 'completed' | 'failed' | 'cancelled';
+  totalPhotos: number;
+  uploadedPhotos: number;
+  processedPhotos: number;
+  progressPercent: number;
+  statusMessage: string;
+  photos: {
+    id: string;
+    url: string;
+    base64?: string;
+    mimeType?: string;
+    fileName?: string;
+  }[];
+  products: Product[];
+  error?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  completedAt?: string;
+}
+

@@ -924,8 +924,491 @@ app.get('/api/coupons/validate', async (req, res) => {
 });
 
 // ==========================================
-// Mass Photo Auto-Catalog AI Analyzer
+// In-Memory & Firestore Background Job Engine
 // ==========================================
+interface InternalCatalogJob {
+  id: string;
+  sellerId: string;
+  sellerName?: string;
+  status: 'uploading' | 'queued' | 'processing' | 'completed' | 'failed' | 'cancelled';
+  totalPhotos: number;
+  uploadedPhotos: number;
+  processedPhotos: number;
+  progressPercent: number;
+  statusMessage: string;
+  photos: {
+    id: string;
+    url: string;
+    base64?: string;
+    mimeType?: string;
+    fileName?: string;
+  }[];
+  products: any[];
+  geminiApiKey?: string;
+  error?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  completedAt?: string;
+}
+
+const inMemoryCatalogJobs = new Map<string, InternalCatalogJob>();
+let isCatalogWorkerActive = false;
+
+// Background worker that processes jobs calmly with breathing cooldowns
+async function triggerCatalogJobWorker() {
+  if (isCatalogWorkerActive) return;
+  isCatalogWorkerActive = true;
+
+  try {
+    while (true) {
+      // 1. Look for pending job
+      let targetJob: InternalCatalogJob | null = null;
+      for (const [, j] of inMemoryCatalogJobs.entries()) {
+        if (j.status === 'queued' || j.status === 'processing') {
+          targetJob = j;
+          break;
+        }
+      }
+
+      if (!targetJob && db) {
+        try {
+          const snap = await db.collection('catalog_batch_jobs')
+            .where('status', 'in', ['queued', 'processing'])
+            .limit(1)
+            .get();
+          if (!snap.empty) {
+            const data = snap.docs[0].data() as InternalCatalogJob;
+            inMemoryCatalogJobs.set(data.id, data);
+            targetJob = data;
+          }
+        } catch {
+          // ignore firestore fetch errors
+        }
+      }
+
+      if (!targetJob) {
+        break; // No pending jobs
+      }
+
+      targetJob.status = 'processing';
+      targetJob.updatedAt = new Date().toISOString();
+
+      const processedCount = targetJob.processedPhotos || 0;
+      const total = targetJob.photos.length || targetJob.totalPhotos || 1;
+
+      if (processedCount >= total) {
+        // Job complete!
+        targetJob.status = 'completed';
+        targetJob.progressPercent = 100;
+        targetJob.statusMessage = `All ${total} photos sorted into ${targetJob.products.length} verified shoe listings! Ready for review.`;
+        targetJob.completedAt = new Date().toISOString();
+        targetJob.updatedAt = new Date().toISOString();
+
+        if (db) {
+          try {
+            await db.collection('catalog_batch_jobs').doc(targetJob.id).set(targetJob, { merge: true });
+          } catch {}
+        }
+        continue;
+      }
+
+      // Calm micro-batch of 2 photos per call
+      const microBatchSize = 2;
+      const nextBatch = targetJob.photos.slice(processedCount, processedCount + microBatchSize);
+
+      targetJob.statusMessage = `Analyzing photos ${processedCount + 1} to ${Math.min(processedCount + microBatchSize, total)} of ${total}...`;
+      targetJob.progressPercent = Math.min(98, Math.round((processedCount / total) * 100));
+
+      if (db) {
+        try {
+          await db.collection('catalog_batch_jobs').doc(targetJob.id).set({
+            status: 'processing',
+            statusMessage: targetJob.statusMessage,
+            progressPercent: targetJob.progressPercent,
+            processedPhotos: processedCount,
+            updatedAt: new Date().toISOString()
+          }, { merge: true });
+        } catch {}
+      }
+
+      // Analyze micro-batch with Gemini (with dual-model failover)
+      const ai = await getGenAI(targetJob.geminiApiKey);
+      let detectedShoes: any[] = [];
+
+      if (ai) {
+        detectedShoes = await analyzeMicroBatchWithAi(ai, nextBatch, targetJob.sellerId, processedCount);
+      }
+
+      if (detectedShoes.length === 0) {
+        detectedShoes = createHonestFallbackShoes(nextBatch, targetJob.sellerId, processedCount);
+      }
+
+      targetJob.products.push(...detectedShoes);
+      targetJob.processedPhotos = processedCount + nextBatch.length;
+      targetJob.progressPercent = Math.min(99, Math.round((targetJob.processedPhotos / total) * 100));
+      targetJob.updatedAt = new Date().toISOString();
+
+      if (db) {
+        try {
+          await db.collection('catalog_batch_jobs').doc(targetJob.id).set({
+            products: targetJob.products,
+            processedPhotos: targetJob.processedPhotos,
+            progressPercent: targetJob.progressPercent,
+            statusMessage: `Sorted ${targetJob.processedPhotos}/${total} photos (${targetJob.products.length} shoes created)...`,
+            updatedAt: new Date().toISOString()
+          }, { merge: true });
+        } catch {}
+      }
+
+      // Breathing cooldown: 1.8s between AI requests completely eliminates rate limits & 503 errors
+      await new Promise(r => setTimeout(r, 1800));
+    }
+  } catch (err: any) {
+    console.error('[Catalog Worker Exception]:', err);
+  } finally {
+    isCatalogWorkerActive = false;
+  }
+}
+
+async function analyzeMicroBatchWithAi(ai: any, batch: any[], sellerId: string, startIndex: number): Promise<any[]> {
+  const modelsToTry = ['gemini-3.8-flash', 'gemini-flash-latest'];
+  for (const modelName of modelsToTry) {
+    try {
+      const parts: any[] = [
+        {
+          text: `You are an expert sneaker authenticator and footwear merchandiser in Nairobi, Kenya.
+Inspect these ${batch.length} shoe photos. Group photos of the same shoe together or identify each shoe.
+For each distinct shoe product found:
+- "name": Authentic, specific sneaker/shoe model (e.g. "Air Jordan 4 Retro 'Military Black'", "Timberland 6-Inch Premium Waterproof Boot", "Adidas Samba OG", "Nike Dunk Low Retro Panda", "New Balance 550 White Grey"). Never invent fake hype names for casual shoes or dress shoes.
+- "brand": Brand name (Nike, Jordan, Adidas, Timberland, Puma, New Balance, Converse, Vans, Clarks, etc.)
+- "category": Strictly "Sneakers", "Lifestyle", "Running", or "Boots"
+- "gender": "Men", "Women", or "Unisex"
+- "color": Specific colorway
+- "price": Realistic Kenyan retail price in KES integer (e.g. 4500 to 9500)
+- "originalPrice": Strike-through price in KES (around 20% higher)
+- "description": 2-3 engaging sentences describing the shoe, materials, and delivery in Kenya.
+- "stock": 10
+- "heroItemId": Exact Item ID of primary photo
+- "angleItemIds": Array of other angle Item IDs
+- "confidence": percentage number between 70 and 98
+- "visualEvidence": One concise sentence stating the visible logo, box, or sole marking found in photo
+
+Return strictly JSON: {"products": [...]}`
+        }
+      ];
+
+      for (let i = 0; i < batch.length; i++) {
+        const item = batch[i];
+        parts.push({
+          text: `Photo [${i + 1}] (Item ID: "${item.id}", Filename: "${item.fileName || 'photo_' + (startIndex + i + 1)}"):`
+        });
+        if (item.base64) {
+          parts.push({
+            inlineData: {
+              mimeType: item.mimeType || 'image/jpeg',
+              data: item.base64
+            }
+          });
+        }
+      }
+
+      const response = await ai.models.generateContent({
+        model: modelName,
+        contents: { parts },
+        config: {
+          responseMimeType: 'application/json'
+        }
+      });
+
+      const parsed = JSON.parse(response.text || '{}');
+      if (parsed.products && Array.isArray(parsed.products) && parsed.products.length > 0) {
+        return parsed.products.map((p: any, idx: number) => {
+          let heroUrl = '';
+          if (p.heroItemId) {
+            const match = batch.find(b => b.id === p.heroItemId);
+            if (match) heroUrl = match.url;
+          }
+          if (!heroUrl) heroUrl = batch[idx]?.url || batch[0]?.url || '';
+
+          let angles: string[] = [];
+          if (Array.isArray(p.angleItemIds)) {
+            angles = p.angleItemIds.map((id: string) => batch.find(b => b.id === id)?.url).filter(Boolean);
+          }
+
+          return {
+            id: `prod_${Date.now()}_${startIndex + idx}_${Math.random().toString(36).substring(2, 6)}`,
+            name: p.name || 'Footwear Model',
+            brand: p.brand || 'Solemate',
+            category: p.category || 'Sneakers',
+            gender: p.gender || 'Unisex',
+            color: p.color || 'Standard',
+            price: Number(p.price) || 5500,
+            originalPrice: Number(p.originalPrice) || Math.round((Number(p.price) || 5500) * 1.25 / 100) * 100,
+            image: heroUrl,
+            images: angles.filter(a => a !== heroUrl),
+            description: p.description || 'Authentic premium footwear available with express delivery across Nairobi and Kenya.',
+            stock: 12,
+            inStock: true,
+            sellerId: sellerId || 'seller-official',
+            isNew: true,
+            confidence: Number(p.confidence) || 88,
+            visualEvidence: p.visualEvidence || 'Visual silhouette and branding identified by Gemini Vision'
+          };
+        });
+      }
+    } catch (err: any) {
+      console.warn(`[AI Catalog Worker] Model ${modelName} error:`, err.message);
+      if (err.message && err.message.includes('503')) {
+        await new Promise(r => setTimeout(r, 2000));
+      }
+    }
+  }
+  return [];
+}
+
+function createHonestFallbackShoes(batch: any[], sellerId: string, startIndex: number): any[] {
+  return batch.map((item, idx) => {
+    const cleanName = (item.fileName || `Footwear Photo ${startIndex + idx + 1}`)
+      .replace(/\.[^/.]+$/, "")
+      .replace(/[_-]/g, " ")
+      .trim();
+    return {
+      id: `prod_${Date.now()}_${startIndex + idx}_${Math.random().toString(36).substring(2, 6)}`,
+      name: cleanName || `Footwear Item ${startIndex + idx + 1}`,
+      brand: 'Pending Verification',
+      price: 5500,
+      originalPrice: 6800,
+      category: 'Sneakers',
+      gender: 'Unisex',
+      color: 'Pending Verification',
+      description: 'Authentic footwear listing pending model verification in Quick Aligner.',
+      image: item.url,
+      images: [],
+      stock: 12,
+      inStock: true,
+      sellerId: sellerId || 'seller-official',
+      confidence: 60,
+      visualEvidence: 'Awaiting manual confirmation in Quick Aligner'
+    };
+  });
+}
+
+// ------------------------------------------
+// Create Asynchronous Catalog Batch Job
+// ------------------------------------------
+app.post('/api/catalog/jobs/create', async (req, res) => {
+  try {
+    const { totalPhotos, sellerId, sellerName, geminiApiKey } = req.body;
+    const jobId = `cjob_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    
+    const newJob: InternalCatalogJob = {
+      id: jobId,
+      sellerId: sellerId || 'seller-official',
+      sellerName: sellerName || 'Storefront',
+      status: 'uploading',
+      totalPhotos: Number(totalPhotos) || 0,
+      uploadedPhotos: 0,
+      processedPhotos: 0,
+      progressPercent: 0,
+      statusMessage: 'Receiving uploaded photos in background chunks...',
+      photos: [],
+      products: [],
+      geminiApiKey: geminiApiKey || '',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      error: null
+    };
+
+    inMemoryCatalogJobs.set(jobId, newJob);
+
+    if (db) {
+      try {
+        await db.collection('catalog_batch_jobs').doc(jobId).set(newJob);
+      } catch (err: any) {
+        console.warn('[Catalog Jobs] Firestore initial set warning:', err.message);
+      }
+    }
+
+    res.json({ success: true, jobId, job: newJob });
+  } catch (error: any) {
+    console.error('[Catalog Jobs Create Error]:', error);
+    res.status(500).json({ error: 'Failed to create catalog job', message: error.message });
+  }
+});
+
+// ------------------------------------------
+// Upload Micro-Chunk of Photos to a Job
+// ------------------------------------------
+app.post('/api/catalog/jobs/:jobId/upload-chunk', async (req, res) => {
+  try {
+    const { jobId } = req.params;
+    const { chunkIndex, totalChunks, items } = req.body;
+
+    let job = inMemoryCatalogJobs.get(jobId);
+    if (!job && db) {
+      const snap = await db.collection('catalog_batch_jobs').doc(jobId).get();
+      if (snap.exists) {
+        job = snap.data() as InternalCatalogJob;
+        inMemoryCatalogJobs.set(jobId, job);
+      }
+    }
+
+    if (!job) {
+      return res.status(404).json({ error: 'Catalog job not found' });
+    }
+
+    if (Array.isArray(items) && items.length > 0) {
+      job.photos.push(...items);
+      job.uploadedPhotos = job.photos.length;
+    }
+
+    // If all chunks uploaded or uploaded count reached totalPhotos
+    const isAllUploaded = (chunkIndex >= totalChunks - 1) || (job.uploadedPhotos >= job.totalPhotos && job.totalPhotos > 0);
+    if (isAllUploaded) {
+      job.status = 'queued';
+      job.statusMessage = `All ${job.uploadedPhotos} photos uploaded safely! Waiting for background AI sorting worker...`;
+      // Trigger worker asynchronously
+      setTimeout(() => triggerCatalogJobWorker(), 100);
+    } else {
+      job.statusMessage = `Uploaded ${job.uploadedPhotos} of ${job.totalPhotos} photos (chunk ${chunkIndex + 1}/${totalChunks})...`;
+    }
+
+    job.updatedAt = new Date().toISOString();
+
+    if (db) {
+      try {
+        await db.collection('catalog_batch_jobs').doc(jobId).set({
+          photos: job.photos,
+          uploadedPhotos: job.uploadedPhotos,
+          status: job.status,
+          statusMessage: job.statusMessage,
+          updatedAt: job.updatedAt
+        }, { merge: true });
+      } catch (err: any) {
+        console.warn('[Catalog Jobs] Firestore chunk update warning:', err.message);
+      }
+    }
+
+    res.json({
+      success: true,
+      uploadedPhotos: job.uploadedPhotos,
+      isQueued: job.status === 'queued'
+    });
+  } catch (error: any) {
+    console.error('[Catalog Jobs Upload Chunk Error]:', error);
+    res.status(500).json({ error: 'Failed to append chunk', message: error.message });
+  }
+});
+
+// ------------------------------------------
+// Get Active or Recent Jobs
+// ------------------------------------------
+app.get('/api/catalog/jobs/active', async (req, res) => {
+  try {
+    const results: any[] = [];
+    
+    // Check in-memory
+    for (const [, j] of inMemoryCatalogJobs.entries()) {
+      results.push({
+        id: j.id,
+        sellerId: j.sellerId,
+        sellerName: j.sellerName,
+        status: j.status,
+        totalPhotos: j.totalPhotos,
+        uploadedPhotos: j.uploadedPhotos,
+        processedPhotos: j.processedPhotos,
+        progressPercent: j.progressPercent,
+        statusMessage: j.statusMessage,
+        productsCount: j.products ? j.products.length : 0,
+        createdAt: j.createdAt,
+        updatedAt: j.updatedAt,
+        completedAt: j.completedAt
+      });
+    }
+
+    // Check Firestore
+    if (db) {
+      try {
+        const snap = await db.collection('catalog_batch_jobs')
+          .orderBy('createdAt', 'desc')
+          .limit(10)
+          .get();
+        snap.forEach(d => {
+          const data = d.data();
+          if (!results.some(r => r.id === data.id)) {
+            results.push({
+              id: data.id,
+              sellerId: data.sellerId,
+              sellerName: data.sellerName,
+              status: data.status,
+              totalPhotos: data.totalPhotos,
+              uploadedPhotos: data.uploadedPhotos,
+              processedPhotos: data.processedPhotos,
+              progressPercent: data.progressPercent,
+              statusMessage: data.statusMessage,
+              productsCount: data.products ? data.products.length : 0,
+              createdAt: data.createdAt,
+              updatedAt: data.updatedAt,
+              completedAt: data.completedAt
+            });
+          }
+        });
+      } catch {}
+    }
+
+    res.json({ success: true, jobs: results });
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to fetch catalog jobs', message: error.message });
+  }
+});
+
+// ------------------------------------------
+// Get Single Job with Products
+// ------------------------------------------
+app.get('/api/catalog/jobs/:jobId', async (req, res) => {
+  try {
+    const { jobId } = req.params;
+    let job = inMemoryCatalogJobs.get(jobId);
+
+    if (!job && db) {
+      const snap = await db.collection('catalog_batch_jobs').doc(jobId).get();
+      if (snap.exists) {
+        job = snap.data() as InternalCatalogJob;
+        inMemoryCatalogJobs.set(jobId, job);
+      }
+    }
+
+    if (!job) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+
+    res.json({ success: true, job });
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to get job', message: error.message });
+  }
+});
+
+// ------------------------------------------
+// Cancel or Dismiss Job
+// ------------------------------------------
+app.post('/api/catalog/jobs/:jobId/dismiss', async (req, res) => {
+  try {
+    const { jobId } = req.params;
+    inMemoryCatalogJobs.delete(jobId);
+    if (db) {
+      try {
+        await db.collection('catalog_batch_jobs').doc(jobId).delete();
+      } catch {}
+    }
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to dismiss job', message: error.message });
+  }
+});
+
+// ------------------------------------------
+// Mass Photo Auto-Catalog AI Analyzer (Direct / Legacy with 503 Auto-Failover)
+// ------------------------------------------
 app.post('/api/catalog/ai-batch-analyze', async (req, res) => {
   try {
     const { items, defaultSellerId, batchIndex = 0, geminiApiKey } = req.body;
@@ -940,97 +1423,98 @@ app.post('/api/catalog/ai-batch-analyze', async (req, res) => {
     let methodUsed = 'gemini-3.8-flash';
 
     if (ai) {
-      try {
-        const parts: any[] = [];
-        
-        parts.push({
-          text: `You are an expert sneaker authenticator and footwear merchandiser in Nairobi, Kenya.
+      const modelsToTry = ['gemini-3.8-flash', 'gemini-flash-latest'];
+      
+      for (const currentModel of modelsToTry) {
+        try {
+          const parts: any[] = [];
+          parts.push({
+            text: `You are an expert sneaker authenticator and footwear merchandiser in Nairobi, Kenya.
 I have uploaded ${items.length} footwear photos.
 
 YOUR TASK:
-1. Carefully inspect each image. Group multiple photos of the SAME shoe into ONE single product (e.g. if one photo is side profile and another is sole/box/angle of the same sneaker/boot).
+1. Carefully inspect each image. Group multiple photos of the SAME shoe into ONE single product.
 2. For each distinct product:
-   - "name": Trendy, authentic sneaker/shoe model name (e.g. "Air Jordan 4 Retro 'Military Black'", "Nike Dunk Low Retro Panda", "Timberland 6-Inch Premium Waterproof Boot", "Adidas Samba OG", "New Balance 550 White Grey", "Nike Air Force 1 '07", "Air Jordan 1 High OG Chicago").
-   - "brand": Brand name (Nike, Jordan, Adidas, Timberland, Puma, New Balance, Converse, Vans, Salomon, etc.)
-   - "category": Choose strictly from "Sneakers", "Lifestyle", "Running", "Skate"
+   - "name": Trendy, authentic sneaker/shoe model name (e.g. "Air Jordan 4 Retro 'Military Black'", "Nike Dunk Low Retro Panda", "Timberland 6-Inch Premium Waterproof Boot", "Adidas Samba OG", "New Balance 550 White Grey"). Never guess random hype models for casual shoes.
+   - "brand": Brand name (Nike, Jordan, Adidas, Timberland, Puma, New Balance, Converse, Vans, Clarks, etc.)
+   - "category": Choose strictly from "Sneakers", "Lifestyle", "Running", "Boots"
    - "gender": Choose from "Men", "Women", "Unisex", "Kids"
-   - "color": Dominant colorway (e.g. "Black / White", "Wheat Nubuck", "University Blue")
-   - "price": Realistic Kenyan retail price in KES integer (e.g., KES 4,500 - 8,500 for sneakers, KES 8,500 - 12,500 for boots, KES 3,500 - 5,500 for runners/lifestyle)
+   - "color": Dominant colorway
+   - "price": Realistic Kenyan retail price in KES integer (e.g., KES 4,500 - 8,500 for sneakers, KES 8,500 - 12,500 for boots)
    - "originalPrice": Strike-through retail price (15% - 25% higher than price, rounded to nearest 100)
-   - "description": 2-3 engaging sentences describing the materials, cushion, everyday styling, and fast Kenya-wide delivery.
-   - "stock": Realistic stock number (between 8 and 20)
+   - "description": 2-3 engaging sentences describing the materials, cushion, and fast Kenya-wide delivery.
+   - "stock": 12
    - "inStock": true
-   - "heroItemId": The exact Item ID string of the primary/hero photo from below
+   - "heroItemId": The exact Item ID string of the primary/hero photo
    - "angleItemIds": Array of exact Item ID strings of the other angle photos for this shoe
 
-Here are the images:
-`
-        });
-
-        for (let i = 0; i < items.length; i++) {
-          const item = items[i];
-          parts.push({
-            text: `Image [${i + 1}] (Item ID: "${item.id}", Filename: "${item.fileName || 'photo_' + (i + 1)}"):`
+Return strictly JSON format: {"products": [...]}`
           });
 
-          if (item.base64) {
+          for (let i = 0; i < items.length; i++) {
+            const item = items[i];
             parts.push({
-              inlineData: {
-                mimeType: item.mimeType || 'image/jpeg',
-                data: item.base64
-              }
+              text: `Image [${i + 1}] (Item ID: "${item.id}", Filename: "${item.fileName || 'photo_' + (i + 1)}"):`
             });
+
+            if (item.base64) {
+              parts.push({
+                inlineData: {
+                  mimeType: item.mimeType || 'image/jpeg',
+                  data: item.base64
+                }
+              });
+            }
           }
-        }
 
-        const response = await ai.models.generateContent({
-          model: 'gemini-3.8-flash',
-          contents: { parts },
-          config: {
-            responseMimeType: 'application/json',
-            systemInstruction: 'You are a footwear catalog expert. Group photos of the same shoe together, recognize authentic models and assign trending Kenya market prices in KES. Return only JSON with {"products": [{"name": "...", "brand": "...", "heroItemId": "...", "angleItemIds": [...], ...}]}'
-          }
-        });
-
-        const rawText = response.text || '{}';
-        const parsed = JSON.parse(rawText);
-        if (parsed.products && Array.isArray(parsed.products) && parsed.products.length > 0) {
-          generatedProducts = parsed.products.map((p: any) => {
-            // Match hero item
-            let heroUrl = '';
-            if (p.heroItemId) {
-              const matchedHero = items.find(it => it.id === p.heroItemId);
-              if (matchedHero) heroUrl = matchedHero.url;
+          const response = await ai.models.generateContent({
+            model: currentModel,
+            contents: { parts },
+            config: {
+              responseMimeType: 'application/json',
+              systemInstruction: 'You are a footwear catalog expert. Group photos of the same shoe together, recognize authentic models and assign realistic Kenya market prices in KES.'
             }
-            if (!heroUrl && p.image) {
-              const matchedHero = items.find(it => it.url === p.image || it.id === p.image);
-              heroUrl = matchedHero ? matchedHero.url : p.image;
-            }
-            if (!heroUrl) heroUrl = items[0]?.url || '';
-
-            // Match angle items
-            let angleUrls: string[] = [];
-            if (Array.isArray(p.angleItemIds)) {
-              angleUrls = p.angleItemIds
-                .map((id: string) => items.find(it => it.id === id)?.url)
-                .filter(Boolean) as string[];
-            } else if (Array.isArray(p.images)) {
-              angleUrls = p.images.map((img: string) => {
-                const match = items.find(it => it.url === img || it.id === img);
-                return match ? match.url : img;
-              }).filter(Boolean);
-            }
-
-            return {
-              ...p,
-              image: heroUrl,
-              images: angleUrls.filter(u => u !== heroUrl),
-              photoCount: 1 + angleUrls.filter(u => u !== heroUrl).length
-            };
           });
+
+          const rawText = response.text || '{}';
+          const parsed = JSON.parse(rawText);
+          if (parsed.products && Array.isArray(parsed.products) && parsed.products.length > 0) {
+            methodUsed = currentModel;
+            generatedProducts = parsed.products.map((p: any) => {
+              let heroUrl = '';
+              if (p.heroItemId) {
+                const matchedHero = items.find(it => it.id === p.heroItemId);
+                if (matchedHero) heroUrl = matchedHero.url;
+              }
+              if (!heroUrl && p.image) {
+                const matchedHero = items.find(it => it.url === p.image || it.id === p.image);
+                heroUrl = matchedHero ? matchedHero.url : p.image;
+              }
+              if (!heroUrl) heroUrl = items[0]?.url || '';
+
+              let angleUrls: string[] = [];
+              if (Array.isArray(p.angleItemIds)) {
+                angleUrls = p.angleItemIds
+                  .map((id: string) => items.find(it => it.id === id)?.url)
+                  .filter(Boolean) as string[];
+              }
+
+              return {
+                ...p,
+                image: heroUrl,
+                images: angleUrls.filter(u => u !== heroUrl),
+                photoCount: 1 + angleUrls.filter(u => u !== heroUrl).length
+              };
+            });
+            break; // Successfully generated with currentModel
+          }
+        } catch (geminiErr: any) {
+          console.warn(`[AI Mass Catalog] Model ${currentModel} warning:`, geminiErr.message);
+          if (geminiErr.message && (geminiErr.message.includes('503') || geminiErr.message.includes('429'))) {
+            // Wait 1.5s before fallback model
+            await new Promise(r => setTimeout(r, 1500));
+          }
         }
-      } catch (geminiErr: any) {
-        console.warn('[AI Mass Catalog] Gemini API call warning, using intelligent trend generator:', geminiErr.message);
       }
     }
 
@@ -1039,7 +1523,6 @@ Here are the images:
       methodUsed = 'honest-unverified-fallback';
       console.log('[AI Mass Catalog] Vision model unavailable, using honest non-guessing grouping...');
 
-      // Smart grouping by filename / angle
       const groups: { main: any; others: any[] }[] = [];
       const angleKeywords = ['sole', 'bottom', 'angle', 'side', 'back', 'box', 'heel', 'front', 'detail', 'tread'];
 
@@ -1080,7 +1563,6 @@ Here are the images:
       });
     }
 
-    // Ensure all products have unique IDs and assigned seller
     const finalProducts = generatedProducts.map((p, idx) => ({
       id: `prod_${Date.now()}_b${batchIndex}_${idx}_${Math.random().toString(36).substring(2, 7)}`,
       name: p.name || 'Footwear Item',

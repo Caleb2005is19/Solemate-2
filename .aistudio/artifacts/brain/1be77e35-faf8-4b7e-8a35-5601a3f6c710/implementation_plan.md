@@ -1,139 +1,118 @@
-# Grounded Visual Sneaker Authenticator & Photo Un-grouping Suite
+# Asynchronous Background AI Shoe Catalog Engine & Offline-Tolerant Queue
 
-Replace all speculative guessing and random fallback naming with a strict, 100% visually-grounded shoe identification engine that extracts visible brand logos, box text, and exact silhouettes—accompanied by visible proof explaining why the model was identified—alongside 1-click photo detachment and gallery editing.
+## Problem & Vision
+When uploading large batches of 50–100+ shoe photos on a mobile device, active HTTP connections time out, reverse proxies reject large payloads (HTTP 413 "Request Entity Too Large"), and hammering the AI API too quickly triggers HTTP 503 demand spikes.
 
-## User Review & Critical Decisions
-
-> [!IMPORTANT]
-> **Zero-Hallucination & Anti-Guessing Guarantee**:
-> - **Total Ban on Blind Fallbacks**: We are completely eliminating the static rotating catalogue that previously assigned random names like "Air Jordan 4" or "Nike Dunk" to unrelated photos.
-> - **Visual Evidence & Logo Grounding**: Gemini Vision will be instructed under a strict authentication protocol to look for visible logos (Nike Swoosh, Jordan Jumpman, Adidas Three Stripes, Timberland tree emblem, New Balance 'N'), visible box branding (e.g., "Timberland" printed on the box in the background), and distinctive panel cuts.
-> - **Visible Proof & Confidence**: Every recommendation will display a **Confidence Score** and **Visual Evidence Summary** (e.g., *"Detected Timberland tree logo on leather quarter and Timberland branding on shoebox"*), so you can verify that the AI is actually reading the photo rather than making up a name.
-> - **Honest Fallback**: If an image is too blurry or obscure to recognize with certainty, the AI will honestly declare *"Unverified Model"* and suggest a generic descriptive label based only on what is visible (e.g., *"Black Leather Low-Top Sneaker"*), never a fake hype sneaker name.
-
----
-
-## 1. Overview & Core Concept
-
-- **What It Does**:
-  - **100% Grounded Footwear Identification**: Inspects shoe photos for visible emblems, tags, shoebox text, and sole designs to identify genuine models without guessing or hallucinating.
-  - **Visual Proof Explanation**: Every detection is paired with a plain-English explanation of the visual markers found in the image.
-  - **Interactive Side-by-Side Review**: Nothing is ever overwritten automatically. You see the photo, the current name, the detected model, the confidence level, and the visual proof before choosing to accept or keep.
-  - **Interactive Photo Un-grouping**: For products with multiple photos, you can view the full gallery tray and either:
-    1. **Detach photo into its own new product** (saving the photo as an independent shoe listing).
-    2. **Delete misgrouped photos** with 1 click.
-    3. **Promote any angle to the main hero image**.
-- **Target Audience / Persona**: Store administrators on Solemate.co.ke requiring verified, authentic product listings.
-- **Key Value**: Guarantees zero false hype names, eliminates hours of manual data entry, and gives complete control over photo groupings.
+**The Solution:**
+Decouple photo uploading from AI processing into an **asynchronous, server-driven background queue**.
+1. **Fast, Lightweight Upload**: The mobile device quickly sends compressed photos in small 5-photo micro-chunks so connections never drop or trigger 413 errors.
+2. **Device Can Go Offline**: Once the photos are stored, the merchant can close their browser, lock their phone, or disconnect completely.
+3. **Paced Server Background Worker**: The server processes photos at a steady, calm pace (e.g. 2–3 photos at a time with a 2-second breathing cooldown between AI requests), eliminating timeouts and 503 high-demand errors.
+4. **Resumable State in Firestore**: Every step and intermediate match is persisted in a `catalog_batch_jobs` collection. If a server or network hiccup occurs, it resumes right where it left off.
+5. **Interactive Review When You Return**: When the merchant opens the app later, a friendly banner alerts them: *"✅ Batch #104 Complete (104 photos sorted into 46 verified shoes). Tap to Review & Publish"*.
 
 ---
 
-## 2. User Experience & Visual Design
-
-### Key User Flows
+## 1. Technical Architecture & Workflow
 
 ```
-[ Shoe Card in Aligner / Edit Modal ]
+[ Merchant's Phone / Device ]
        │
-       ├──► [ View Photo Gallery Tray ]
-       │         │
-       │         ├──► [ Detach to New Product ] ──► Creates Separate Shoe Record with This Photo
-       │         ├──► [ Delete Misgrouped Photo ] ──► Removed from This Shoe Gallery
-       │         └──► [ Make Primary Hero Photo ] ──► Swaps Main Image
+       │ 1. Client-Side Canvas Compression (~30KB per photo)
+       │ 2. Uploads in small chunks of 5 photos to server
+       ▼
+[ Server Photo Ingestion API ] ──► Stores images & initializes job in Firestore:
+                                   `catalog_batch_jobs/{jobId}`
+                                   {
+                                     status: 'queued',
+                                     totalPhotos: 104,
+                                     processedCount: 0,
+                                     progressPercent: 0,
+                                     sellerId: '...',
+                                     photos: [...]
+                                   }
        │
-       └──► Click "AI Grounded Authenticate"
-                 │
-                 ▼
-       ┌─────────────────────────────────────────────────────────────────┐
-       │             Grounded Footwear Verification Review               │
-       ├─────────────────────────────────┬───────────────────────────────┤
-       │ CURRENT METADATA                │ AI VERIFIED FROM PHOTO        │
-       │ Name: Air Jordan 4 Retro        │ Name: Timberland Adventure 2.0│
-       │ Brand: Nike (Wrong)             │ Brand: Timberland (Verified)  │
-       │                                 │ Confidence: 96% (High)        │
-       ├─────────────────────────────────┴───────────────────────────────┤
-       │ Visual Evidence Found in Photo:                                 │
-       │ • "Timberland tree logo embossed on outer leather quarter"      │
-       │ • "Original kraft shoebox in background marked 'Timberland'"    │
-       │ • "White cupsole with embossed Timberland signature on tread"   │
-       ├─────────────────────────────────────────────────────────────────┤
-       │             [ Keep Current ]         [ Accept Verified Match ]  │
-       └─────────────────────────────────────────────────────────────────┘
+       ▼ (Merchant can now close browser / go OFFLINE completely)
+[ Server Background Queue Worker ]
+       │
+       │ ──► Reads next unprocessed micro-batch (2-3 photos)
+       │ ──► Calls Grounded Gemini Vision (with 503 failover to gemini-flash-latest)
+       │ ──► Pauses with a 2-second cooldown (prevents rate limits & timeouts)
+       │ ──► Appends identified shoes & updates progress in Firestore:
+       │     `catalog_batch_jobs/{jobId}`: { processedCount: 24, progressPercent: 23% }
+       │ ──► Repeats until 100% finished
+       ▼
+[ Job Status: 'completed' ]
+       │
+       ▼ (Merchant re-opens app on phone or desktop)
+[ Admin Live Job Tracker Banner ]
+       │
+       └──► "Batch #104 is ready! 48 shoes sorted from 104 photos."
+       └──► [ Review & Approve ] ──► Side-by-Side Review ──► Publish to Store
 ```
-
-### Visual Identity & Theme
-- **Confidence Badges**: Clean unboxed status markers:
-  - `Verified Match (High Confidence)` with subtle emerald text.
-  - `Close Match (Medium Confidence)` with subtle amber text.
-  - `Unverified (Needs Manual Input)` with subtle slate text.
-- **Visual Evidence Callout**: Quiet slate callout box showing bulleted visual markers detected by the vision model.
-- **Photo Tray Controls**: Floating mini-action buttons on each gallery thumbnail with tooltips (`Detach to New Shoe`, `Set as Hero`, `Delete Photo`).
 
 ---
 
-## 3. Key Product Decisions & Trade-Offs
+## 2. Step-by-Step Implementation Roadmap
 
-- **Decision 1: Elimination of Static Rotational Fallback Engine**:
-  - *Chosen Approach*: Completely remove the static array of 12 hype sneakers (`TRENDING_CATALOGUE`) that rotated blindly through indices.
-  - *Why*: The rotational fallback was the direct cause of Timberlands and other shoes receiving "Air Jordan 4" or "Nike Dunk" names. If an AI call fails, the system must clearly notify the user rather than guessing random models.
-- **Decision 2: Strict Multimodal Authenticator System Instructions**:
-  - *Chosen Approach*: Explicitly instruct Gemini 3.8 Flash to act as a certified sneaker authenticator. Mandate visual proof referencing visible logos, box markings, and silhouettes.
-  - *Why*: Forces the vision model to ground its response in actual pixels rather than general trend heuristics.
-- **Decision 3: Two-Click Safety Barrier**:
-  - *Chosen Approach*: All AI alignments require clicking "Accept Verified Match" in a side-by-side comparison modal; zero silent mutations.
-  - *Why*: Gives the admin 100% confidence and oversight over every product in the store.
+### Step 1: Persistent Background Job Schema in Firestore
+- Collection: `catalog_batch_jobs`
+- Job Document Structure:
+  - `id`: unique batch ID (e.g., `job_179336...`)
+  - `sellerId`: merchant storefront ID
+  - `sellerName`: display name of the seller
+  - `status`: `'uploading' | 'queued' | 'processing' | 'completed' | 'failed'`
+  - `totalPhotos`: number of photos submitted
+  - `processedPhotos`: count of analyzed photos
+  - `progressPercent`: 0 to 100
+  - `statusMessage`: descriptive message (e.g., *"Analyzing photo 45 of 104: Timberland 6-Inch Premium..."*)
+  - `items`: array of stored photo records `{ id, url, fileName }`
+  - `products`: array of recognized and grouped products with confidence & visual evidence
+  - `error`: null or error description if unrecoverable
+  - `createdAt`, `updatedAt`, `completedAt`
+
+### Step 2: Chunked Upload API & Server Storage
+*Target: `api/[...path].ts`, `src/components/admin/MassProductImportModal.tsx`*
+- **Client Compression**: Compress each photo down to a fast web thumbnail (~30KB) before transmission.
+- **Micro-Upload Endpoint (`/api/catalog/jobs/create` & `/api/catalog/jobs/:jobId/upload-chunk`)**:
+  - Accepts 5 photos per HTTP POST.
+  - Returns `200 OK` in under 300ms, completely avoiding HTTP 413 "Request Entity Too Large" and mobile connection timeouts.
+- **Offline Handoff**: Once the last chunk is uploaded, the modal displays:
+  - *"✨ All 104 photos uploaded safely to your server! The AI is now processing your catalogue in the background. You can safely close this screen or go offline."*
+
+### Step 3: Paced Background AI Worker with Auto-Failover
+*Target: `api/[...path].ts` / background queue daemon*
+- **Steady Pacing (Cooldown Engine)**:
+  - Instead of blasting 104 photos at once, the worker processes 2–3 photos per step.
+  - Enforces a 1.5s–2.0s sleep interval between Gemini requests, ensuring zero 503 high-demand errors.
+- **Robust Failover & Exponential Backoff**:
+  - Primary attempt: `gemini-3.8-flash`.
+  - If a 503 spike occurs, automatically wait 3 seconds and retry with `gemini-flash-latest`.
+  - Strictly adheres to the **anti-hallucination policy**: if a shoe is unidentifiable, marks it honestly as *"Unverified Model"* without guessing fake hype sneaker names.
+- **Resilience**:
+  - If the server restarts, any job in `'processing'` or `'queued'` state automatically resumes from its last processed photo index.
+
+### Step 4: Admin Background Jobs Monitor & Review UI
+*Target: `src/components/admin/BackgroundJobsPanel.tsx`, `MassProductImportModal.tsx`*
+- **Active Jobs Card in Admin Catalog**:
+  - Visible at the top of the Admin Products / Catalog page.
+  - Shows real-time progress bar, e.g.:
+    - *"⚡ Background AI Catalog: Sorting 104 photos (42/104 completed — 40%)"*
+    - Pulsing status indicator showing active photo being inspected.
+- **Completed Batch Review Modal**:
+  - Tapping *"Review Completed Batch"* opens the side-by-side inspection screen.
+  - Review all recognized shoes, confidence scores, and visual evidence.
+  - 1-click photo detachment / deletion for any misgrouped angle.
+  - Tap *"Publish All to Store"* to commit the verified shoes to Firestore.
+
+### Step 5: Vite HMR WebSocket Filter
+*Target: `src/services/loggingService.ts`*
+- Filter out dev-server HMR reconnection noise (`WebSocket closed without opened`) so Firestore error logs remain clean and focused on real store activity.
+
+### Step 6: Full Verification & Compile Check
+- Run `npm run build` and `compile_applet` to verify TypeScript types, component integration, and backend API routes.
 
 ---
 
-## 4. Technical Architecture & Data Strategy
-
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│                        Admin UI Clients                                │
-│       Quick Visual Aligner       │       Edit Product Modal            │
-└───────────────────┬──────────────┴────────────────────┬────────────────┘
-                    │                                   │
-                    ▼                                   ▼
-       ┌────────────────────────┐          ┌──────────────────────────┐
-       │   Gallery Operations   │          │   POST /api/catalog/     │
-       │  • Detach Photo        │          │      ai-align-shoe       │
-       │  • Delete Photo        │          │   (Grounded Vision)      │
-       │  • Make Hero Image     │          └────────────┬─────────────┘
-       └────────────┬───────────┘                       │
-                    │                                   ▼
-                    ▼                      ┌──────────────────────────┐
-       ┌────────────────────────┐          │ Visual Evidence &        │
-       │   Firestore writeBatch │          │ Confidence Verification  │
-       └────────────────────────┘          └──────────────────────────┘
-```
-
-- **Backend Endpoint (`/api/catalog/ai-align-shoe`)**:
-  - Receives `{ imageUrl, base64, currentName }`.
-  - Prompts `gemini-3.8-flash` with image inlineData and strict verification guidelines.
-  - Returns structured JSON:
-    ```json
-    {
-      "success": true,
-      "detected": {
-        "name": "Timberland Adventure 2.0 Cupsole Sneaker",
-        "brand": "Timberland",
-        "category": "Lifestyle",
-        "gender": "Men",
-        "color": "Black Leather / White Sole",
-        "price": 9500,
-        "originalPrice": 12000,
-        "description": "Crafted with premium full-grain leather and supportive cupsole traction. Features the iconic Timberland tree logo.",
-        "confidence": "High",
-        "visualEvidence": [
-          "Timberland tree logo clearly visible on outer leather quarter",
-          "Kraft shoebox in background displays Timberland typography",
-          "White rubber cupsole matches classic Timberland cupsole silhouette"
-        ]
-      }
-    }
-    ```
-- **Detach Operation**:
-  - Takes a gallery photo URL from a parent product.
-  - Removes that URL from the parent product's `images[]`.
-  - Creates a new product document with that photo as its primary `image`, temporary model name (or auto-detected name), and matching seller attribution.
-  - Commits both changes in an atomic Firestore batch.
+## 3. Approval Confirmation
+Please review this updated plan. Once you click **Proceed** or approve in chat, we will begin with **Step 1 & Step 2** (the chunked upload and job queue).

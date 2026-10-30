@@ -1,0 +1,578 @@
+[
+  {
+    "id": "server-mem-0-1793361243538",
+    "timestamp": "2026-10-30T11:54:03.538Z",
+    "epochMs": 1793361243538,
+    "level": "info",
+    "category": "server",
+    "source": "server",
+    "message": "[AI Mass Catalog] Analyzing batch 2: 10 uploaded shoe photos..."
+  },
+  {
+    "id": "server-mem-1-1793361225426",
+    "timestamp": "2026-10-30T11:53:45.426Z",
+    "epochMs": 1793361225426,
+    "level": "info",
+    "category": "server",
+    "source": "server",
+    "message": "[AI Mass Catalog] Vision model unavailable, using honest non-guessing grouping..."
+  },
+  {
+    "id": "VA90VGF3itNWTNDMIwPL",
+    "timestamp": "2026-10-30T11:53:45.425Z",
+    "epochMs": 1793361225425,
+    "level": "warn",
+    "category": "server",
+    "source": "server",
+    "message": "[AI Mass Catalog] Gemini API call warning, using intelligent trend generator: {\"error\":{\"code\":503,\"message\":\"This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.\",\"status\":\"UNAVAILABLE\"}}",
+    "metadata": null
+  },
+  {
+    "id": "server-mem-3-1793361222845",
+    "timestamp": "2026-10-30T11:53:42.845Z",
+    "epochMs": 1793361222845,
+    "level": "info",
+    "category": "server",
+    "source": "server",
+    "message": "[AI Mass Catalog] Analyzing batch 1: 10 uploaded shoe photos..."
+  },
+  {
+    "id": "8HLdv4DTWk3WXteTBn0Z",
+    "timestamp": "2026-10-30T11:53:01.449Z",
+    "epochMs": 1793361181449,
+    "level": "error",
+    "category": "ui",
+    "source": "client",
+    "message": "[UI] AI mass catalog creation error: Failed to fetch",
+    "metadata": {
+      "category": "ui",
+      "filesCount": 99
+    }
+  },
+  {
+    "id": "D71wQCohlOVW8abOFmMM",
+    "timestamp": "2026-10-30T11:52:10.992Z",
+    "epochMs": 1793361130992,
+    "level": "error",
+    "category": "ui",
+    "source": "client",
+    "message": "AI mass catalog creation error: Failed to fetch",
+    "metadata": {
+      "filesCount": 99
+    }
+  },
+  {
+    "id": "server-mem-5-1793360976082",
+    "timestamp": "2026-10-30T11:49:36.082Z",
+    "epochMs": 1793360976082,
+    "level": "info",
+    "category": "server",
+    "source": "server",
+    "message": "[AI Mass Catalog] Analyzing batch 2: 10 uploaded shoe photos..."
+  },
+  {
+    "id": "server-mem-6-1793360788218",
+    "timestamp": "2026-10-30T11:46:28.218Z",
+    "epochMs": 1793360788218,
+    "level": "info",
+    "category": "server",
+    "source": "server",
+    "message": "Firebase connection verified."
+  },
+  {
+    "id": "server-mem-7-1793360788058",
+    "timestamp": "2026-10-30T11:46:28.058Z",
+    "epochMs": 1793360788058,
+    "level": "info",
+    "category": "server",
+    "source": "server",
+    "message": "[AI Mass Catalog] Analyzing batch 1: 10 uploaded shoe photos..."
+  },
+  {
+    "id": "server-mem-8-1793360645552",
+    "timestamp": "2026-10-30T11:44:05.552Z",
+    "epochMs": 1793360645552,
+    "level": "info",
+    "category": "firebase",
+    "source": "client",
+    "message": "[FIREBASE] Mass photo auto-catalog saved: 2 products created.",
+    "metadata": {
+      "category": "firebase",
+      "productsCount": 2,
+      "method": "gemini-3.8-flash"
+    }
+  },
+  {
+    "id": "jZDj39praesEEV1VjaHg",
+    "timestamp": "2026-10-30T11:44:05.354Z",
+    "epochMs": 1793360645354,
+    "level": "info",
+    "category": "system",
+    "source": "server",
+    "message": "WhatsApp Alert Prepared [new_product]: recipient=admin",
+    "metadata": {
+      "count": 2,
+      "targetPhone": "+254116943564",
+      "messagePreview": "✨ *MASS AI CATALOG IMPORT COMPLETE*\n\n• *Total Products Created:* 2\n• *Photos Grouped & Processed:* 2\n• *Assigned Shop:* Nick\n\n*Newly Added Shoes:*\n1. New Balanc",
+      "recipientRole": "admin",
+      "type": "new_product"
+    }
+  },
+  {
+    "id": "server-mem-9-1793360645354",
+    "timestamp": "2026-10-30T11:44:05.354Z",
+    "epochMs": 1793360645354,
+    "level": "info",
+    "category": "server",
+    "source": "server",
+    "message": "[WHATSAPP DISPATCH] Alert triggered: type=new_product, recipient=admin, phone=+254116943564"
+  },
+  {
+    "id": "znDllG46gXxrsWYM06io",
+    "timestamp": "2026-10-30T11:44:00.159Z",
+    "epochMs": 1793360640159,
+    "level": "info",
+    "category": "firebase",
+    "source": "client",
+    "message": "Mass photo auto-catalog saved: 2 products created.",
+    "metadata": {
+      "productsCount": 2,
+      "method": "gemini-3.8-flash"
+    }
+  },
+  {
+    "id": "3tz1ze33BmA1qAITGxQj",
+    "timestamp": "2026-10-30T11:43:44.938Z",
+    "epochMs": 1793360624938,
+    "level": "error",
+    "category": "server",
+    "source": "server",
+    "message": "(node:8) ExperimentalWarning: vm.USE_MAIN_CONTEXT_DEFAULT_LOADER is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)",
+    "metadata": null
+  },
+  {
+    "id": "gn6kr0hjRE7t9ifmz9cK",
+    "timestamp": "2026-10-30T11:41:24.407Z",
+    "epochMs": 1793360484407,
+    "level": "warn",
+    "category": "server",
+    "source": "server",
+    "message": "[AI Authenticator] gemini-3.8-flash temporary spike, falling back to gemini-flash-latest: {\"error\":{\"code\":503,\"message\":\"This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.\",\"status\":\"UNAVAILABLE\"}}",
+    "metadata": null
+  },
+  {
+    "id": "dkaOQ6jIdLlDYH7TsxWY",
+    "timestamp": "2026-10-30T11:37:42.761Z",
+    "epochMs": 1793360262761,
+    "level": "error",
+    "category": "ui",
+    "source": "client",
+    "message": "WebSocket closed without opened.",
+    "metadata": {
+      "reason": "Error: WebSocket closed without opened.\n    at WebSocket.<anonymous> (https://ais-dev-753n3egipkbdbklvm2si4o-157941940929.europe-west3.run.app/@vite/client:454:22)"
+    }
+  },
+  {
+    "id": "Ev8DUS3YPfunHtnBM6ED",
+    "timestamp": "2026-10-30T11:35:03.388Z",
+    "epochMs": 1793360103388,
+    "level": "error",
+    "category": "ui",
+    "source": "client",
+    "message": "WebSocket closed without opened.",
+    "metadata": {
+      "reason": "Error: WebSocket closed without opened.\n    at WebSocket.<anonymous> (https://ais-dev-753n3egipkbdbklvm2si4o-157941940929.europe-west3.run.app/@vite/client:454:22)"
+    }
+  },
+  {
+    "id": "MiIwWjusYNlAW6v0Jwhn",
+    "timestamp": "2026-10-30T11:13:06.273Z",
+    "epochMs": 1793358786273,
+    "level": "error",
+    "category": "ui",
+    "source": "client",
+    "message": "WebSocket closed without opened.",
+    "metadata": {
+      "reason": "Error: WebSocket closed without opened.\n    at WebSocket.<anonymous> (https://ais-dev-753n3egipkbdbklvm2si4o-157941940929.europe-west3.run.app/@vite/client:454:22)"
+    }
+  },
+  {
+    "id": "CuIVRNmkSd84ILNHKEXg",
+    "timestamp": "2026-10-30T11:00:16.761Z",
+    "epochMs": 1793358016761,
+    "level": "error",
+    "category": "ui",
+    "source": "client",
+    "message": "WebSocket closed without opened.",
+    "metadata": {
+      "reason": "Error: WebSocket closed without opened.\n    at WebSocket.<anonymous> (https://ais-dev-753n3egipkbdbklvm2si4o-157941940929.europe-west3.run.app/@vite/client:454:22)"
+    }
+  },
+  {
+    "id": "aSY8NGBMvTYd4bJtEKP8",
+    "timestamp": "2026-10-30T10:57:18.186Z",
+    "epochMs": 1793357838186,
+    "level": "error",
+    "category": "ui",
+    "source": "client",
+    "message": "WebSocket closed without opened.",
+    "metadata": {
+      "reason": "Error: WebSocket closed without opened.\n    at WebSocket.<anonymous> (https://ais-dev-753n3egipkbdbklvm2si4o-157941940929.europe-west3.run.app/@vite/client:454:22)"
+    }
+  },
+  {
+    "id": "wAl5g4Po2kwQuKeKYoue",
+    "timestamp": "2026-10-30T10:35:28.569Z",
+    "epochMs": 1793356528569,
+    "level": "error",
+    "category": "ui",
+    "source": "client",
+    "message": "WebSocket closed without opened.",
+    "metadata": {
+      "reason": "Error: WebSocket closed without opened.\n    at WebSocket.<anonymous> (https://ais-dev-753n3egipkbdbklvm2si4o-157941940929.europe-west3.run.app/@vite/client:454:22)"
+    }
+  },
+  {
+    "id": "LBd7Bw53I0SsuyoqjGst",
+    "timestamp": "2026-10-30T10:27:57.175Z",
+    "epochMs": 1793356077175,
+    "level": "error",
+    "category": "ui",
+    "source": "client",
+    "message": "WebSocket closed without opened.",
+    "metadata": {
+      "reason": "Error: WebSocket closed without opened.\n    at WebSocket.<anonymous> (https://ais-dev-753n3egipkbdbklvm2si4o-157941940929.europe-west3.run.app/@vite/client:454:22)"
+    }
+  },
+  {
+    "id": "4k3SUWwf2MM3wMgtHzbW",
+    "timestamp": "2026-10-30T10:23:48.079Z",
+    "epochMs": 1793355828079,
+    "level": "error",
+    "category": "ui",
+    "source": "client",
+    "message": "WebSocket closed without opened.",
+    "metadata": {
+      "reason": "Error: WebSocket closed without opened.\n    at WebSocket.<anonymous> (https://ais-dev-753n3egipkbdbklvm2si4o-157941940929.europe-west3.run.app/@vite/client:454:22)"
+    }
+  },
+  {
+    "id": "ZiPsoaezYIybm597r3AI",
+    "timestamp": "2026-10-30T10:17:13.774Z",
+    "epochMs": 1793355433774,
+    "level": "info",
+    "category": "system",
+    "source": "server",
+    "message": "WhatsApp Alert Prepared [new_product]: recipient=admin",
+    "metadata": {
+      "recipientRole": "admin",
+      "count": 52,
+      "messagePreview": "✨ *MASS AI CATALOG IMPORT COMPLETE*\n\n• *Total Products Created:* 52\n• *Photos Grouped & Processed:* 104\n• *Assigned Shop:* Nick\n\n*Newly Added Shoes:*\n1. Timberl",
+      "targetPhone": "+254116943564",
+      "type": "new_product"
+    }
+  },
+  {
+    "id": "bsAJiGw2tifFP9JcrDoU",
+    "timestamp": "2026-10-30T10:17:08.624Z",
+    "epochMs": 1793355428624,
+    "level": "info",
+    "category": "firebase",
+    "source": "client",
+    "message": "Mass photo auto-catalog saved: 52 products created.",
+    "metadata": {
+      "productsCount": 52,
+      "method": "trends-engine-fallback"
+    }
+  },
+  {
+    "id": "y1fCQgeye6plY2ID6RVe",
+    "timestamp": "2026-10-30T10:13:34.651Z",
+    "epochMs": 1793355214651,
+    "level": "error",
+    "category": "server",
+    "source": "server",
+    "message": "(node:7) ExperimentalWarning: vm.USE_MAIN_CONTEXT_DEFAULT_LOADER is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)",
+    "metadata": null
+  },
+  {
+    "id": "zIViiVqerrAzlPeg7cxK",
+    "timestamp": "2026-10-30T10:13:24.969Z",
+    "epochMs": 1793355204969,
+    "level": "error",
+    "category": "server",
+    "source": "server",
+    "message": "(node:8) ExperimentalWarning: vm.USE_MAIN_CONTEXT_DEFAULT_LOADER is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)",
+    "metadata": null
+  },
+  {
+    "id": "J9W91xNGPypNn0itXEGq",
+    "timestamp": "2026-10-30T10:04:38.193Z",
+    "epochMs": 1793354678193,
+    "level": "error",
+    "category": "ui",
+    "source": "client",
+    "message": "WebSocket closed without opened.",
+    "metadata": {
+      "reason": "Error: WebSocket closed without opened.\n    at WebSocket.<anonymous> (https://ais-dev-753n3egipkbdbklvm2si4o-157941940929.europe-west3.run.app/@vite/client:454:22)"
+    }
+  },
+  {
+    "id": "CBDvbkk6IRQVORu9u1se",
+    "timestamp": "2026-10-30T09:16:05.192Z",
+    "epochMs": 1793351765192,
+    "level": "error",
+    "category": "ui",
+    "source": "client",
+    "message": "WebSocket closed without opened.",
+    "metadata": {
+      "reason": "Error: WebSocket closed without opened.\n    at WebSocket.<anonymous> (https://ais-dev-753n3egipkbdbklvm2si4o-157941940929.europe-west3.run.app/@vite/client:454:22)"
+    }
+  },
+  {
+    "id": "qmJT6aEYuSa4bqrIctfM",
+    "timestamp": "2026-10-30T09:14:24.035Z",
+    "epochMs": 1793351664035,
+    "level": "error",
+    "category": "ui",
+    "source": "client",
+    "message": "[UI] AI mass catalog creation error: Unexpected token 'R', \"Request En\"... is not valid JSON",
+    "metadata": {
+      "filesCount": 104,
+      "category": "ui"
+    }
+  },
+  {
+    "id": "ETRzLWcTYpZftDAKAcGL",
+    "timestamp": "2026-10-30T09:14:23.803Z",
+    "epochMs": 1793351663803,
+    "level": "error",
+    "category": "server",
+    "source": "server",
+    "message": "(node:8) ExperimentalWarning: vm.USE_MAIN_CONTEXT_DEFAULT_LOADER is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)",
+    "metadata": null
+  },
+  {
+    "id": "MOMRBNjbv5SPd9pWUgkx",
+    "timestamp": "2026-10-30T09:14:16.142Z",
+    "epochMs": 1793351656142,
+    "level": "error",
+    "category": "ui",
+    "source": "client",
+    "message": "AI mass catalog creation error: Unexpected token 'R', \"Request En\"... is not valid JSON",
+    "metadata": {
+      "filesCount": 104
+    }
+  },
+  {
+    "id": "v8xf26cR86EP0VqVFecs",
+    "timestamp": "2026-10-30T09:01:22.415Z",
+    "epochMs": 1793350882415,
+    "level": "error",
+    "category": "ui",
+    "source": "client",
+    "message": "WebSocket closed without opened.",
+    "metadata": {
+      "reason": "Error: WebSocket closed without opened.\n    at WebSocket.<anonymous> (https://ais-dev-753n3egipkbdbklvm2si4o-157941940929.europe-west3.run.app/@vite/client:454:22)"
+    }
+  },
+  {
+    "id": "HcUHSQ65kpVjQusCj6VT",
+    "timestamp": "2026-10-30T08:50:06.952Z",
+    "epochMs": 1793350206952,
+    "level": "error",
+    "category": "ui",
+    "source": "client",
+    "message": "WebSocket closed without opened.",
+    "metadata": {
+      "reason": "Error: WebSocket closed without opened.\n    at WebSocket.<anonymous> (https://ais-dev-753n3egipkbdbklvm2si4o-157941940929.europe-west3.run.app/@vite/client:454:22)"
+    }
+  },
+  {
+    "id": "RNWeQf8JGXkZMb5QQ0xs",
+    "timestamp": "2026-10-30T08:46:32.469Z",
+    "epochMs": 1793349992469,
+    "level": "error",
+    "category": "ui",
+    "source": "client",
+    "message": "WebSocket closed without opened.",
+    "metadata": {
+      "reason": "Error: WebSocket closed without opened.\n    at WebSocket.<anonymous> (https://ais-dev-753n3egipkbdbklvm2si4o-157941940929.europe-west3.run.app/@vite/client:454:22)"
+    }
+  },
+  {
+    "id": "ay8KYwCB835td5h87O8b",
+    "timestamp": "2026-10-30T08:44:13.357Z",
+    "epochMs": 1793349853357,
+    "level": "error",
+    "category": "ui",
+    "source": "client",
+    "message": "WebSocket closed without opened.",
+    "metadata": {
+      "reason": "Error: WebSocket closed without opened.\n    at WebSocket.<anonymous> (https://ais-dev-753n3egipkbdbklvm2si4o-157941940929.europe-west3.run.app/@vite/client:454:22)"
+    }
+  },
+  {
+    "id": "CkszUAv2qMcNOQV9Kv4r",
+    "timestamp": "2026-10-30T08:42:25.965Z",
+    "epochMs": 1793349745965,
+    "level": "info",
+    "category": "system",
+    "source": "server",
+    "message": "WhatsApp Alert Prepared [new_product]: recipient=admin",
+    "metadata": {
+      "recipientRole": "admin",
+      "name": "Nike Comfort ",
+      "messagePreview": "👟 *NEW PRODUCT ADDED TO SITE — SOLEMATE.CO.KE*\n\n*Product Name:* Nike Comfort \n*Brand:* Nike\n*Category:* Sneakers (Unisex)\n*Price:* KES 4,800\n*Color:* White\n*In",
+      "productId": "zhtable8d",
+      "type": "new_product",
+      "targetPhone": "+254116943564"
+    }
+  },
+  {
+    "id": "K5z9zDHle8FCslF7mgEf",
+    "timestamp": "2026-10-30T08:40:46.741Z",
+    "epochMs": 1793349646741,
+    "level": "info",
+    "category": "system",
+    "source": "server",
+    "message": "WhatsApp Alert Prepared [new_product]: recipient=admin",
+    "metadata": {
+      "type": "new_product",
+      "messagePreview": "👟 *NEW PRODUCT ADDED TO SITE — SOLEMATE.CO.KE*\n\n*Product Name:* J9\n*Brand:* Jordans\n*Category:* Sneakers (Unisex)\n*Price:* KES 4,800\n*Color:* White n red\n*Init",
+      "productId": "z4bdpmf0g",
+      "name": "J9",
+      "recipientRole": "admin",
+      "targetPhone": "+254116943564"
+    }
+  },
+  {
+    "id": "bDE1q9D2QyRyOK4uS7pA",
+    "timestamp": "2026-10-30T08:39:35.343Z",
+    "epochMs": 1793349575343,
+    "level": "info",
+    "category": "system",
+    "source": "server",
+    "message": "WhatsApp Alert Prepared [new_product]: recipient=admin",
+    "metadata": {
+      "type": "new_product",
+      "targetPhone": "+254116943564",
+      "messagePreview": "👟 *NEW PRODUCT ADDED TO SITE — SOLEMATE.CO.KE*\n\n*Product Name:* Timbs boots\n*Brand:* Timberland \n*Category:* Lifestyle (Unisex)\n*Price:* KES 4,900\n*Color:* Bla",
+      "recipientRole": "admin",
+      "name": "Timbs boots",
+      "productId": "suei7gtj7"
+    }
+  },
+  {
+    "id": "jr0Oel49bhA0qUDfZ8tG",
+    "timestamp": "2026-10-30T08:38:38.276Z",
+    "epochMs": 1793349518276,
+    "level": "info",
+    "category": "system",
+    "source": "server",
+    "message": "WhatsApp Alert Prepared [new_product]: recipient=admin",
+    "metadata": {
+      "type": "new_product",
+      "recipientRole": "admin",
+      "targetPhone": "+254116943564",
+      "productId": "yceb6zj99",
+      "messagePreview": "👟 *NEW PRODUCT ADDED TO SITE — SOLEMATE.CO.KE*\n\n*Product Name:* Af1\n*Brand:* Nike\n*Category:* Sneakers (Unisex)\n*Price:* KES 2,300\n*Color:* Black\n*Initial Stoc",
+      "name": "Af1"
+    }
+  },
+  {
+    "id": "LgE9EKVLYXGJsWLjDIfb",
+    "timestamp": "2026-10-30T08:37:45.248Z",
+    "epochMs": 1793349465248,
+    "level": "info",
+    "category": "system",
+    "source": "server",
+    "message": "WhatsApp Alert Prepared [new_product]: recipient=admin",
+    "metadata": {
+      "targetPhone": "+254116943564",
+      "messagePreview": "👟 *NEW PRODUCT ADDED TO SITE — SOLEMATE.CO.KE*\n\n*Product Name:* Nike runners\n*Brand:* Nike \n*Category:* Lifestyle (Unisex)\n*Price:* KES 4,800\n*Color:* Brown \n*",
+      "productId": "oxmvrb5hy",
+      "name": "Nike runners",
+      "recipientRole": "admin",
+      "type": "new_product"
+    }
+  },
+  {
+    "id": "US0UtIcy1q3QpnLuiHnL",
+    "timestamp": "2026-10-30T08:36:42.550Z",
+    "epochMs": 1793349402550,
+    "level": "info",
+    "category": "system",
+    "source": "server",
+    "message": "WhatsApp Alert Prepared [new_product]: recipient=admin",
+    "metadata": {
+      "recipientRole": "admin",
+      "productId": "ilz0h8srx",
+      "name": "Nike Customs",
+      "messagePreview": "👟 *NEW PRODUCT ADDED TO SITE — SOLEMATE.CO.KE*\n\n*Product Name:* Nike Customs\n*Brand:* Nike \n*Category:* Sneakers (Unisex)\n*Price:* KES 4,000\n*Color:* Blue\n*Ini",
+      "type": "new_product",
+      "targetPhone": "+254116943564"
+    }
+  },
+  {
+    "id": "ZiZzV4KIvkR5zgy3Stwv",
+    "timestamp": "2026-10-30T08:35:39.766Z",
+    "epochMs": 1793349339766,
+    "level": "info",
+    "category": "system",
+    "source": "server",
+    "message": "WhatsApp Alert Prepared [new_product]: recipient=admin",
+    "metadata": {
+      "type": "new_product",
+      "targetPhone": "+254116943564",
+      "messagePreview": "👟 *NEW PRODUCT ADDED TO SITE — SOLEMATE.CO.KE*\n\n*Product Name:* Shox\n*Brand:* Nike\n*Category:* Sneakers (Unisex)\n*Price:* KES 5,000\n*Color:* Black\n*Initial Sto",
+      "productId": "ffgkn81uz",
+      "name": "Shox",
+      "recipientRole": "admin"
+    }
+  },
+  {
+    "id": "OcizQg3btDlj47O07BQo",
+    "timestamp": "2026-10-30T08:34:48.592Z",
+    "epochMs": 1793349288592,
+    "level": "info",
+    "category": "system",
+    "source": "server",
+    "message": "WhatsApp Alert Prepared [new_product]: recipient=admin",
+    "metadata": {
+      "productId": "44gstyn88",
+      "name": "Nike airs",
+      "recipientRole": "admin",
+      "type": "new_product",
+      "messagePreview": "👟 *NEW PRODUCT ADDED TO SITE — SOLEMATE.CO.KE*\n\n*Product Name:* Nike airs\n*Brand:* Nike\n*Category:* Sneakers (Unisex)\n*Price:* KES 5,000\n*Color:* Pink\n*Initial",
+      "targetPhone": "+254116943564"
+    }
+  },
+  {
+    "id": "rS2sITtzTG3JMOkoLSmR",
+    "timestamp": "2026-10-30T08:33:36.640Z",
+    "epochMs": 1793349216640,
+    "level": "info",
+    "category": "system",
+    "source": "server",
+    "message": "WhatsApp Alert Prepared [new_product]: recipient=admin",
+    "metadata": {
+      "messagePreview": "👟 *NEW PRODUCT ADDED TO SITE — SOLEMATE.CO.KE*\n\n*Product Name:* Jordans8\n*Brand:* Nike\n*Category:* Sneakers (Unisex)\n*Price:* KES 5,000\n*Color:* Brown\n*Initial",
+      "targetPhone": "+254116943564",
+      "type": "new_product",
+      "recipientRole": "admin",
+      "name": "Jordans8",
+      "productId": "ukdic8v1q"
+    }
+  },
+  {
+    "id": "SBQn5M6hlBDh1D7PCQQJ",
+    "timestamp": "2026-10-30T08:33:36.432Z",
+    "epochMs": 1793349216432,
+    "level": "error",
+    "category": "server",
+    "source": "server",
+    "message": "(node:8) ExperimentalWarning: vm.USE_MAIN_CONTEXT_DEFAULT_LOADER is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)",
+    "metadata": null
+  }
+]

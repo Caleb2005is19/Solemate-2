@@ -172,12 +172,21 @@ export function initGlobalErrorListeners(): void {
   isListenerAttached = true;
 
   window.addEventListener('error', (event) => {
-    // Ignore benign resize/browser noise
-    if (event.message?.includes('ResizeObserver') || event.message?.includes('Script error')) return;
+    const rawMsg = event.message || '';
+    // Ignore benign resize/browser noise and Vite development HMR WebSocket disconnections
+    if (
+      rawMsg.includes('ResizeObserver') || 
+      rawMsg.includes('Script error') ||
+      rawMsg.includes('WebSocket closed without opened') ||
+      rawMsg.includes('@vite/client') ||
+      rawMsg.includes('vite:ws')
+    ) {
+      return;
+    }
 
     logSystemError(
       'ui',
-      event.message || 'Unhandled Client Exception',
+      rawMsg || 'Unhandled Client Exception',
       {
         filename: event.filename,
         lineno: event.lineno,
@@ -192,6 +201,15 @@ export function initGlobalErrorListeners(): void {
     const reason = event.reason;
     const msg = reason?.message || String(reason || 'Unhandled Promise Rejection');
     
+    // Ignore harmless Vite HMR reconnects in iframe preview sandbox
+    if (
+      msg.includes('WebSocket closed without opened') ||
+      msg.includes('@vite/client') ||
+      msg.includes('vite:ws')
+    ) {
+      return;
+    }
+
     // Categorize Cloudinary vs Firebase vs IntaSend
     let category: LogCategory = 'ui';
     if (msg.toLowerCase().includes('cloudinary') || msg.toLowerCase().includes('upload')) {

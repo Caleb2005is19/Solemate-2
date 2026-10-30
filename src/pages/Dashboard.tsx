@@ -30,6 +30,8 @@ import { InvoiceModal } from '../components/admin/InvoiceModal';
 import { MassProductImportModal } from '../components/admin/MassProductImportModal';
 import { QuickCatalogAlignerModal } from '../components/admin/QuickCatalogAlignerModal';
 import { GroundedAiReviewModal, GroundedAiDetectionResult } from '../components/admin/GroundedAiReviewModal';
+import { BackgroundJobsPanel } from '../components/admin/BackgroundJobsPanel';
+import { CatalogBatchJob } from '../services/types';
 
 export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
   const { sellerId } = useParams<{ sellerId: string }>();
@@ -67,6 +69,7 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
   const [selectedSellerForReport, setSelectedSellerForReport] = useState<string | 'all'>('all');
   const [isAddingProduct, setIsAddingProduct] = useState(false);
   const [isMassImportOpen, setIsMassImportOpen] = useState(false);
+  const [reviewBatchJob, setReviewBatchJob] = useState<CatalogBatchJob | null>(null);
   const [isQuickAlignerOpen, setIsQuickAlignerOpen] = useState(false);
   const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set());
   const [isBatchDeleting, setIsBatchDeleting] = useState(false);
@@ -738,6 +741,16 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
                 </button>
               </div>
             </div>
+
+            {/* Background AI Auto-Catalog Jobs Monitor */}
+            {role === 'admin' && (
+              <BackgroundJobsPanel
+                onOpenJobReview={(job) => {
+                  setReviewBatchJob(job);
+                  setIsMassImportOpen(true);
+                }}
+              />
+            )}
 
             {isAddingProduct && (
               <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
@@ -1698,10 +1711,15 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
         {isMassImportOpen && (
           <MassProductImportModal
             isOpen={isMassImportOpen}
-            onClose={() => setIsMassImportOpen(false)}
+            onClose={() => {
+              setIsMassImportOpen(false);
+              setReviewBatchJob(null);
+            }}
             sellers={sellers}
+            reviewJob={reviewBatchJob}
             onSuccess={(count) => {
               setSuccess(`Successfully imported ${count} products to the catalog!`);
+              setReviewBatchJob(null);
               setTimeout(() => setSuccess(null), 5000);
             }}
           />
