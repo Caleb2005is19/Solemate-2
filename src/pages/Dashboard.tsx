@@ -253,12 +253,16 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           image: formData.image,
-          currentName: formData.name || ''
+          currentName: formData.name || '',
+          geminiApiKey: siteSettings?.geminiApiKey || ''
         })
       });
 
       const data = await res.json();
       if (!res.ok || !data.success || !data.detected) {
+        if (data.needsApiKey || (data.error && data.error.toLowerCase().includes('api key'))) {
+          throw new Error('Gemini API key is required on production. Please open Site Settings tab and enter your free key under Google Gemini AI Credentials.');
+        }
         throw new Error(data.error || 'Failed to authenticate shoe photo');
       }
 

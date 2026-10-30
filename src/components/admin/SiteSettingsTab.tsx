@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../../context/StoreContext';
-import { Save, Globe, Mail, Phone, MapPin, MessageSquare, Share2, Search, Type, Clock, TrendingUp, AlertCircle, Loader2, Cloud, CheckCircle2, MessageCircle, ExternalLink } from 'lucide-react';
+import { Save, Globe, Mail, Phone, MapPin, MessageSquare, Share2, Search, Type, Clock, TrendingUp, AlertCircle, Loader2, Cloud, CheckCircle2, MessageCircle, ExternalLink, Sparkles, Key, Eye, EyeOff } from 'lucide-react';
 import { SiteSettings } from '../../types';
 import { uploadToCloudinary, testCloudinaryConnection, saveCloudinaryConfig } from '../../services/cloudinaryService';
 import { useNotifications } from '../../context/NotificationContext';
@@ -21,6 +21,33 @@ export function SiteSettingsTab() {
 
   // WhatsApp testing state
   const [testWhatsAppSent, setTestWhatsAppSent] = useState(false);
+
+  // Gemini AI testing state
+  const [testingGemini, setTestingGemini] = useState(false);
+  const [geminiStatus, setGeminiStatus] = useState<{ success?: boolean; message?: string } | null>(null);
+  const [showGeminiKey, setShowGeminiKey] = useState(false);
+
+  const handleTestGemini = async () => {
+    const key = formData.geminiApiKey?.trim() || '';
+    setTestingGemini(true);
+    setGeminiStatus(null);
+    try {
+      const res = await fetch('/api/catalog/test-gemini', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ geminiApiKey: key })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Gemini API test failed');
+      }
+      setGeminiStatus({ success: true, message: data.message || 'Gemini AI is connected and working!' });
+    } catch (err: any) {
+      setGeminiStatus({ success: false, message: err.message || 'Failed to verify key' });
+    } finally {
+      setTestingGemini(false);
+    }
+  };
 
   useEffect(() => {
     if (siteSettings) {
@@ -464,6 +491,81 @@ export function SiteSettingsTab() {
               />
               <p className="text-[11px] text-zinc-400 mt-1 pl-1">In Cloudinary: Settings → Upload → Upload Presets → Mode: Unsigned</p>
             </div>
+          </div>
+        </section>
+
+        {/* Google Gemini AI Configuration Section */}
+        <section className="md:col-span-2 bg-white p-8 rounded-3xl border border-zinc-100 shadow-sm space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-100 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                <Sparkles className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-zinc-900">Google Gemini AI Credentials</h2>
+                <p className="text-xs text-zinc-500">
+                  Powers 100% Grounded Sneaker Verification & Photo Auto-Cataloging on live domains like solemate.co.ke.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleTestGemini}
+              disabled={testingGemini}
+              className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 active:bg-emerald-200 px-4 py-2 rounded-xl text-xs font-bold transition-all disabled:opacity-50 cursor-pointer"
+            >
+              {testingGemini ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+              {testingGemini ? 'Testing Gemini Key...' : 'Test AI Key Connection'}
+            </button>
+          </div>
+
+          {geminiStatus && (
+            <div className={`p-4 rounded-2xl border text-xs font-bold flex items-start gap-3 ${
+              geminiStatus.success ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-rose-50 text-rose-800 border-rose-200'
+            }`}>
+              {geminiStatus.success ? <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" /> : <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />}
+              <div>
+                <p className="font-black text-sm">{geminiStatus.success ? 'Gemini AI Operational' : 'Connection Notice'}</p>
+                <p className="font-normal mt-0.5">{geminiStatus.message}</p>
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-zinc-600 uppercase ml-1">Gemini API Key</label>
+              <a
+                href="https://aistudio.google.com/app/apikey"
+                target="_blank"
+                rel="noreferrer"
+                className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 hover:underline"
+              >
+                <span>Get a free Gemini API key</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+
+            <div className="relative">
+              <Key className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+              <input
+                type={showGeminiKey ? 'text' : 'password'}
+                value={formData.geminiApiKey || ''}
+                onChange={e => handleInputChange('geminiApiKey', e.target.value)}
+                className="w-full pl-11 pr-12 py-3 rounded-2xl border border-zinc-200 focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-mono"
+                placeholder="AIzaSy..."
+              />
+              <button
+                type="button"
+                onClick={() => setShowGeminiKey(!showGeminiKey)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
+              >
+                {showGeminiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+            <p className="text-[11px] text-zinc-400 pl-1">
+              Once saved, this key is securely used by your store backend on solemate.co.ke. Alternatively, configure <code className="bg-zinc-100 text-zinc-800 px-1.5 py-0.5 rounded font-mono">GEMINI_API_KEY</code> in your Vercel Project Environment Variables.
+            </p>
           </div>
         </section>
 

@@ -224,7 +224,8 @@ export function MassProductImportModal({
             items: preparedItems,
             defaultSellerId,
             batchIndex: b,
-            totalBatches
+            totalBatches,
+            geminiApiKey: siteSettings?.geminiApiKey
           })
         });
 

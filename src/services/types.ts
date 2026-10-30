@@ -124,6 +124,8 @@ export interface SiteSettings {
   // Cloudinary credentials override
   cloudinaryCloudName?: string;
   cloudinaryUploadPreset?: string;
+  // Gemini AI credentials override (for production domains like solemate.co.ke)
+  geminiApiKey?: string;
   // WhatsApp Notification Settings
   adminWhatsAppNumber?: string;
   whatsappOrderAlerts?: boolean;

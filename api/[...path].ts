@@ -106,19 +106,45 @@ runFailsafeInitialization().catch(err => {
 
 import { GoogleGenAI } from '@google/genai';
 
-let aiClient: GoogleGenAI | null = null;
-function getGenAI(): GoogleGenAI | null {
-  if (!aiClient && process.env.GEMINI_API_KEY) {
-    aiClient = new GoogleGenAI({
-      apiKey: process.env.GEMINI_API_KEY,
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build',
+async function getGenAI(explicitKey?: string): Promise<GoogleGenAI | null> {
+  let key = (
+    explicitKey ||
+    process.env.GEMINI_API_KEY ||
+    process.env.GOOGLE_GENAI_API_KEY ||
+    process.env.GOOGLE_API_KEY ||
+    process.env.VITE_GEMINI_API_KEY ||
+    process.env.API_KEY ||
+    ''
+  ).trim();
+
+  // If not found in process.env, check Firestore settings/site
+  if (!key && db) {
+    try {
+      const siteDoc = await db.collection('settings').doc('site').get();
+      if (siteDoc.exists) {
+        const siteData = siteDoc.data();
+        if (siteData?.geminiApiKey) {
+          key = String(siteData.geminiApiKey).trim();
+          console.log('[AI Authenticator] Using Gemini API key from Firestore settings/site');
         }
       }
-    });
+    } catch (e: any) {
+      console.warn('Could not read geminiApiKey from settings/site:', e.message);
+    }
   }
-  return aiClient;
+
+  if (!key) {
+    return null;
+  }
+
+  return new GoogleGenAI({
+    apiKey: key,
+    httpOptions: {
+      headers: {
+        'User-Agent': 'aistudio-build',
+      }
+    }
+  });
 }
 
 const app = express();
@@ -902,14 +928,14 @@ app.get('/api/coupons/validate', async (req, res) => {
 // ==========================================
 app.post('/api/catalog/ai-batch-analyze', async (req, res) => {
   try {
-    const { items, defaultSellerId, batchIndex = 0 } = req.body;
+    const { items, defaultSellerId, batchIndex = 0, geminiApiKey } = req.body;
     if (!items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ error: 'Please provide at least one image item to analyze' });
     }
 
     console.log(`[AI Mass Catalog] Analyzing batch ${batchIndex + 1}: ${items.length} uploaded shoe photos...`);
 
-    const ai = getGenAI();
+    const ai = await getGenAI(geminiApiKey);
     let generatedProducts: any[] = [];
     let methodUsed = 'gemini-3.8-flash';
 
@@ -1091,15 +1117,18 @@ Here are the images:
 // ==========================================
 app.post('/api/catalog/ai-align-shoe', async (req, res) => {
   try {
-    const { image, base64, currentName } = req.body;
+    const { image, base64, currentName, geminiApiKey } = req.body;
     if (!image && !base64) {
       return res.status(400).json({ error: 'Please provide an image URL or base64 data to authenticate' });
     }
 
     console.log(`[Grounded AI Authenticator] Inspecting footwear photo...`);
-    const ai = getGenAI();
+    const ai = await getGenAI(geminiApiKey);
     if (!ai) {
-      return res.status(503).json({ error: 'Gemini AI service is currently unavailable. Please verify API key.' });
+      return res.status(503).json({ 
+        error: 'Gemini AI service requires an API key. Please save your free key in Admin Settings > Site Settings > Google Gemini AI, or set GEMINI_API_KEY in your hosting environment.',
+        needsApiKey: true 
+      });
     }
 
     const parts: any[] = [];
@@ -1151,7 +1180,10 @@ Return strictly JSON with this exact schema:
       });
     } else if (image && (image.startsWith('http://') || image.startsWith('https://'))) {
       try {
-        const fetchRes = await fetch(image);
+        const fetchRes = await fetch(image, {
+          signal: AbortSignal.timeout(6000),
+          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+        });
         if (fetchRes.ok) {
           const arrayBuffer = await fetchRes.arrayBuffer();
           const buffer = Buffer.from(arrayBuffer);
@@ -1175,14 +1207,27 @@ Return strictly JSON with this exact schema:
       }
     }
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents: { parts },
-      config: {
-        responseMimeType: 'application/json',
-        systemInstruction: 'You are a certified footwear authenticator. Only report verified visual evidence. Return JSON matching the requested schema.'
-      }
-    });
+    let response;
+    try {
+      response = await ai.models.generateContent({
+        model: 'gemini-3.8-flash',
+        contents: { parts },
+        config: {
+          responseMimeType: 'application/json',
+          systemInstruction: 'You are a certified footwear authenticator. Only report verified visual evidence. Return JSON matching the requested schema.'
+        }
+      });
+    } catch (modelErr: any) {
+      console.warn('[AI Authenticator] gemini-3.8-flash temporary spike, falling back to gemini-flash-latest:', modelErr.message);
+      response = await ai.models.generateContent({
+        model: 'gemini-flash-latest',
+        contents: { parts },
+        config: {
+          responseMimeType: 'application/json',
+          systemInstruction: 'You are a certified footwear authenticator. Only report verified visual evidence. Return JSON matching the requested schema.'
+        }
+      });
+    }
 
     const rawText = response.text || '{}';
     const detected = JSON.parse(rawText);
@@ -1207,6 +1252,44 @@ Return strictly JSON with this exact schema:
   } catch (err: any) {
     console.error('[Grounded AI Error]:', err);
     res.status(500).json({ error: 'Failed to authenticate footwear from photo', message: err.message });
+  }
+});
+
+// Test Gemini API key endpoint
+app.post('/api/catalog/test-gemini', async (req, res) => {
+  try {
+    const { geminiApiKey } = req.body;
+    const ai = await getGenAI(geminiApiKey);
+    if (!ai) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'No Gemini API key found in request, server environment, or store settings.' 
+      });
+    }
+
+    let response;
+    let modelUsed = 'gemini-3.8-flash';
+    try {
+      response = await ai.models.generateContent({
+        model: 'gemini-3.8-flash',
+        contents: 'Footwear authenticator connection test. Reply with: OK',
+      });
+    } catch {
+      modelUsed = 'gemini-flash-latest';
+      response = await ai.models.generateContent({
+        model: 'gemini-flash-latest',
+        contents: 'Footwear authenticator connection test. Reply with: OK',
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Gemini AI API key is verified and operational!',
+      model: modelUsed,
+      reply: response.text?.trim()
+    });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err.message || 'Gemini API verification failed.' });
   }
 });
 
