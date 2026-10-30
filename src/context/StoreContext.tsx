@@ -600,11 +600,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const addProductsBatch = useCallback(async (newProds: Product[]) => {
     try {
-      const batch = writeBatch(db);
-      newProds.forEach(p => {
-        batch.set(doc(db, 'products', p.id), stripUndefined(p));
-      });
-      await batch.commit();
+      const CHUNK_SIZE = 250;
+      for (let i = 0; i < newProds.length; i += CHUNK_SIZE) {
+        const slice = newProds.slice(i, i + CHUNK_SIZE);
+        const batch = writeBatch(db);
+        slice.forEach(p => {
+          batch.set(doc(db, 'products', p.id), stripUndefined(p));
+        });
+        await batch.commit();
+      }
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'products_batch');
     }

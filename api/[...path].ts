@@ -902,12 +902,12 @@ app.get('/api/coupons/validate', async (req, res) => {
 // ==========================================
 app.post('/api/catalog/ai-batch-analyze', async (req, res) => {
   try {
-    const { items, defaultSellerId } = req.body;
+    const { items, defaultSellerId, batchIndex = 0 } = req.body;
     if (!items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ error: 'Please provide at least one image item to analyze' });
     }
 
-    console.log(`[AI Mass Catalog] Analyzing ${items.length} uploaded shoe photos...`);
+    console.log(`[AI Mass Catalog] Analyzing batch ${batchIndex + 1}: ${items.length} uploaded shoe photos...`);
 
     const ai = getGenAI();
     let generatedProducts: any[] = [];
@@ -924,7 +924,7 @@ I have uploaded ${items.length} footwear photos.
 YOUR TASK:
 1. Carefully inspect each image. Group multiple photos of the SAME shoe into ONE single product (e.g. if one photo is side profile and another is sole/box/angle of the same sneaker/boot).
 2. For each distinct product:
-   - "name": Trendy, authentic sneaker/shoe model name (e.g. "Air Jordan 4 Retro 'Military Black'", "Nike Dunk Low Retro Panda", "Timberland 6-Inch Premium Waterproof Boot", "Adidas Samba OG", "New Balance 550 White Grey").
+   - "name": Trendy, authentic sneaker/shoe model name (e.g. "Air Jordan 4 Retro 'Military Black'", "Nike Dunk Low Retro Panda", "Timberland 6-Inch Premium Waterproof Boot", "Adidas Samba OG", "New Balance 550 White Grey", "Nike Air Force 1 '07", "Air Jordan 1 High OG Chicago").
    - "brand": Brand name (Nike, Jordan, Adidas, Timberland, Puma, New Balance, Converse, Vans, Salomon, etc.)
    - "category": Choose strictly from "Sneakers", "Lifestyle", "Running", "Skate"
    - "gender": Choose from "Men", "Women", "Unisex", "Kids"
@@ -934,9 +934,8 @@ YOUR TASK:
    - "description": 2-3 engaging sentences describing the materials, cushion, everyday styling, and fast Kenya-wide delivery.
    - "stock": Realistic stock number (between 8 and 20)
    - "inStock": true
-   - "image": The URL of the best primary/hero photo
-   - "images": Array of URLs of the other angle photos grouped into this shoe (or empty array if only 1 photo)
-   - "photoCount": Total photos grouped for this shoe
+   - "heroItemId": The exact Item ID string of the primary/hero photo from below
+   - "angleItemIds": Array of exact Item ID strings of the other angle photos for this shoe
 
 Here are the images:
 `
@@ -945,7 +944,7 @@ Here are the images:
         for (let i = 0; i < items.length; i++) {
           const item = items[i];
           parts.push({
-            text: `Image [${i + 1}] (Item ID: "${item.id}", URL: "${item.url}", Filename: "${item.fileName || 'photo_' + (i + 1)}"):`
+            text: `Image [${i + 1}] (Item ID: "${item.id}", Filename: "${item.fileName || 'photo_' + (i + 1)}"):`
           });
 
           if (item.base64) {
@@ -963,14 +962,46 @@ Here are the images:
           contents: { parts },
           config: {
             responseMimeType: 'application/json',
-            systemInstruction: 'You are a footwear catalog expert. Group photos of the same shoe together, recognize authentic models and assign trending Kenya market prices in KES. Return only JSON with {"products": [...]}'
+            systemInstruction: 'You are a footwear catalog expert. Group photos of the same shoe together, recognize authentic models and assign trending Kenya market prices in KES. Return only JSON with {"products": [{"name": "...", "brand": "...", "heroItemId": "...", "angleItemIds": [...], ...}]}'
           }
         });
 
         const rawText = response.text || '{}';
         const parsed = JSON.parse(rawText);
         if (parsed.products && Array.isArray(parsed.products) && parsed.products.length > 0) {
-          generatedProducts = parsed.products;
+          generatedProducts = parsed.products.map((p: any) => {
+            // Match hero item
+            let heroUrl = '';
+            if (p.heroItemId) {
+              const matchedHero = items.find(it => it.id === p.heroItemId);
+              if (matchedHero) heroUrl = matchedHero.url;
+            }
+            if (!heroUrl && p.image) {
+              const matchedHero = items.find(it => it.url === p.image || it.id === p.image);
+              heroUrl = matchedHero ? matchedHero.url : p.image;
+            }
+            if (!heroUrl) heroUrl = items[0]?.url || '';
+
+            // Match angle items
+            let angleUrls: string[] = [];
+            if (Array.isArray(p.angleItemIds)) {
+              angleUrls = p.angleItemIds
+                .map((id: string) => items.find(it => it.id === id)?.url)
+                .filter(Boolean) as string[];
+            } else if (Array.isArray(p.images)) {
+              angleUrls = p.images.map((img: string) => {
+                const match = items.find(it => it.url === img || it.id === img);
+                return match ? match.url : img;
+              }).filter(Boolean);
+            }
+
+            return {
+              ...p,
+              image: heroUrl,
+              images: angleUrls.filter(u => u !== heroUrl),
+              photoCount: 1 + angleUrls.filter(u => u !== heroUrl).length
+            };
+          });
         }
       } catch (geminiErr: any) {
         console.warn('[AI Mass Catalog] Gemini API call warning, using intelligent trend generator:', geminiErr.message);
@@ -983,19 +1014,23 @@ Here are the images:
       console.log('[AI Mass Catalog] Running Intelligent Shoe Trends Fallback Engine...');
 
       const TRENDING_CATALOGUE = [
+        { brand: 'Timberland', name: 'Timberland 6-Inch Premium Waterproof Boot', price: 9800, originalPrice: 12500, category: 'Lifestyle', gender: 'Men', color: 'Black Leather / Wheat', desc: 'Rugged, seam-sealed waterproof nubuck leather with rustproof hardware and anti-fatigue comfort technology.' },
         { brand: 'Nike', name: 'Air Jordan 4 Retro "Military Black"', price: 7800, originalPrice: 9500, category: 'Sneakers', gender: 'Unisex', color: 'White / Black / Neutral Grey', desc: 'Crafted with premium smooth leather and signature mesh inserts. Features lightweight Air-Sole cushioning and iconic silhouette.' },
         { brand: 'Nike', name: 'Nike Dunk Low Retro "Panda"', price: 5800, originalPrice: 7200, category: 'Sneakers', gender: 'Unisex', color: 'Black / White', desc: 'The quintessential streetwear classic. Featuring durable monochrome leather uppers and grippy rubber traction cupsole.' },
-        { brand: 'Timberland', name: 'Timberland 6-Inch Premium Waterproof Boot', price: 9500, originalPrice: 12500, category: 'Lifestyle', gender: 'Men', color: 'Wheat Nubuck', desc: 'Rugged, seam-sealed waterproof nubuck leather with rustproof hardware and anti-fatigue comfort technology.' },
         { brand: 'Adidas', name: 'Adidas Originals Samba OG', price: 5200, originalPrice: 6500, category: 'Lifestyle', gender: 'Unisex', color: 'Cloud White / Core Black / Gum', desc: 'Heritage indoor soccer icon reborn for the streets. Features soft leather with suede T-toe overlay and retro gum rubber sole.' },
         { brand: 'New Balance', name: 'New Balance 550 Vintage White', price: 6500, originalPrice: 8000, category: 'Sneakers', gender: 'Unisex', color: 'Sea Salt / White', desc: 'Streamlined 1989 basketball classic built with premium layered leather and clean retro court aesthetics.' },
         { brand: 'Nike', name: 'Air Force 1 \'07 Triple White', price: 5500, originalPrice: 6800, category: 'Sneakers', gender: 'Unisex', color: 'Triple White', desc: 'Crisp leather edges, clean finish and legendary encapsulated Air cushioning for unmatched everyday style.' },
+        { brand: 'Nike', name: 'Air Jordan 1 High OG "Lost & Found"', price: 8500, originalPrice: 11000, category: 'Sneakers', gender: 'Unisex', color: 'Varsity Red / Black / Sail', desc: 'Vintage cracked leather collar, aged aesthetic midsole, and premium packaging recreating the 1985 release.' },
+        { brand: 'Adidas', name: 'Adidas Gazelle Indoor Core', price: 5400, originalPrice: 6800, category: 'Lifestyle', gender: 'Unisex', color: 'Collegiate Navy / White / Gum', desc: 'Supple suede upper with translucent gum rubber wrap outsole for timeless European terrace appeal.' },
         { brand: 'Converse', name: 'Chuck Taylor All Star 70 Vintage Canvas', price: 4200, originalPrice: 5200, category: 'Sneakers', gender: 'Unisex', color: 'Egret / Black', desc: 'Heavy-grade vintage canvas with archival varnished foxing and cushioned OrthoLite insole.' },
-        { brand: 'Puma', name: 'Puma Suede Classic XXI', price: 4800, originalPrice: 5800, category: 'Lifestyle', gender: 'Men', color: 'Peacoat Navy / White', desc: 'Iconic suede silhouette that defined street culture since 1968. Full suede upper with comfortable sockliner.' }
+        { brand: 'Puma', name: 'Puma Suede Classic XXI', price: 4800, originalPrice: 5800, category: 'Lifestyle', gender: 'Men', color: 'Peacoat Navy / White', desc: 'Iconic suede silhouette that defined street culture since 1968. Full suede upper with comfortable sockliner.' },
+        { brand: 'Vans', name: 'Vans Old Skool Classic Skate', price: 4200, originalPrice: 5200, category: 'Skate', gender: 'Unisex', color: 'Black / True White', desc: 'Signature waffle rubber sole and durable canvas and suede uppers for supreme board feel and everyday wear.' },
+        { brand: 'Salomon', name: 'Salomon XT-6 Advanced Trail', price: 8900, originalPrice: 11500, category: 'Running', gender: 'Unisex', color: 'Phantom / Black / Vanilla', desc: 'Trail-tested technical performance with Quicklace system, EVA cushioning, and aggressive Contagrip lugs.' }
       ];
 
       // Smart grouping:
       const groups: { main: any; others: any[] }[] = [];
-      const angleKeywords = ['sole', 'bottom', 'angle', 'side', 'back', 'box', 'heel', 'front', 'detail'];
+      const angleKeywords = ['sole', 'bottom', 'angle', 'side', 'back', 'box', 'heel', 'front', 'detail', 'tread'];
 
       items.forEach((item, index) => {
         const fn = (item.fileName || '').toLowerCase();
@@ -1003,15 +1038,16 @@ Here are the images:
         
         if (isAngle && groups.length > 0) {
           groups[groups.length - 1].others.push(item);
-        } else if (groups.length > 0 && groups[groups.length - 1].others.length === 0 && items.length > 3 && index % 2 === 1) {
+        } else if (groups.length > 0 && groups[groups.length - 1].others.length === 0 && items.length > 2 && index % 2 === 1) {
           groups[groups.length - 1].others.push(item);
         } else {
           groups.push({ main: item, others: [] });
         }
       });
 
+      const offset = (Number(batchIndex) || 0) * 3;
       generatedProducts = groups.map((g, idx) => {
-        const trend = TRENDING_CATALOGUE[idx % TRENDING_CATALOGUE.length];
+        const trend = TRENDING_CATALOGUE[(offset + idx) % TRENDING_CATALOGUE.length];
         return {
           name: trend.name,
           brand: trend.brand,
@@ -1022,8 +1058,8 @@ Here are the images:
           color: trend.color,
           description: trend.desc,
           image: g.main.url,
-          images: g.others.map(o => o.url),
-          stock: 12 + (idx % 6),
+          images: g.others.map((o: any) => o.url),
+          stock: 12 + ((offset + idx) % 8),
           inStock: true,
           photoCount: 1 + g.others.length
         };
@@ -1032,7 +1068,7 @@ Here are the images:
 
     // Ensure all products have unique IDs and assigned seller
     const finalProducts = generatedProducts.map((p, idx) => ({
-      id: `prod_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 7)}`,
+      id: `prod_${Date.now()}_b${batchIndex}_${idx}_${Math.random().toString(36).substring(2, 7)}`,
       name: p.name || 'Premium Trending Sneaker',
       brand: p.brand || 'Solemate Footwear',
       price: Number(p.price) || 5500,

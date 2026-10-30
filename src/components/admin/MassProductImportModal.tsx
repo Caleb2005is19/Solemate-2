@@ -113,21 +113,46 @@ export function MassProductImportModal({
     setError(null);
   };
 
-  // Convert compressed file to clean base64 string for Gemini vision
-  const fileToBase64 = (file: File): Promise<string> => {
+  // Fast HTML5 canvas image optimizer (takes ~10ms per photo instead of seconds)
+  const createOptimizedImageData = (file: File, maxDim: number, quality: number): Promise<string> => {
     return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const res = reader.result as string;
-        const base64Data = res.split(',')[1] || '';
-        resolve(base64Data);
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(width, 1);
+        canvas.height = Math.max(height, 1);
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Canvas context unavailable'));
+          return;
+        }
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'medium';
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', quality);
+        resolve(dataUrl);
       };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error(`Failed to load image: ${file.name}`));
+      };
+      img.src = url;
     });
   };
 
-  // Start Mass Analysis Pipeline
+  // Start Mass Analysis Pipeline with automatic chunking (prevents 413 Payload Too Large)
   const startMassCatalogCreation = async () => {
     if (files.length === 0) {
       setError('Please select at least 1 shoe photo to continue.');
@@ -136,69 +161,103 @@ export function MassProductImportModal({
 
     setStage('analyzing');
     setError(null);
-    setStatusMessage('Compressing and preparing images for visual recognition...');
+    setStatusMessage(`Preparing ${files.length} photos for AI catalog analysis...`);
+    setUploadProgress(5);
 
     try {
-      const preparedItems: { id: string; url: string; base64?: string; mimeType: string; fileName: string }[] = [];
+      const BATCH_SIZE = 10;
+      const totalBatches = Math.ceil(files.length / BATCH_SIZE);
+      const allAccumulatedProducts: Product[] = [];
+      let detectedMethod = 'gemini-3.8-flash';
 
-      // Step 1: Compress & upload to Cloudinary (or fallback to compressed data URL)
-      for (let i = 0; i < files.length; i++) {
-        const item = files[i];
-        setStatusMessage(`Processing photo ${i + 1} of ${files.length}...`);
-        setUploadProgress(Math.round(((i + 1) / files.length) * 45));
+      for (let b = 0; b < totalBatches; b++) {
+        const startIdx = b * BATCH_SIZE;
+        const endIdx = Math.min(startIdx + BATCH_SIZE, files.length);
+        const batchFiles = files.slice(startIdx, endIdx);
 
-        // Quick compression for lightweight transmission
-        const compressed = await imageCompression(item.file, {
-          maxSizeMB: 0.6,
-          maxWidthOrHeight: 1200,
-          useWebWorker: true
-        });
+        setStatusMessage(`Processing batch ${b + 1} of ${totalBatches} (photos ${startIdx + 1} to ${endIdx} of ${files.length})...`);
+        const batchProgress = Math.round(((b) / totalBatches) * 85) + 5;
+        setUploadProgress(batchProgress);
 
-        const base64Data = await fileToBase64(compressed);
-        let finalImageUrl = item.previewUrl;
+        const preparedItems: { id: string; url: string; base64?: string; mimeType: string; fileName: string }[] = [];
 
-        // Try upload to Cloudinary if credentials configured
-        try {
-          const cloudRes = await uploadToCloudinary(compressed);
-          if (cloudRes?.secure_url) {
-            finalImageUrl = cloudRes.secure_url;
+        // 1. Optimize each image in this small batch
+        for (const item of batchFiles) {
+          // Compact thumbnail for AI vision (~20KB)
+          let aiBase64 = '';
+          try {
+            const aiDataUrl = await createOptimizedImageData(item.file, 420, 0.55);
+            aiBase64 = aiDataUrl.split(',')[1] || '';
+          } catch {
+            // fallback
           }
-        } catch (uploadErr) {
-          // If Cloudinary fails or is not setup, use base64 data URL fallback so the process NEVER fails
-          finalImageUrl = `data:${item.file.type || 'image/jpeg'};base64,${base64Data}`;
+
+          // Optimized store display image (~50KB) or Cloudinary URL
+          let finalImageUrl = '';
+          try {
+            const cloudRes = await uploadToCloudinary(item.file);
+            if (cloudRes?.secure_url) {
+              finalImageUrl = cloudRes.secure_url;
+            }
+          } catch {
+            // Cloudinary not configured or offline -> use lightweight web data URL
+          }
+
+          if (!finalImageUrl) {
+            finalImageUrl = await createOptimizedImageData(item.file, 680, 0.68);
+          }
+
+          preparedItems.push({
+            id: item.id,
+            url: finalImageUrl,
+            base64: aiBase64,
+            mimeType: 'image/jpeg',
+            fileName: item.file.name
+          });
         }
 
-        preparedItems.push({
-          id: item.id,
-          url: finalImageUrl,
-          base64: base64Data,
-          mimeType: item.file.type || 'image/jpeg',
-          fileName: item.file.name
+        // 2. Call server AI batch analyzer for this small batch
+        const response = await fetch('/api/catalog/ai-batch-analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            items: preparedItems,
+            defaultSellerId,
+            batchIndex: b,
+            totalBatches
+          })
         });
+
+        const rawResponseText = await response.text();
+        let data: any;
+        try {
+          data = JSON.parse(rawResponseText);
+        } catch {
+          if (response.status === 413) {
+            throw new Error(`Batch ${b + 1} exceeded payload limit. The server rejected the request size.`);
+          }
+          throw new Error(`Server returned HTTP ${response.status}: ${rawResponseText.slice(0, 120)}`);
+        }
+
+        if (!response.ok || !data.success || !Array.isArray(data.products)) {
+          throw new Error(data.error || data.message || `Failed to analyze batch ${b + 1} of photos.`);
+        }
+
+        if (data.method) {
+          detectedMethod = data.method;
+        }
+
+        allAccumulatedProducts.push(...data.products);
       }
 
-      setUploadProgress(60);
-      setStatusMessage('Analyzing shoe models, grouping multi-angle shots & calculating trend prices...');
-
-      // Step 2: Call server AI batch analyzer
-      const response = await fetch('/api/catalog/ai-batch-analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          items: preparedItems,
-          defaultSellerId
-        })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok || !data.success || !Array.isArray(data.products) || data.products.length === 0) {
-        throw new Error(data.error || 'Failed to auto-generate catalog products from photos.');
+      if (allAccumulatedProducts.length === 0) {
+        throw new Error('No products could be generated from the uploaded photos.');
       }
 
       setUploadProgress(100);
-      setAnalysisMethod(data.method || 'gemini-3.8-flash');
-      setGeneratedProducts(data.products);
+      setStatusMessage('Catalog generation complete! Review your products below.');
+      setAnalysisMethod(detectedMethod);
+      setGeneratedProducts(allAccumulatedProducts);
       setStage('review');
     } catch (err: any) {
       console.error('Error during AI mass catalog generation:', err);
