@@ -13,6 +13,9 @@ export default defineConfig(({mode}) => {
       VitePWA({
         registerType: 'autoUpdate',
         includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+        workbox: {
+          maximumFileSizeToCacheInBytes: 6 * 1024 * 1024
+        },
         manifest: {
           name: 'Solemate - Premium Footwear',
           short_name: 'Solemate',

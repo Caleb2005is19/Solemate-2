@@ -77,6 +77,7 @@ function stripUndefined(obj: any) {
 interface StoreContextType {
   products: Product[];
   addProduct: (p: Product) => Promise<void>;
+  addProductsBatch: (products: Product[]) => Promise<void>;
   updateProduct: (id: string, p: Partial<Product>) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
   orders: Order[];
@@ -596,6 +597,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       handleFirestoreError(error, OperationType.CREATE, `products/${p.id}`);
     }
   }, []);
+
+  const addProductsBatch = useCallback(async (newProds: Product[]) => {
+    try {
+      const batch = writeBatch(db);
+      newProds.forEach(p => {
+        batch.set(doc(db, 'products', p.id), stripUndefined(p));
+      });
+      await batch.commit();
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'products_batch');
+    }
+  }, []);
   
   const updateProduct = useCallback(async (id: string, updates: Partial<Product>) => {
     try {
@@ -716,7 +729,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   return (
     <StoreContext.Provider value={{ 
-      products, addProduct, updateProduct, deleteProduct, 
+      products, addProduct, addProductsBatch, updateProduct, deleteProduct, 
       orders, addOrder, updateOrderStatus,
       sellers, addSeller, updateSeller, deleteSeller,
       currentUser, userProfile, updateUserProfile, isAdmin, currentSellerId,

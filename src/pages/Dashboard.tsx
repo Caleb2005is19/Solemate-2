@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
-import { LayoutDashboard, Package, ShoppingCart, Plus, Edit, Trash, Check, X, Users, Link as LinkIcon, LogOut, Upload, TrendingUp, Image as ImageIcon, DollarSign, Tag, Info, Box, Printer, Globe, Palette, ToggleLeft, FileText, Bell, Inbox, Settings, FileSpreadsheet, Ticket, Terminal, PhoneCall, Megaphone, Store, MessageCircle, ExternalLink } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, Plus, Edit, Trash, Check, X, Users, Link as LinkIcon, LogOut, Upload, TrendingUp, Image as ImageIcon, DollarSign, Tag, Info, Box, Printer, Globe, Palette, ToggleLeft, FileText, Bell, Inbox, Settings, FileSpreadsheet, Ticket, Terminal, PhoneCall, Megaphone, Store, MessageCircle, ExternalLink, Sparkles } from 'lucide-react';
 import { ContactSettingsTab } from '../components/admin/ContactSettingsTab';
 import { SiteSettingsTab } from '../components/admin/SiteSettingsTab';
 import { GoogleSheetsTab } from '../components/admin/GoogleSheetsTab';
@@ -27,6 +27,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { printOrders, downloadInvoiceHtmlFile } from '../utils/printInvoice';
 import { downloadOrderPdf } from '../utils/pdfGenerator';
 import { InvoiceModal } from '../components/admin/InvoiceModal';
+import { MassProductImportModal } from '../components/admin/MassProductImportModal';
 
 export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
   const { sellerId } = useParams<{ sellerId: string }>();
@@ -62,6 +63,7 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
   >('overview');
   const [selectedSellerForReport, setSelectedSellerForReport] = useState<string | 'all'>('all');
   const [isAddingProduct, setIsAddingProduct] = useState(false);
+  const [isMassImportOpen, setIsMassImportOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [viewingOrder, setViewingOrder] = useState<Order | null>(null);
   const [invoiceModalOrder, setInvoiceModalOrder] = useState<Order | null>(null);
@@ -585,15 +587,29 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
 
         {activeTab === 'products' && (
           <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h1 className="text-3xl font-bold text-zinc-900">Products</h1>
-              <button
-                onClick={startAddProduct}
-                className="flex items-center gap-2 bg-zinc-900 text-white px-6 py-3 rounded-2xl hover:bg-zinc-800 transition-all shadow-lg shadow-zinc-200 active:scale-95"
-              >
-                <Plus className="w-5 h-5" /> 
-                <span className="font-bold">Add Product</span>
-              </button>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h1 className="text-3xl font-black text-zinc-900 tracking-tight">Products</h1>
+                <p className="text-sm text-zinc-500 font-medium">Manage footwear inventory, pricing, and catalog</p>
+              </div>
+              <div className="flex items-center gap-3">
+                {role === 'admin' && (
+                  <button
+                    onClick={() => setIsMassImportOpen(true)}
+                    className="flex items-center gap-2 bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 hover:from-orange-600 hover:to-amber-600 text-white px-5 py-3 rounded-2xl font-black transition-all shadow-lg shadow-orange-500/25 active:scale-95 cursor-pointer text-sm"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    <span>AI Mass Photo Import</span>
+                  </button>
+                )}
+                <button
+                  onClick={startAddProduct}
+                  className="flex items-center gap-2 bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-800 transition-all shadow-lg shadow-zinc-200 active:scale-95 text-sm"
+                >
+                  <Plus className="w-4 h-4" /> 
+                  <span className="font-black">Add Product</span>
+                </button>
+              </div>
             </div>
 
             {isAddingProduct && (
@@ -1404,6 +1420,18 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
             order={invoiceModalOrder}
             siteSettings={siteSettings}
             onClose={() => setInvoiceModalOrder(null)}
+          />
+        )}
+
+        {isMassImportOpen && (
+          <MassProductImportModal
+            isOpen={isMassImportOpen}
+            onClose={() => setIsMassImportOpen(false)}
+            sellers={sellers}
+            onSuccess={(count) => {
+              setSuccess(`Successfully imported ${count} products to the catalog!`);
+              setTimeout(() => setSuccess(null), 5000);
+            }}
           />
         )}
       </div>
