@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
-import { LayoutDashboard, Package, ShoppingCart, Plus, Edit, Trash, Check, X, Users, Link as LinkIcon, LogOut, Upload, TrendingUp, Image as ImageIcon, DollarSign, Tag, Info, Box, Printer, Globe, Palette, ToggleLeft, FileText, Bell, Inbox, Settings, FileSpreadsheet, Ticket, Terminal, PhoneCall, Megaphone, Store, MessageCircle, ExternalLink, Sparkles } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, Plus, Edit, Trash, Check, X, Users, Link as LinkIcon, LogOut, Upload, TrendingUp, Image as ImageIcon, DollarSign, Tag, Info, Box, Printer, Globe, Palette, ToggleLeft, FileText, Bell, Inbox, Settings, FileSpreadsheet, Ticket, Terminal, PhoneCall, Megaphone, Store, MessageCircle, ExternalLink, Sparkles, SlidersHorizontal } from 'lucide-react';
 import { ContactSettingsTab } from '../components/admin/ContactSettingsTab';
 import { SiteSettingsTab } from '../components/admin/SiteSettingsTab';
 import { GoogleSheetsTab } from '../components/admin/GoogleSheetsTab';
@@ -28,6 +28,7 @@ import { printOrders, downloadInvoiceHtmlFile } from '../utils/printInvoice';
 import { downloadOrderPdf } from '../utils/pdfGenerator';
 import { InvoiceModal } from '../components/admin/InvoiceModal';
 import { MassProductImportModal } from '../components/admin/MassProductImportModal';
+import { QuickCatalogAlignerModal } from '../components/admin/QuickCatalogAlignerModal';
 
 export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
   const { sellerId } = useParams<{ sellerId: string }>();
@@ -38,6 +39,7 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
     addProduct, 
     updateProduct, 
     deleteProduct, 
+    deleteProductsBatch,
     updateOrderStatus, 
     addSeller, 
     updateSeller, 
@@ -64,6 +66,9 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
   const [selectedSellerForReport, setSelectedSellerForReport] = useState<string | 'all'>('all');
   const [isAddingProduct, setIsAddingProduct] = useState(false);
   const [isMassImportOpen, setIsMassImportOpen] = useState(false);
+  const [isQuickAlignerOpen, setIsQuickAlignerOpen] = useState(false);
+  const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set());
+  const [isBatchDeleting, setIsBatchDeleting] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [viewingOrder, setViewingOrder] = useState<Order | null>(null);
   const [invoiceModalOrder, setInvoiceModalOrder] = useState<Order | null>(null);
@@ -592,15 +597,25 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
                 <h1 className="text-3xl font-black text-zinc-900 tracking-tight">Products</h1>
                 <p className="text-sm text-zinc-500 font-medium">Manage footwear inventory, pricing, and catalog</p>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 {role === 'admin' && (
-                  <button
-                    onClick={() => setIsMassImportOpen(true)}
-                    className="flex items-center gap-2 bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 hover:from-orange-600 hover:to-amber-600 text-white px-5 py-3 rounded-2xl font-black transition-all shadow-lg shadow-orange-500/25 active:scale-95 cursor-pointer text-sm"
-                  >
-                    <Sparkles className="w-4 h-4" />
-                    <span>AI Mass Photo Import</span>
-                  </button>
+                  <>
+                    <button
+                      onClick={() => setIsQuickAlignerOpen(true)}
+                      className="flex items-center gap-2 bg-white border border-zinc-200 hover:border-zinc-400 text-zinc-900 px-4 py-3 rounded-2xl font-bold transition-all shadow-sm active:scale-95 cursor-pointer text-sm"
+                      title="Rapidly rename shoes, swap photos, or batch edit"
+                    >
+                      <SlidersHorizontal className="w-4 h-4 text-orange-500" />
+                      <span>Quick Visual Aligner</span>
+                    </button>
+                    <button
+                      onClick={() => setIsMassImportOpen(true)}
+                      className="flex items-center gap-2 bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 hover:from-orange-600 hover:to-amber-600 text-white px-5 py-3 rounded-2xl font-black transition-all shadow-lg shadow-orange-500/25 active:scale-95 cursor-pointer text-sm"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      <span>AI Mass Photo Import</span>
+                    </button>
+                  </>
                 )}
                 <button
                   onClick={startAddProduct}
@@ -990,10 +1005,78 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
 
             {!isAddingProduct && (
               <div className="bg-white rounded-[2rem] border border-zinc-100 shadow-sm overflow-hidden">
+                {/* Batch Action Bar */}
+                {selectedProductIds.size > 0 && (
+                  <div className="p-4 bg-orange-50/90 border-b border-orange-200 flex flex-wrap items-center justify-between gap-3 animate-in fade-in duration-150">
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs font-black text-orange-950 bg-white border border-orange-200 px-3 py-1.5 rounded-xl shadow-2xs">
+                        {selectedProductIds.size} shoe{selectedProductIds.size > 1 ? 's' : ''} selected
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedProductIds(new Set())}
+                        className="text-xs font-bold text-zinc-500 hover:text-zinc-900 transition-colors cursor-pointer"
+                      >
+                        Clear Selection
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setIsQuickAlignerOpen(true)}
+                        className="flex items-center gap-1.5 px-4 py-2 bg-white text-zinc-900 border border-zinc-200 hover:border-zinc-300 font-bold rounded-xl text-xs shadow-2xs transition-all active:scale-95 cursor-pointer"
+                      >
+                        <SlidersHorizontal className="w-3.5 h-3.5 text-orange-500" />
+                        <span>Edit Selected in Quick Aligner</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (confirm(`Permanently delete all ${selectedProductIds.size} selected products from your store?`)) {
+                            setIsBatchDeleting(true);
+                            try {
+                              const ids = Array.from(selectedProductIds);
+                              await deleteProductsBatch(ids);
+                              setSuccess(`Successfully deleted ${ids.length} products!`);
+                              setSelectedProductIds(new Set());
+                              setTimeout(() => setSuccess(null), 4000);
+                            } catch (e: any) {
+                              setError(e.message || 'Failed to delete selected products');
+                            } finally {
+                              setIsBatchDeleting(false);
+                            }
+                          }
+                        }}
+                        disabled={isBatchDeleting}
+                        className="flex items-center gap-1.5 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs shadow-sm transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+                      >
+                        <Trash className="w-3.5 h-3.5" />
+                        <span>{isBatchDeleting ? 'Deleting...' : `Delete Selected (${selectedProductIds.size})`}</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="bg-zinc-50/50 border-b border-zinc-100">
+                        <th className="p-6 w-12">
+                          <input 
+                            type="checkbox"
+                            checked={selectedProductIds.size === products.length && products.length > 0}
+                            onChange={() => {
+                              if (selectedProductIds.size === products.length) {
+                                setSelectedProductIds(new Set());
+                              } else {
+                                setSelectedProductIds(new Set(products.map(p => p.id)));
+                              }
+                            }}
+                            className="w-4 h-4 rounded text-orange-600 focus:ring-orange-500 border-zinc-300 cursor-pointer"
+                            title="Select / Deselect All"
+                          />
+                        </th>
                         <th className="p-6 font-bold text-zinc-500 text-xs uppercase tracking-wider">Product</th>
                         <th className="p-6 font-bold text-zinc-500 text-xs uppercase tracking-wider">Price</th>
                         <th className="p-6 font-bold text-zinc-500 text-xs uppercase tracking-wider">Stock</th>
@@ -1005,7 +1088,7 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
                     <tbody>
                       {products.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="p-20 text-center">
+                          <td colSpan={7} className="p-20 text-center">
                             <div className="flex flex-col items-center gap-4">
                               <div className="w-20 h-20 bg-zinc-50 rounded-full flex items-center justify-center text-zinc-300">
                                 <Package className="w-10 h-10" />
@@ -1025,6 +1108,21 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
                         </tr>
                       ) : products.map(p => (
                         <tr key={p.id} className="border-b border-zinc-50 hover:bg-zinc-50/50 transition-colors group">
+                          <td className="p-6 w-12">
+                            <input 
+                              type="checkbox"
+                              checked={selectedProductIds.has(p.id)}
+                              onChange={() => {
+                                setSelectedProductIds(prev => {
+                                  const next = new Set(prev);
+                                  if (next.has(p.id)) next.delete(p.id);
+                                  else next.add(p.id);
+                                  return next;
+                                });
+                              }}
+                              className="w-4 h-4 rounded text-orange-600 focus:ring-orange-500 border-zinc-300 cursor-pointer"
+                            />
+                          </td>
                           <td className="p-6 flex items-center gap-4">
                             <div className="w-14 h-14 rounded-2xl overflow-hidden border border-zinc-100 bg-zinc-50 flex-shrink-0">
                               <img src={p.image} alt={p.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
@@ -1430,6 +1528,18 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
             sellers={sellers}
             onSuccess={(count) => {
               setSuccess(`Successfully imported ${count} products to the catalog!`);
+              setTimeout(() => setSuccess(null), 5000);
+            }}
+          />
+        )}
+
+        {isQuickAlignerOpen && (
+          <QuickCatalogAlignerModal
+            isOpen={isQuickAlignerOpen}
+            onClose={() => setIsQuickAlignerOpen(false)}
+            products={products}
+            onSuccess={(msg) => {
+              setSuccess(msg);
               setTimeout(() => setSuccess(null), 5000);
             }}
           />

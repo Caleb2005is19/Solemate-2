@@ -1,132 +1,80 @@
-# Implementation Plan - Ad & Promo Engine with Social Campaign Toolkit & SEO
+# Catalog Recovery & Rapid Visual Product Aligner
 
-Make Solemate Kenya the easiest and most effective platform to run sales promotions, social media ad campaigns, and SEO-boosted deals across the storefront and admin center.
+Provide an immediate recovery toolkit for the 52 misaligned footwear products (1-click batch delete/rollback or ultra-fast inline visual editing) and upgrade the mass photo import with visual drag-and-drop grouping controls so photo-to-shoe alignment is always 100% accurate before saving.
 
----
+## User Review & Critical Decisions
 
-## 1. Overview & Objectives
+> [!IMPORTANT]
+> The AI batch analysis misassigned shoe names and paired photos incorrectly across the 52 imported items. To save you from having to edit 52 items manually one by one, we are implementing two immediate solutions:
+> 1. **1-Click Batch Rollback**: A single button to wipe all 52 misaligned items from Firestore at once so you can re-import cleanly.
+> 2. **Rapid Visual Catalog Aligner**: A high-density spreadsheet grid with live photo thumbnails, 1-click name suggestion chips, and instant inline photo swappers to fix names and prices in minutes rather than hours.
 
-Empower store administrators to create, schedule, and track high-converting promotions without coding, while giving shoppers high-impact, non-intrusive promo touchpoints and generating optimized ad collateral for social media (Instagram, TikTok, WhatsApp, Meta Ads).
-
-### Key Pillars:
-1. **Unified Admin Promo & Ad Hub**: An all-in-one campaign manager consolidating banners, countdown timers, coupon discounts, and featured product cards with start/end scheduling.
-2. **Social Media Ad Toolkit & UTM Generator**: Instant generation of trackable campaign links, UTM parameters, social ad copy templates (WhatsApp broadcast, Instagram captions, TikTok hooks), and quick-share actions.
-3. **Featured Product Promo Cards**: Seamlessly weave stylish campaign promo cards directly into the Homepage and `/shop` catalog grids (e.g. "Weekend Jordan Drop", "Buy 2 Get Free Nairobi Delivery", "Flash 20% Off").
-4. **Promo SEO & OpenGraph Cards**: Schema.org `SaleEvent` and `SpecialAnnouncement` structured data plus dynamic social share preview tags for search engines and social platforms.
-5. **High-Converting Customer Touchpoints**: Slim sticky header banner with countdown, one-tap coupon copying, and cart drawer free delivery reward progress bar.
+- **Immediate Action**: Provide both 1-click batch rollback and high-speed inline table editing.
+- **Future Import Alignment**: Add visual thumbnail grouping where you can drag and verify which photos belong to each shoe *before* any product is generated or saved.
 
 ---
 
-## 2. Architecture & Component Blueprint
+## 1. Overview & Core Concept
+
+- **What It Does**:
+  - **Batch Cleanup & Selective Deletion**: Multi-select checkboxes on the Products table + a "Rollback Recent Import (52 items)" button that safely deletes the imported batch in a single atomic Firestore operation.
+  - **Rapid Inline Visual Catalog Aligner**: A fast, distraction-free editing grid where administrators can see each shoe's primary photo, click quick-fill chips for common Kenyan sneaker names (Air Jordan 4, Timberland 6-Inch, Samba OG, Dunk Low Panda, Air Force 1), edit prices in-place, and swap images without navigating through nested modal forms.
+  - **Interactive Pre-Save Photo Grouping in Mass Import**: Redesigned import workflow that displays thumbnail cards for every uploaded image, allowing the admin to group photos of the same shoe visually with 1-click drag/reassign buttons before running AI naming.
+- **Target Audience / Persona**: Store administrator managing footwear inventory and product listings on Solemate.co.ke.
+- **Key Value**: Eliminates hours of tedious individual product editing, restores catalog integrity immediately, and prevents future photo-to-name mismatches.
+
+---
+
+## 2. User Experience & Visual Design
+
+### Key User Flows
 
 ```
-                      ┌────────────────────────────────────────┐
-                      │        Admin Dashboard (/admin)        │
-                      └──────────────────┬─────────────────────┘
-                                         │
-                 ┌───────────────────────┴───────────────────────┐
-                 │                                               │
-       ┌─────────▼──────────────┐                    ┌───────────▼───────────┐
-       │   Ad & Promo Hub Tab   │                    │  Social Media Toolkit │
-       │  (Campaigns, Timers,   │                    │ (UTM Builder, Ad Copy │
-       │  Featured Promo Cards) │                    │ WhatsApp Share Links) │
-       └─────────┬──────────────┘                    └───────────┬───────────┘
-                 │                                               │
-                 ├───────────────────────┬───────────────────────┤
-                 │                       │                       │
-       ┌─────────▼───────────┐ ┌─────────▼───────────┐ ┌─────────▼───────────┐
-       │ Storefront Grid     │ │ Sticky Promo Bar    │ │ Promo SEO & OG      │
-       │ Featured Ad Cards   │ │ Top countdown banner│ │ Structured data     │
-       │ on Homepage & /shop │ │ & 1-tap coupon copy │ │ JSON-LD & OG tags   │
-       └─────────────────────┘ └─────────────────────┘ └─────────────────────┘
+[ Admin Products View ]
+       │
+       ├──► [ 1-Click Rollback Recent Import ] ──► Atomic Firestore Delete (52 items) ──► Clean Slate
+       │
+       ├──► [ Quick Visual Aligner Modal ] ────► High-Density Grid (Photos + Inline Inputs + Quick Chips) ──► Instant Save
+       │
+       └──► [ Upgraded AI Mass Import ] ───────► Upload ──► Visual Grouping Canvas ──► Confirm & Publish
 ```
 
----
-
-## 3. Detailed Proposed Features
-
-### A. Admin Ad & Promo Hub (`src/components/admin/MarketingTab.tsx` & new `PromoCampaignsTab.tsx`)
-1. **Campaign Manager**:
-   - Create unified campaigns that combine:
-     - **Campaign Headline & Subtitle** (e.g., "Mega Sneaker Weekend", "Save 20% on Air Max")
-     - **Promo Type**: Featured Grid Card, Sticky Header Banner, or Cart Reward
-     - **Coupon Integration**: Link directly to a coupon code (or create one automatically)
-     - **Countdown Timer**: 24h Flash Sale, Weekend Drop, or custom end date/time
-     - **Featured Media**: Upload or select sneaker banner imagery with Cloudinary
-     - **Placement**: Homepage grid, Shop page grid, Sticky top banner, or All
-2. **Calendar & Scheduling**:
-   - Start Date & End Date pickers with timezone alignment (EAT / Nairobi).
-   - Real-time status indicators: `Scheduled`, `Live / Active`, `Expired`, `Paused`.
-   - One-click duplicate and toggle pause/resume.
-3. **Quick Presets (1-Click Launch)**:
-   - ⚡ **24-Hour Flash Sale**: 15% off site-wide + urgent countdown
-   - 👟 **New Drop Spotlight**: Highlight latest arrivals with limited stock alert
-   - 🚚 **Free Nairobi Delivery Weekend**: Zero delivery fees on orders above KES 5,000
-   - 🎁 **Buy 2 Sneaker Bundle**: Multi-item discount promo
+### Visual Identity & Theme
+- **Layout & Structure**: High-density SaaS table with 48px row heights, sticky thumbnail preview columns, and subtle border lines (`border-zinc-200 dark:border-zinc-800`).
+- **Typography & Formatting**: Tabular monospace numbers for KES pricing (`font-mono tabular-nums`), clean unboxed metadata badges, and quiet status indicators.
+- **Quick-Fill Name Chips**: Pill-free segmented quick-select tags above the title input (e.g. `[Jordan 4]`, `[Dunk Panda]`, `[Timberland]`, `[Samba]`, `[Air Force 1]`, `[NB 550]`) that auto-fill the brand, model name, category, and typical price with one click.
+- **Inline Photo Swapper**: Hovering over any shoe thumbnail displays a small camera/upload icon to instantly drop or pick a new photo for that shoe.
 
 ---
 
-### B. Social Media Ad Toolkit & UTM Generator (`src/components/admin/SocialAdToolkit.tsx`)
-1. **Smart Link & UTM Builder**:
-   - Choose target page (Home, Specific Sneaker, Men's, Women's, Sale).
-   - Attach campaign UTM parameters (`utm_source`: `instagram` | `tiktok` | `whatsapp` | `facebook` | `google`, `utm_campaign`, `utm_medium`).
-   - Copy short, clean trackable URL with 1 click.
-2. **Ready-to-Post Ad Copy Templates**:
-   - **WhatsApp Status & Broadcast**: Formatted with bold highlights and emojis tailored to the Kenyan sneaker audience (M-Pesa payment prompt, Nairobi delivery note).
-   - **Instagram / Facebook Caption**: High-engagement copy with hashtags (`#SneakersKenya`, `#SolemateKE`, `#NairobiStreetwear`).
-   - **TikTok Ad / Video Script Hook**: 3-second hook ideas and caption text.
-3. **One-Tap WhatsApp Broadcast**:
-   - Direct button `Send to WhatsApp` that opens `https://wa.me/?text=...` with preformatted copy and link ready to blast to VIP customer lists or status.
+## 3. Key Product Decisions & Trade-Offs
+
+- **Decision 1: Provide Both Rollback and Rapid Editing**:
+  - *Chosen Approach*: Give the admin both choices directly in the UI. If the 52 products are too scrambled to salvage, a single "Rollback Import Batch" wipes them in seconds. If the admin wants to keep some or all, the Rapid Aligner makes editing 10x faster than standard forms.
+  - *Why*: Gives total control to the user without making assumptions about whether the uploaded photos should be discarded or preserved.
+- **Decision 2: Interactive Visual Grouping Before AI Analysis**:
+  - *Chosen Approach*: Show uploaded photos on a grouping workbench where shots of the same shoe are visibly linked together with "Link / Merge Angle" buttons.
+  - *Why*: Machine learning alone cannot reliably know whether two black sneaker shots are the same model or two different pairs; human-in-the-loop visual grouping ensures 100% accuracy every time.
 
 ---
 
-### C. Featured Product Promo Cards on Homepage & Shop Grid
-1. **Grid Integration (`src/pages/Shop.tsx` & `src/pages/Home.tsx`)**:
-   - Seamlessly insert high-impact promo cards within the sneaker product grid (e.g., after every 6th or 8th product).
-   - Card displays:
-     - High-fashion sneaker banner image
-     - Punchy promo title & discount badge
-     - Real-time countdown timer if active
-     - One-click "Apply Code" or "Shop Drop" action button
-   - Zero-pill styling with clean typography and dark slate/orange palette.
+## 4. Technical Architecture & Data Strategy
 
----
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                        Admin Dashboard (/admin)                        │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │
+         ┌──────────────────────────┼──────────────────────────┐
+         ▼                          ▼                          ▼
+┌──────────────────┐      ┌──────────────────┐      ┌──────────────────┐
+│  Batch Rollback  │      │  Rapid Aligner   │      │ Visual Grouping  │
+│  • Firestore     │      │  • Inline Table  │      │  • Multi-angle   │
+│    writeBatch    │      │  • Quick Chips   │      │    workbench     │
+│  • Tag 'batchId' │      │  • Image Swapper │      │  • Drag & merge  │
+└──────────────────┘      └──────────────────┘      └──────────────────┘
+```
 
-### D. Storefront Customer Touchpoints
-1. **Sticky Top Promo Banner**:
-   - Slim, non-intrusive banner (`< 40px`) with countdown timer, promo discount, and copy coupon button.
-   - Dismissible with session memory.
-2. **Cart Drawer Promo Threshold**:
-   - Dynamic progress bar: *"Add KES X more for Free Nairobi Delivery!"*
-   - Instant coupon code input with live discount calculation.
-
----
-
-### E. SEO & Social Share Metadata (`applet-seo`)
-1. **Dynamic OpenGraph Tags**:
-   - Update `og:title`, `og:description`, and `og:image` when an active major campaign is running, ensuring shared links display sale banners on WhatsApp, iMessage, and Twitter.
-2. **Schema.org SaleEvent & Offer JSON-LD**:
-   - Inject structured data into the page head so Google Search indexes ongoing discounts, active promotion dates, and promotional pricing.
-
----
-
-## 4. Verification & Testing Plan
-
-### Automated Verification:
-- **Type Checking**: Run `npm run lint` / `lint_applet` to ensure TypeScript compiles without errors.
-- **Production Build**: Run `npm run build` / `compile_applet` to verify clean bundle compilation.
-
-### Manual / Browser Verification:
-1. **Admin Campaign Hub**:
-   - Create a campaign in the Admin Center with a countdown timer, coupon code, and target placement.
-   - Verify live toggle, scheduling dates, and preset templates.
-2. **Social Media Toolkit**:
-   - Generate a WhatsApp promo link and an Instagram UTM link.
-   - Verify generated URLs resolve properly on the storefront with coupon auto-fill.
-3. **Storefront Product Grids**:
-   - Open `/shop` and `/` and verify the featured promo card appears seamlessly among sneaker products.
-   - Test responsive layout on mobile, tablet, and desktop.
-4. **Sticky Banner & Countdown**:
-   - Verify the countdown ticks accurately and the coupon copies cleanly to clipboard.
-5. **SEO & Social Preview**:
-   - Inspect `<head>` tags to verify `og:title`, `og:description`, and `Schema.org` `SaleEvent` JSON-LD output.
+- **Batch Identification**: All products created via mass import are tagged with an `importBatchId` (e.g., `batch_20261030_...`), enabling atomic 1-click batch deletion.
+- **Firestore Batch Deletes**: Uses chunked `writeBatch` (up to 400 deletes per atomic write) to safely remove all selected documents without hitting document limits.
+- **State Management**: Local optimistic updates in `StoreContext` ensure inline edits reflect instantaneously without page flickering.

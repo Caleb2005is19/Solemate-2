@@ -78,6 +78,8 @@ interface StoreContextType {
   products: Product[];
   addProduct: (p: Product) => Promise<void>;
   addProductsBatch: (products: Product[]) => Promise<void>;
+  deleteProductsBatch: (productIds: string[]) => Promise<void>;
+  updateProductsBatch: (updates: { id: string; changes: Partial<Product> }[]) => Promise<void>;
   updateProduct: (id: string, p: Partial<Product>) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
   orders: Order[];
@@ -613,6 +615,38 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       handleFirestoreError(error, OperationType.WRITE, 'products_batch');
     }
   }, []);
+
+  const deleteProductsBatch = useCallback(async (productIds: string[]) => {
+    try {
+      const CHUNK_SIZE = 250;
+      for (let i = 0; i < productIds.length; i += CHUNK_SIZE) {
+        const slice = productIds.slice(i, i + CHUNK_SIZE);
+        const batch = writeBatch(db);
+        slice.forEach(id => {
+          batch.delete(doc(db, 'products', id));
+        });
+        await batch.commit();
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'products_batch_delete');
+    }
+  }, []);
+
+  const updateProductsBatch = useCallback(async (updates: { id: string; changes: Partial<Product> }[]) => {
+    try {
+      const CHUNK_SIZE = 250;
+      for (let i = 0; i < updates.length; i += CHUNK_SIZE) {
+        const slice = updates.slice(i, i + CHUNK_SIZE);
+        const batch = writeBatch(db);
+        slice.forEach(u => {
+          batch.update(doc(db, 'products', u.id), stripUndefined(u.changes));
+        });
+        await batch.commit();
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'products_batch_update');
+    }
+  }, []);
   
   const updateProduct = useCallback(async (id: string, updates: Partial<Product>) => {
     try {
@@ -733,7 +767,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   return (
     <StoreContext.Provider value={{ 
-      products, addProduct, addProductsBatch, updateProduct, deleteProduct, 
+      products, addProduct, addProductsBatch, deleteProductsBatch, updateProductsBatch, updateProduct, deleteProduct, 
       orders, addOrder, updateOrderStatus,
       sellers, addSeller, updateSeller, deleteSeller,
       currentUser, userProfile, updateUserProfile, isAdmin, currentSellerId,

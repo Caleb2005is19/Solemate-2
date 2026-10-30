@@ -604,6 +604,31 @@ export function MassProductImportModal({
                             onChange={(e) => updateGeneratedProduct(idx, { name: e.target.value })}
                             className="w-full text-xs font-bold px-3 py-1.5 rounded-xl border border-zinc-200 bg-zinc-50 focus:bg-white focus:ring-2 focus:ring-orange-500 outline-none"
                           />
+                          <div className="flex items-center gap-1 overflow-x-auto scrollbar-none pt-1">
+                            {[
+                              { label: 'Jordan 4', name: 'Air Jordan 4 Retro', brand: 'Nike', cat: 'Sneakers', price: 7800, was: 9500 },
+                              { label: 'Dunk Panda', name: 'Nike Dunk Low Panda', brand: 'Nike', cat: 'Sneakers', price: 5800, was: 7200 },
+                              { label: 'Timberland', name: 'Timberland 6-Inch Premium Boot', brand: 'Timberland', cat: 'Lifestyle', price: 9800, was: 12500 },
+                              { label: 'Samba OG', name: 'Adidas Samba OG', brand: 'Adidas', cat: 'Lifestyle', price: 5200, was: 6500 },
+                              { label: 'AF1', name: 'Nike Air Force 1 \'07', brand: 'Nike', cat: 'Sneakers', price: 5500, was: 6800 },
+                              { label: 'NB 550', name: 'New Balance 550', brand: 'New Balance', cat: 'Sneakers', price: 6500, was: 8000 }
+                            ].map(chip => (
+                              <button
+                                key={chip.label}
+                                type="button"
+                                onClick={() => updateGeneratedProduct(idx, { 
+                                  name: chip.name, 
+                                  brand: chip.brand, 
+                                  category: chip.cat, 
+                                  price: chip.price, 
+                                  originalPrice: chip.was 
+                                })}
+                                className="px-1.5 py-0.5 bg-zinc-100 hover:bg-orange-100 hover:text-orange-700 text-zinc-600 rounded text-[9px] font-bold shrink-0 transition-colors cursor-pointer"
+                              >
+                                {chip.label}
+                              </button>
+                            ))}
+                          </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-2">
