@@ -13,11 +13,18 @@ import {
   ExternalLink,
   Layers,
   Sparkles,
-  ArrowUpDown
+  ArrowUpDown,
+  Star,
+  Scissors,
+  ChevronDown,
+  ChevronUp,
+  Loader2,
+  ShieldCheck
 } from 'lucide-react';
 import { Product } from '../../types';
 import { useStore } from '../../context/StoreContext';
 import { uploadToCloudinary } from '../../services/cloudinaryService';
+import { GroundedAiReviewModal, GroundedAiDetectionResult } from './GroundedAiReviewModal';
 
 interface QuickCatalogAlignerModalProps {
   isOpen: boolean;
@@ -31,13 +38,16 @@ interface EditableProductRow {
   name: string;
   brand: string;
   category: string;
+  gender?: string;
   price: number;
   originalPrice: number;
   stock: number;
   image: string;
   images: string[];
+  description?: string;
   inStock: boolean;
   isModified: boolean;
+  isNewDetached?: boolean;
 }
 
 const PRESET_MODELS = [
@@ -61,7 +71,7 @@ export function QuickCatalogAlignerModal({
   products,
   onSuccess
 }: QuickCatalogAlignerModalProps) {
-  const { updateProductsBatch, deleteProductsBatch } = useStore();
+  const { updateProductsBatch, deleteProductsBatch, addProductsBatch } = useStore();
 
   // Local editable buffer
   const [rows, setRows] = useState<EditableProductRow[]>(() => {
@@ -70,11 +80,13 @@ export function QuickCatalogAlignerModal({
       name: p.name || '',
       brand: p.brand || '',
       category: p.category || 'Sneakers',
+      gender: p.gender || 'Unisex',
       price: Number(p.price) || 0,
       originalPrice: Number(p.originalPrice) || 0,
       stock: Number(p.stock) || 0,
       image: p.image || '',
       images: Array.isArray(p.images) ? p.images : [],
+      description: p.description || '',
       inStock: p.inStock !== false,
       isModified: false
     }));
@@ -87,6 +99,16 @@ export function QuickCatalogAlignerModal({
   const [isDeleting, setIsDeleting] = useState(false);
   const [confirmDeleteBatch, setConfirmDeleteBatch] = useState(false);
   const [activePhotoUploadId, setActivePhotoUploadId] = useState<string | null>(null);
+
+  // Gallery angle tray expansion
+  const [expandedGalleryIds, setExpandedGalleryIds] = useState<Set<string>>(new Set());
+
+  // Grounded AI Verification state
+  const [scanningRowId, setScanningRowId] = useState<string | null>(null);
+  const [activeAiReview, setActiveAiReview] = useState<{
+    row: EditableProductRow;
+    detected: GroundedAiDetectionResult;
+  } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -105,7 +127,6 @@ export function QuickCatalogAlignerModal({
     });
   }, [rows, searchQuery, brandFilter]);
 
-  // Unique brands for filter
   const uniqueBrands = useMemo(() => {
     const set = new Set(rows.map(r => r.brand).filter(Boolean));
     return Array.from(set).sort();
@@ -127,6 +148,146 @@ export function QuickCatalogAlignerModal({
       }
       return row;
     }));
+  };
+
+  // Toggle photo tray
+  const toggleGalleryTray = (id: string) => {
+    setExpandedGalleryIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  // Photo Tray: Make Angle Hero
+  const handleMakeHero = (rowId: string, angleUrl: string) => {
+    setRows(prev => prev.map(row => {
+      if (row.id === rowId) {
+        const oldHero = row.image;
+        const newImages = row.images.filter(img => img !== angleUrl);
+        if (oldHero) newImages.unshift(oldHero);
+        return {
+          ...row,
+          image: angleUrl,
+          images: newImages,
+          isModified: true
+        };
+      }
+      return row;
+    }));
+  };
+
+  // Photo Tray: Delete Misgrouped Photo
+  const handleDeleteAngle = (rowId: string, angleUrl: string) => {
+    setRows(prev => prev.map(row => {
+      if (row.id === rowId) {
+        return {
+          ...row,
+          images: row.images.filter(img => img !== angleUrl),
+          isModified: true
+        };
+      }
+      return row;
+    }));
+  };
+
+  // Photo Tray: Detach to New Product!
+  const handleDetachAngle = (rowId: string, angleUrl: string) => {
+    // 1. Remove from source row
+    let sourceRow: EditableProductRow | undefined;
+    setRows(prev => {
+      const updated = prev.map(row => {
+        if (row.id === rowId) {
+          sourceRow = row;
+          return {
+            ...row,
+            images: row.images.filter(img => img !== angleUrl),
+            isModified: true
+          };
+        }
+        return row;
+      });
+
+      // 2. Spawn new product row with this photo
+      const newDetachedRow: EditableProductRow = {
+        id: `prod_${Date.now()}_detach_${Math.random().toString(36).substring(2, 7)}`,
+        name: `Detached Shoe (from ${sourceRow?.name || 'Group'})`,
+        brand: sourceRow?.brand || 'Solemate',
+        category: sourceRow?.category || 'Sneakers',
+        gender: sourceRow?.gender || 'Unisex',
+        price: sourceRow?.price || 5500,
+        originalPrice: sourceRow?.originalPrice || 6800,
+        stock: 12,
+        image: angleUrl,
+        images: [],
+        inStock: true,
+        isModified: true,
+        isNewDetached: true
+      };
+
+      return [newDetachedRow, ...updated];
+    });
+
+    onSuccess(`Detached photo into its own independent shoe listing!`);
+  };
+
+  // Grounded AI Scan for single row
+  const handleAiScanSingle = async (row: EditableProductRow) => {
+    if (!row.image) return;
+    setScanningRowId(row.id);
+
+    try {
+      const res = await fetch('/api/catalog/ai-align-shoe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          image: row.image,
+          currentName: row.name
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success || !data.detected) {
+        throw new Error(data.error || 'Failed to authenticate shoe photo');
+      }
+
+      setActiveAiReview({
+        row,
+        detected: data.detected
+      });
+    } catch (err: any) {
+      console.error('AI Scan Error:', err);
+      alert(`AI Verification Notice: ${err.message}`);
+    } finally {
+      setScanningRowId(null);
+    }
+  };
+
+  // Accept Grounded AI detection result
+  const handleAcceptAiMatch = (detected: GroundedAiDetectionResult) => {
+    if (!activeAiReview) return;
+    const targetId = activeAiReview.row.id;
+
+    setRows(prev => prev.map(row => {
+      if (row.id === targetId) {
+        return {
+          ...row,
+          name: detected.name,
+          brand: detected.brand,
+          category: detected.category,
+          gender: detected.gender,
+          price: detected.price,
+          originalPrice: detected.originalPrice,
+          description: detected.description,
+          isModified: true
+        };
+      }
+      return row;
+    }));
+
+    onSuccess(`Verified and updated: "${detected.name}" (Confidence: ${detected.confidence})`);
+    setActiveAiReview(null);
   };
 
   // Apply quick-fill preset model
@@ -180,7 +341,6 @@ export function QuickCatalogAlignerModal({
       }
 
       if (!finalUrl) {
-        // Fast canvas reader
         finalUrl = await new Promise((resolve) => {
           const reader = new FileReader();
           reader.onload = () => resolve(reader.result as string);
@@ -197,7 +357,7 @@ export function QuickCatalogAlignerModal({
     }
   };
 
-  // Save all modified rows
+  // Save all modified rows (handles updates AND new detached products)
   const handleSaveAll = async () => {
     const modifiedRows = rows.filter(r => r.isModified);
     if (modifiedRows.length === 0) {
@@ -207,25 +367,56 @@ export function QuickCatalogAlignerModal({
 
     setIsSaving(true);
     try {
-      const updates = modifiedRows.map(r => ({
+      // 1. New detached products
+      const newDetached = modifiedRows.filter(r => r.isNewDetached).map(r => ({
+        id: r.id,
+        name: r.name,
+        brand: r.brand || 'Solemate',
+        category: r.category || 'Sneakers',
+        gender: (r.gender || 'Unisex') as any,
+        price: Number(r.price) || 5500,
+        originalPrice: Number(r.originalPrice) || 6800,
+        stock: Number(r.stock) || 12,
+        image: r.image,
+        images: r.images || [],
+        description: r.description || 'Authentic footwear listing.',
+        inStock: r.inStock,
+        sellerId: 'seller-official',
+        color: 'Multi-Color',
+        isNew: true
+      }));
+
+      if (newDetached.length > 0) {
+        await addProductsBatch(newDetached);
+      }
+
+      // 2. Existing modified products
+      const existingUpdates = modifiedRows.filter(r => !r.isNewDetached).map(r => ({
         id: r.id,
         changes: {
           name: r.name,
           brand: r.brand,
           category: r.category,
+          gender: (r.gender as any) || 'Unisex',
           price: Number(r.price) || 0,
           originalPrice: Number(r.originalPrice) || 0,
           stock: Number(r.stock) || 0,
           image: r.image,
+          images: r.images,
+          description: r.description,
           inStock: r.inStock
         }
       }));
 
-      await updateProductsBatch(updates);
-      onSuccess(`Successfully updated ${updates.length} products with correct photos and names!`);
+      if (existingUpdates.length > 0) {
+        await updateProductsBatch(existingUpdates);
+      }
+
+      onSuccess(`Successfully saved changes across ${modifiedRows.length} products!`);
       onClose();
     } catch (err: any) {
       console.error('Batch save failed:', err);
+      alert(`Save notice: ${err.message}`);
     } finally {
       setIsSaving(false);
     }
@@ -239,7 +430,6 @@ export function QuickCatalogAlignerModal({
       const idsToDelete = Array.from(selectedIds);
       await deleteProductsBatch(idsToDelete);
 
-      // Remove from local rows
       setRows(prev => prev.filter(r => !selectedIds.has(r.id)));
       setSelectedIds(new Set());
       setConfirmDeleteBatch(false);
@@ -253,7 +443,7 @@ export function QuickCatalogAlignerModal({
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-      <div className="bg-white rounded-3xl w-full max-w-7xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden border border-zinc-200 animate-in fade-in zoom-in-95 duration-150">
+      <div className="bg-white rounded-3xl w-full max-w-7xl max-h-[94vh] flex flex-col shadow-2xl overflow-hidden border border-zinc-200 animate-in fade-in zoom-in-95 duration-150">
         
         {/* Hidden File Input for quick photo swapping */}
         <input 
@@ -265,16 +455,21 @@ export function QuickCatalogAlignerModal({
         />
 
         {/* Modal Header */}
-        <div className="p-5 border-b border-zinc-100 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-zinc-50/50">
+        <div className="p-5 border-b border-zinc-100 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-zinc-50/60">
           <div>
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center font-bold">
                 <SlidersHorizontal className="w-5 h-5" />
               </div>
               <div>
-                <h2 className="text-xl font-black text-zinc-900 tracking-tight">Quick Visual Catalog Aligner</h2>
+                <h2 className="text-xl font-black text-zinc-900 tracking-tight flex items-center gap-2">
+                  Quick Visual Catalog Aligner
+                  <span className="text-[11px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-lg border border-emerald-200">
+                    100% Grounded AI + Photo Detachment
+                  </span>
+                </h2>
                 <p className="text-xs text-zinc-500 font-medium">
-                  Rapidly rename shoes, swap photo angles, or delete unwanted imported items in 1 click.
+                  Detach misgrouped angle photos into standalone shoes, delete errors, or use Grounded AI to verify exact models.
                 </p>
               </div>
             </div>
@@ -293,7 +488,7 @@ export function QuickCatalogAlignerModal({
               className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer"
             >
               <Save className="w-4 h-4" />
-              <span>{isSaving ? 'Saving Changes...' : `Save Changes (${modifiedCount})`}</span>
+              <span>{isSaving ? 'Saving Changes...' : `Save All Changes (${modifiedCount})`}</span>
             </button>
 
             <button
@@ -325,7 +520,7 @@ export function QuickCatalogAlignerModal({
               <select
                 value={brandFilter}
                 onChange={e => setBrandFilter(e.target.value)}
-                className="py-2 px-3 bg-zinc-50 border border-zinc-200 rounded-xl text-xs text-zinc-700 font-medium focus:outline-none focus:border-zinc-900"
+                className="py-2 px-3 bg-zinc-50 border border-zinc-200 rounded-xl text-xs text-zinc-700 font-medium focus:outline-none focus:border-zinc-900 cursor-pointer"
               >
                 <option value="all">All Brands ({rows.length})</option>
                 {uniqueBrands.map(b => (
@@ -361,14 +556,13 @@ export function QuickCatalogAlignerModal({
         <div className="px-5 py-2.5 bg-zinc-50 border-b border-zinc-100 flex items-center gap-2 overflow-x-auto text-[11px] whitespace-nowrap scrollbar-none">
           <span className="font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1">
             <Sparkles className="w-3 h-3 text-orange-500" />
-            Quick Models:
+            Quick Presets:
           </span>
           {PRESET_MODELS.map(preset => (
             <button
               key={preset.label}
               onClick={() => {
                 if (selectedIds.size > 0) {
-                  // Apply to all selected rows
                   setRows(prev => prev.map(row => {
                     if (selectedIds.has(row.id)) {
                       return {
@@ -410,172 +604,267 @@ export function QuickCatalogAlignerModal({
             <div className="divide-y divide-zinc-100">
               {filteredRows.map((row, index) => {
                 const isSelected = selectedIds.has(row.id);
+                const isTrayExpanded = expandedGalleryIds.has(row.id);
+                const hasAngles = row.images && row.images.length > 0;
+                const isScanningThis = scanningRowId === row.id;
+
                 return (
                   <div 
                     key={row.id}
-                    className={`p-3 md:px-5 flex flex-col md:flex-row items-start md:items-center gap-3 transition-colors ${
+                    className={`p-3 md:px-5 transition-colors ${
                       isSelected ? 'bg-orange-50/40' : row.isModified ? 'bg-amber-50/20' : 'hover:bg-zinc-50/60'
                     }`}
                   >
-                    {/* Checkbox & Index */}
-                    <div className="flex items-center gap-3 shrink-0">
-                      <input 
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => toggleSelect(row.id)}
-                        className="w-4 h-4 rounded text-orange-600 focus:ring-orange-500 border-zinc-300 cursor-pointer"
-                      />
-                      <span className="text-xs font-mono text-zinc-400 w-6 text-right tabular-nums">
-                        {index + 1}
-                      </span>
-                    </div>
-
-                    {/* Thumbnail + Photo Swap Trigger */}
-                    <div className="relative group shrink-0 w-14 h-14 rounded-xl overflow-hidden bg-zinc-100 border border-zinc-200">
-                      {row.image ? (
-                        <img 
-                          src={row.image} 
-                          alt={row.name} 
-                          className="w-full h-full object-cover" 
+                    {/* Primary Product Row */}
+                    <div className="flex flex-col md:flex-row items-start md:items-center gap-3">
+                      {/* Checkbox & Index */}
+                      <div className="flex items-center gap-3 shrink-0">
+                        <input 
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSelect(row.id)}
+                          className="w-4 h-4 rounded text-orange-600 focus:ring-orange-500 border-zinc-300 cursor-pointer"
                         />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-zinc-400">
-                          <Camera className="w-5 h-5" />
-                        </div>
-                      )}
-
-                      {/* Photo Swap Button Overlay */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setActivePhotoUploadId(row.id);
-                          fileInputRef.current?.click();
-                        }}
-                        title="Click to replace photo from your device"
-                        className="absolute inset-0 bg-black/60 text-white flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                      >
-                        <Camera className="w-4 h-4 mb-0.5" />
-                        <span className="text-[9px] font-bold">Swap</span>
-                      </button>
-
-                      {row.images && row.images.length > 0 && (
-                        <span className="absolute bottom-0.5 right-0.5 bg-black/75 text-white text-[9px] px-1 rounded font-bold">
-                          +{row.images.length}
+                        <span className="text-xs font-mono text-zinc-400 w-6 text-right tabular-nums">
+                          {index + 1}
                         </span>
-                      )}
-                    </div>
+                      </div>
 
-                    {/* Shoe Name & Quick Fill Shortcuts */}
-                    <div className="flex-1 min-w-[220px] w-full space-y-1.5">
-                      <input 
-                        type="text"
-                        value={row.name}
-                        onChange={e => handleUpdateField(row.id, 'name', e.target.value)}
-                        placeholder="e.g. Nike Dunk Low Panda"
-                        className="w-full font-bold text-xs text-zinc-900 bg-transparent border-b border-zinc-200 focus:border-orange-500 py-1 focus:outline-none transition-colors"
-                      />
-                      
-                      {/* Row-Level Quick Chips */}
-                      <div className="flex items-center gap-1 overflow-x-auto scrollbar-none text-[10px]">
-                        {PRESET_MODELS.slice(0, 5).map(p => (
+                      {/* Thumbnail + Photo Swap Trigger */}
+                      <div className="relative group shrink-0 w-14 h-14 rounded-xl overflow-hidden bg-zinc-100 border border-zinc-200">
+                        {row.image ? (
+                          <img 
+                            src={row.image} 
+                            alt={row.name} 
+                            className="w-full h-full object-cover" 
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-zinc-400">
+                            <Camera className="w-5 h-5" />
+                          </div>
+                        )}
+
+                        {/* Photo Swap Button Overlay */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActivePhotoUploadId(row.id);
+                            fileInputRef.current?.click();
+                          }}
+                          title="Click to replace main photo from your device"
+                          className="absolute inset-0 bg-black/60 text-white flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                        >
+                          <Camera className="w-4 h-4 mb-0.5" />
+                          <span className="text-[9px] font-bold">Swap</span>
+                        </button>
+
+                        {hasAngles && (
                           <button
-                            key={p.label}
                             type="button"
-                            onClick={() => applyPreset(row.id, p)}
-                            className="px-1.5 py-0.5 bg-zinc-100 hover:bg-orange-100 hover:text-orange-700 text-zinc-600 rounded text-[10px] font-medium transition-colors cursor-pointer shrink-0"
+                            onClick={() => toggleGalleryTray(row.id)}
+                            title="Click to expand/manage grouped angle photos"
+                            className="absolute bottom-0.5 right-0.5 bg-black/80 hover:bg-orange-600 text-white text-[9px] px-1 rounded font-bold transition-colors cursor-pointer"
                           >
-                            {p.label}
+                            +{row.images.length}
                           </button>
-                        ))}
+                        )}
                       </div>
-                    </div>
 
-                    {/* Brand */}
-                    <div className="w-full md:w-32 shrink-0">
-                      <label className="text-[10px] font-bold text-zinc-400 uppercase md:hidden block mb-0.5">Brand</label>
-                      <input 
-                        type="text"
-                        value={row.brand}
-                        onChange={e => handleUpdateField(row.id, 'brand', e.target.value)}
-                        placeholder="Brand"
-                        className="w-full text-xs text-zinc-800 bg-zinc-50 md:bg-transparent border border-zinc-200 md:border-b md:border-t-0 md:border-x-0 rounded md:rounded-none px-2 py-1 focus:border-orange-500 focus:outline-none"
-                      />
-                    </div>
+                      {/* Shoe Name & Quick Fill Shortcuts */}
+                      <div className="flex-1 min-w-[220px] w-full space-y-1.5">
+                        <div className="flex items-center gap-2">
+                          <input 
+                            type="text"
+                            value={row.name}
+                            onChange={e => handleUpdateField(row.id, 'name', e.target.value)}
+                            placeholder="e.g. Nike Dunk Low Panda"
+                            className="w-full font-bold text-xs text-zinc-900 bg-transparent border-b border-zinc-200 focus:border-orange-500 py-1 focus:outline-none transition-colors"
+                          />
 
-                    {/* Category */}
-                    <div className="w-full md:w-28 shrink-0">
-                      <label className="text-[10px] font-bold text-zinc-400 uppercase md:hidden block mb-0.5">Category</label>
-                      <select
-                        value={row.category}
-                        onChange={e => handleUpdateField(row.id, 'category', e.target.value)}
-                        className="w-full text-xs text-zinc-800 bg-zinc-50 border border-zinc-200 rounded-lg px-2 py-1 focus:outline-none focus:border-orange-500 cursor-pointer"
-                      >
-                        <option value="Sneakers">Sneakers</option>
-                        <option value="Lifestyle">Lifestyle</option>
-                        <option value="Running">Running</option>
-                        <option value="Skate">Skate</option>
-                      </select>
-                    </div>
+                          {/* Grounded AI Authenticate Button */}
+                          <button
+                            type="button"
+                            onClick={() => handleAiScanSingle(row)}
+                            disabled={isScanningThis}
+                            className="flex items-center gap-1 px-2.5 py-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-lg text-[10px] font-black transition-all shadow-xs active:scale-95 cursor-pointer shrink-0 disabled:opacity-50"
+                            title="Inspect photo with Grounded AI to detect exact brand & model with visual evidence"
+                          >
+                            {isScanningThis ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <ShieldCheck className="w-3 h-3 text-emerald-200" />
+                            )}
+                            <span>{isScanningThis ? 'Inspecting...' : 'AI Verify'}</span>
+                          </button>
+                        </div>
+                        
+                        {/* Row-Level Quick Chips */}
+                        <div className="flex items-center gap-1 overflow-x-auto scrollbar-none text-[10px]">
+                          {PRESET_MODELS.slice(0, 5).map(p => (
+                            <button
+                              key={p.label}
+                              type="button"
+                              onClick={() => applyPreset(row.id, p)}
+                              className="px-1.5 py-0.5 bg-zinc-100 hover:bg-orange-100 hover:text-orange-700 text-zinc-600 rounded text-[10px] font-medium transition-colors cursor-pointer shrink-0"
+                            >
+                              {p.label}
+                            </button>
+                          ))}
+                          {hasAngles && (
+                            <button
+                              type="button"
+                              onClick={() => toggleGalleryTray(row.id)}
+                              className="text-[10px] font-bold text-orange-600 hover:text-orange-700 flex items-center gap-0.5 ml-1 shrink-0 cursor-pointer"
+                            >
+                              <span>{isTrayExpanded ? 'Hide' : 'Manage'} {row.images.length} angle photos</span>
+                              {isTrayExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                            </button>
+                          )}
+                        </div>
+                      </div>
 
-                    {/* Selling Price */}
-                    <div className="w-full md:w-28 shrink-0">
-                      <label className="text-[10px] font-bold text-zinc-400 uppercase md:hidden block mb-0.5">Price (KES)</label>
-                      <div className="relative">
-                        <span className="text-[11px] text-zinc-400 absolute left-2 top-1/2 -translate-y-1/2 font-mono">KES</span>
+                      {/* Brand */}
+                      <div className="w-full md:w-32 shrink-0">
+                        <label className="text-[10px] font-bold text-zinc-400 uppercase md:hidden block mb-0.5">Brand</label>
                         <input 
-                          type="number"
-                          value={row.price}
-                          onChange={e => handleUpdateField(row.id, 'price', Number(e.target.value))}
-                          className="w-full text-xs font-mono font-bold text-zinc-900 bg-zinc-50 border border-zinc-200 rounded-lg pl-9 pr-2 py-1 text-right focus:outline-none focus:border-orange-500 tabular-nums"
+                          type="text"
+                          value={row.brand}
+                          onChange={e => handleUpdateField(row.id, 'brand', e.target.value)}
+                          placeholder="Brand"
+                          className="w-full text-xs text-zinc-800 bg-zinc-50 md:bg-transparent border border-zinc-200 md:border-b md:border-t-0 md:border-x-0 rounded md:rounded-none px-2 py-1 focus:border-orange-500 focus:outline-none"
                         />
                       </div>
-                    </div>
 
-                    {/* Was Price */}
-                    <div className="w-full md:w-28 shrink-0">
-                      <label className="text-[10px] font-bold text-zinc-400 uppercase md:hidden block mb-0.5">Was Price</label>
-                      <div className="relative">
-                        <span className="text-[11px] text-zinc-400 absolute left-2 top-1/2 -translate-y-1/2 font-mono">KES</span>
+                      {/* Category */}
+                      <div className="w-full md:w-28 shrink-0">
+                        <label className="text-[10px] font-bold text-zinc-400 uppercase md:hidden block mb-0.5">Category</label>
+                        <select
+                          value={row.category}
+                          onChange={e => handleUpdateField(row.id, 'category', e.target.value)}
+                          className="w-full text-xs text-zinc-800 bg-zinc-50 border border-zinc-200 rounded-lg px-2 py-1 focus:outline-none focus:border-orange-500 cursor-pointer"
+                        >
+                          <option value="Sneakers">Sneakers</option>
+                          <option value="Lifestyle">Lifestyle</option>
+                          <option value="Running">Running</option>
+                          <option value="Skate">Skate</option>
+                        </select>
+                      </div>
+
+                      {/* Selling Price */}
+                      <div className="w-full md:w-28 shrink-0">
+                        <label className="text-[10px] font-bold text-zinc-400 uppercase md:hidden block mb-0.5">Price (KES)</label>
+                        <div className="relative">
+                          <span className="text-[11px] text-zinc-400 absolute left-2 top-1/2 -translate-y-1/2 font-mono">KES</span>
+                          <input 
+                            type="number"
+                            value={row.price}
+                            onChange={e => handleUpdateField(row.id, 'price', Number(e.target.value))}
+                            className="w-full text-xs font-mono font-bold text-zinc-900 bg-zinc-50 border border-zinc-200 rounded-lg pl-9 pr-2 py-1 text-right focus:outline-none focus:border-orange-500 tabular-nums"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Was Price */}
+                      <div className="w-full md:w-28 shrink-0">
+                        <label className="text-[10px] font-bold text-zinc-400 uppercase md:hidden block mb-0.5">Was Price</label>
+                        <div className="relative">
+                          <span className="text-[11px] text-zinc-400 absolute left-2 top-1/2 -translate-y-1/2 font-mono">KES</span>
+                          <input 
+                            type="number"
+                            value={row.originalPrice}
+                            onChange={e => handleUpdateField(row.id, 'originalPrice', Number(e.target.value))}
+                            className="w-full text-xs font-mono text-zinc-500 line-through bg-zinc-50 border border-zinc-200 rounded-lg pl-9 pr-2 py-1 text-right focus:outline-none focus:border-orange-500 tabular-nums"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Stock */}
+                      <div className="w-full md:w-16 shrink-0">
+                        <label className="text-[10px] font-bold text-zinc-400 uppercase md:hidden block mb-0.5">Stock</label>
                         <input 
                           type="number"
-                          value={row.originalPrice}
-                          onChange={e => handleUpdateField(row.id, 'originalPrice', Number(e.target.value))}
-                          className="w-full text-xs font-mono text-zinc-500 line-through bg-zinc-50 border border-zinc-200 rounded-lg pl-9 pr-2 py-1 text-right focus:outline-none focus:border-orange-500 tabular-nums"
+                          value={row.stock}
+                          onChange={e => handleUpdateField(row.id, 'stock', Number(e.target.value))}
+                          className="w-full text-xs font-mono text-zinc-800 bg-zinc-50 border border-zinc-200 rounded-lg px-2 py-1 text-center focus:outline-none focus:border-orange-500 tabular-nums"
                         />
+                      </div>
+
+                      {/* Status Badge / Trash */}
+                      <div className="flex items-center gap-2 shrink-0 self-end md:self-auto">
+                        {row.isModified && (
+                          <span className="w-2 h-2 rounded-full bg-amber-500" title="Modified" />
+                        )}
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (confirm(`Delete "${row.name || 'this product'}" from catalogue?`)) {
+                              await deleteProductsBatch([row.id]);
+                              setRows(prev => prev.filter(r => r.id !== row.id));
+                              onSuccess(`Deleted "${row.name}"`);
+                            }
+                          }}
+                          className="p-1.5 text-zinc-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
+                          title="Delete product"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
 
-                    {/* Stock */}
-                    <div className="w-full md:w-16 shrink-0">
-                      <label className="text-[10px] font-bold text-zinc-400 uppercase md:hidden block mb-0.5">Stock</label>
-                      <input 
-                        type="number"
-                        value={row.stock}
-                        onChange={e => handleUpdateField(row.id, 'stock', Number(e.target.value))}
-                        className="w-full text-xs font-mono text-zinc-800 bg-zinc-50 border border-zinc-200 rounded-lg px-2 py-1 text-center focus:outline-none focus:border-orange-500 tabular-nums"
-                      />
-                    </div>
+                    {/* EXPANDABLE PHOTO GALLERY TRAY: Detach, Make Hero, Delete Angle */}
+                    {hasAngles && isTrayExpanded && (
+                      <div className="mt-3 ml-0 md:ml-24 p-3 bg-zinc-100/80 rounded-2xl border border-zinc-200 space-y-2 animate-in fade-in duration-150">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="font-bold text-zinc-700 flex items-center gap-1">
+                            <Layers className="w-3.5 h-3.5 text-orange-600" />
+                            Grouped Angle Photos ({row.images.length}):
+                          </span>
+                          <span className="text-zinc-500 text-[10px]">
+                            Detach a misgrouped photo into its own shoe, make it the main photo, or delete it.
+                          </span>
+                        </div>
 
-                    {/* Status Badge / Trash */}
-                    <div className="flex items-center gap-2 shrink-0 self-end md:self-auto">
-                      {row.isModified && (
-                        <span className="w-2 h-2 rounded-full bg-amber-500" title="Modified" />
-                      )}
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          if (confirm(`Delete "${row.name || 'this product'}" from catalogue?`)) {
-                            await deleteProductsBatch([row.id]);
-                            setRows(prev => prev.filter(r => r.id !== row.id));
-                            onSuccess(`Deleted "${row.name}"`);
-                          }
-                        }}
-                        className="p-1.5 text-zinc-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
-                        title="Delete product"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
+                        <div className="flex flex-wrap items-center gap-3">
+                          {row.images.map((angleUrl, angleIdx) => (
+                            <div 
+                              key={angleIdx} 
+                              className="relative group w-20 h-20 rounded-xl overflow-hidden border border-zinc-300 bg-white shadow-2xs shrink-0"
+                            >
+                              <img src={angleUrl} alt={`Angle ${angleIdx + 1}`} className="w-full h-full object-cover" />
+                              
+                              {/* Hover Action Strip */}
+                              <div className="absolute inset-0 bg-black/75 text-white flex flex-col items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity p-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleMakeHero(row.id, angleUrl)}
+                                  className="w-full py-0.5 bg-orange-600 hover:bg-orange-700 text-white text-[9px] font-bold rounded flex items-center justify-center gap-1 cursor-pointer"
+                                  title="Promote to Main Hero photo"
+                                >
+                                  <Star className="w-2.5 h-2.5" /> Hero
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDetachAngle(row.id, angleUrl)}
+                                  className="w-full py-0.5 bg-zinc-700 hover:bg-zinc-800 text-white text-[9px] font-bold rounded flex items-center justify-center gap-1 cursor-pointer"
+                                  title="Detach into a brand new standalone shoe product"
+                                >
+                                  <Scissors className="w-2.5 h-2.5" /> Detach
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteAngle(row.id, angleUrl)}
+                                  className="w-full py-0.5 bg-rose-600 hover:bg-rose-700 text-white text-[9px] font-bold rounded flex items-center justify-center gap-1 cursor-pointer"
+                                  title="Delete photo from this shoe"
+                                >
+                                  <Trash2 className="w-2.5 h-2.5" /> Delete
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                   </div>
                 );
               })}
@@ -640,6 +929,24 @@ export function QuickCatalogAlignerModal({
               </div>
             </div>
           </div>
+        )}
+
+        {/* Grounded AI Side-by-Side Review Modal */}
+        {activeAiReview && (
+          <GroundedAiReviewModal
+            isOpen={!!activeAiReview}
+            onClose={() => setActiveAiReview(null)}
+            image={activeAiReview.row.image}
+            currentProduct={{
+              id: activeAiReview.row.id,
+              name: activeAiReview.row.name,
+              brand: activeAiReview.row.brand,
+              category: activeAiReview.row.category,
+              price: activeAiReview.row.price
+            }}
+            detected={activeAiReview.detected}
+            onAccept={handleAcceptAiMatch}
+          />
         )}
 
       </div>

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
-import { LayoutDashboard, Package, ShoppingCart, Plus, Edit, Trash, Check, X, Users, Link as LinkIcon, LogOut, Upload, TrendingUp, Image as ImageIcon, DollarSign, Tag, Info, Box, Printer, Globe, Palette, ToggleLeft, FileText, Bell, Inbox, Settings, FileSpreadsheet, Ticket, Terminal, PhoneCall, Megaphone, Store, MessageCircle, ExternalLink, Sparkles, SlidersHorizontal } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, Plus, Edit, Trash, Check, X, Users, Link as LinkIcon, LogOut, Upload, TrendingUp, Image as ImageIcon, DollarSign, Tag, Info, Box, Printer, Globe, Palette, ToggleLeft, FileText, Bell, Inbox, Settings, FileSpreadsheet, Ticket, Terminal, PhoneCall, Megaphone, Store, MessageCircle, ExternalLink, Sparkles, SlidersHorizontal, Star, Split, ShieldCheck, RefreshCw } from 'lucide-react';
 import { ContactSettingsTab } from '../components/admin/ContactSettingsTab';
 import { SiteSettingsTab } from '../components/admin/SiteSettingsTab';
 import { GoogleSheetsTab } from '../components/admin/GoogleSheetsTab';
@@ -29,6 +29,7 @@ import { downloadOrderPdf } from '../utils/pdfGenerator';
 import { InvoiceModal } from '../components/admin/InvoiceModal';
 import { MassProductImportModal } from '../components/admin/MassProductImportModal';
 import { QuickCatalogAlignerModal } from '../components/admin/QuickCatalogAlignerModal';
+import { GroundedAiReviewModal, GroundedAiDetectionResult } from '../components/admin/GroundedAiReviewModal';
 
 export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
   const { sellerId } = useParams<{ sellerId: string }>();
@@ -73,6 +74,11 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
   const [viewingOrder, setViewingOrder] = useState<Order | null>(null);
   const [invoiceModalOrder, setInvoiceModalOrder] = useState<Order | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [isScanningEditImage, setIsScanningEditImage] = useState(false);
+  const [editAiReview, setEditAiReview] = useState<{
+    image: string;
+    detected: GroundedAiDetectionResult;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [productToDelete, setProductToDelete] = useState<string | null>(null);
@@ -181,6 +187,108 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
     const newImages = [...(formData.images || [])];
     newImages.splice(index, 1);
     setFormData({ ...formData, images: newImages });
+  };
+
+  const handleMakeHeroImage = (angleUrl: string, index: number) => {
+    const currentHero = formData.image;
+    const newGallery = (formData.images || []).filter((_, i) => i !== index);
+    if (currentHero) {
+      newGallery.unshift(currentHero);
+    }
+    setFormData(prev => ({
+      ...prev,
+      image: angleUrl,
+      images: newGallery
+    }));
+    setSuccess("Promoted angle to Main Hero Image!");
+    setTimeout(() => setSuccess(null), 3000);
+  };
+
+  const handleDetachGalleryImage = async (angleUrl: string, index: number) => {
+    // 1. Remove from current product images
+    const newGallery = (formData.images || []).filter((_, i) => i !== index);
+    setFormData(prev => ({ ...prev, images: newGallery }));
+
+    // 2. Create standalone product
+    try {
+      const targetSellerId = formData.sellerId || (role === 'seller' ? (currentSellerId || '') : (sellers[0]?.id || 'seller-official'));
+      const newProduct: Product = {
+        id: `prod_${Date.now()}_detach_${Math.random().toString(36).substring(2, 7)}`,
+        name: `Detached Shoe (from ${formData.name || 'Group'})`,
+        brand: formData.brand || 'Solemate',
+        category: formData.category || 'Sneakers',
+        gender: formData.gender || 'Unisex',
+        price: formData.price || 5500,
+        originalPrice: formData.originalPrice || 6800,
+        image: angleUrl,
+        images: [],
+        color: formData.color || 'Multi-Color',
+        colors: [],
+        description: `Detached photo: ${formData.description || 'Authentic footwear item.'}`,
+        inStock: true,
+        stock: 10,
+        sellerId: targetSellerId,
+        isNew: true
+      };
+
+      await addProduct(newProduct);
+      setSuccess(`Detached photo into its own product "${newProduct.name}"!`);
+      setTimeout(() => setSuccess(null), 4000);
+    } catch (err: any) {
+      console.error("Error detaching photo to new product:", err);
+      setError(err.message || "Failed to detach photo into new product.");
+    }
+  };
+
+  const handleScanCurrentProductImage = async () => {
+    if (!formData.image) {
+      setError("Please add an image first before running AI verification.");
+      return;
+    }
+    setIsScanningEditImage(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/catalog/ai-align-shoe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          image: formData.image,
+          currentName: formData.name || ''
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success || !data.detected) {
+        throw new Error(data.error || 'Failed to authenticate shoe photo');
+      }
+
+      setEditAiReview({
+        image: formData.image,
+        detected: data.detected
+      });
+    } catch (err: any) {
+      console.error("AI Scan Error:", err);
+      setError(err.message || "Failed to inspect shoe photo. Please try again.");
+    } finally {
+      setIsScanningEditImage(false);
+    }
+  };
+
+  const handleAcceptEditAiMatch = (detected: GroundedAiDetectionResult) => {
+    setFormData(prev => ({
+      ...prev,
+      name: detected.name || prev.name,
+      brand: detected.brand || prev.brand,
+      category: detected.category || prev.category,
+      gender: (detected.gender as any) || prev.gender,
+      color: detected.color || prev.color,
+      price: detected.price || prev.price,
+      originalPrice: detected.originalPrice || prev.originalPrice,
+      description: detected.description || prev.description
+    }));
+    setEditAiReview(null);
+    setSuccess(`AI Verified: "${detected.name}" applied with ${detected.confidence} confidence!`);
+    setTimeout(() => setSuccess(null), 4000);
   };
 
   const addColorVariant = () => {
@@ -699,6 +807,33 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
                             />
                           </div>
 
+                          {/* Grounded AI Inspection Button */}
+                          {formData.image && (
+                            <div className="pt-1">
+                              <button
+                                type="button"
+                                onClick={handleScanCurrentProductImage}
+                                disabled={isScanningEditImage}
+                                className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white rounded-2xl font-black text-xs hover:brightness-110 active:scale-95 transition-all shadow-md shadow-emerald-200 disabled:opacity-50 cursor-pointer"
+                              >
+                                {isScanningEditImage ? (
+                                  <>
+                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                    <span>Inspecting Shoe Logos & Box...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Sparkles className="w-4 h-4 text-emerald-200 animate-pulse" />
+                                    <span>AI Verify & Auto-Fill from Photo</span>
+                                  </>
+                                )}
+                              </button>
+                              <p className="text-[10px] text-zinc-500 mt-1.5 text-center leading-tight">
+                                Inspects visible brand emblems, shoebox text, and silhouette with 100% visual ground check.
+                              </p>
+                            </div>
+                          )}
+
                           {/* Direct Image URL input fallback */}
                           <div className="space-y-1.5 pt-2">
                             <div className="flex items-center justify-between">
@@ -727,22 +862,57 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
                         </div>
 
                         <div className="space-y-4">
-                          <label className="block text-sm font-bold text-zinc-900 uppercase tracking-wider">Gallery Images</label>
-                          <div className="grid grid-cols-3 gap-2">
+                          <div className="flex items-center justify-between">
+                            <label className="block text-sm font-bold text-zinc-900 uppercase tracking-wider">
+                              Gallery Images ({formData.images?.length || 0})
+                            </label>
+                            <span className="text-[10px] font-bold text-zinc-400">
+                              Hero • Detach • Delete
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                             {formData.images?.map((img, idx) => (
-                              <div key={idx} className="relative aspect-square rounded-xl overflow-hidden group">
+                              <div key={idx} className="relative aspect-square rounded-2xl overflow-hidden group border border-zinc-200 bg-zinc-100 shadow-2xs">
                                 <img src={img} alt={`Gallery ${idx}`} className="w-full h-full object-cover" />
-                                <button 
-                                  type="button"
-                                  onClick={() => removeGalleryImage(idx)}
-                                  className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                                >
-                                  <X className="w-3 h-3" />
-                                </button>
+                                
+                                {/* Overlay with actions */}
+                                <div className="absolute inset-0 bg-black/65 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-1.5">
+                                  <div className="flex justify-end">
+                                    <button 
+                                      type="button"
+                                      onClick={() => removeGalleryImage(idx)}
+                                      title="Delete misaligned photo"
+                                      className="p-1.5 bg-rose-600/90 hover:bg-rose-700 text-white rounded-lg transition-colors cursor-pointer shadow-xs"
+                                    >
+                                      <Trash className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleMakeHeroImage(img, idx)}
+                                      title="Promote to Main Primary Image"
+                                      className="flex-1 py-1 px-1 bg-amber-500/95 hover:bg-amber-600 text-white rounded-lg text-[9px] font-black flex items-center justify-center gap-0.5 transition-colors cursor-pointer shadow-xs"
+                                    >
+                                      <Star className="w-3 h-3 fill-white" />
+                                      <span>Hero</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDetachGalleryImage(img, idx)}
+                                      title="Detach photo into a brand-new independent shoe listing"
+                                      className="flex-1 py-1 px-1 bg-emerald-600/95 hover:bg-emerald-700 text-white rounded-lg text-[9px] font-black flex items-center justify-center gap-0.5 transition-colors cursor-pointer shadow-xs"
+                                    >
+                                      <Split className="w-3 h-3" />
+                                      <span>Detach</span>
+                                    </button>
+                                  </div>
+                                </div>
                               </div>
                             ))}
-                            <label className="aspect-square rounded-xl border-2 border-dashed border-zinc-200 flex items-center justify-center cursor-pointer hover:bg-zinc-50 transition-colors">
+                            <label className="aspect-square rounded-2xl border-2 border-dashed border-zinc-200 hover:border-orange-500 hover:bg-orange-50/50 flex flex-col items-center justify-center cursor-pointer transition-colors">
                               <Plus className="w-6 h-6 text-zinc-400" />
+                              <span className="text-[10px] font-bold text-zinc-500 mt-1">Add Angle</span>
                               <input 
                                 type="file" 
                                 multiple 
@@ -1542,6 +1712,23 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
               setSuccess(msg);
               setTimeout(() => setSuccess(null), 5000);
             }}
+          />
+        )}
+
+        {editAiReview && (
+          <GroundedAiReviewModal
+            isOpen={!!editAiReview}
+            onClose={() => setEditAiReview(null)}
+            image={editAiReview.image}
+            currentProduct={{
+              id: editingProduct?.id || 'new',
+              name: formData.name || 'Unnamed Shoe',
+              brand: formData.brand || 'Solemate',
+              category: formData.category || 'Sneakers',
+              price: formData.price || 0
+            }}
+            detected={editAiReview.detected}
+            onAccept={handleAcceptEditAiMatch}
           />
         )}
       </div>

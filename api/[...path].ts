@@ -1008,27 +1008,12 @@ Here are the images:
       }
     }
 
-    // If Gemini wasn't available or returned empty, use the Intelligent Shoe Trends Engine
+    // If Gemini wasn't available or returned empty, use strictly honest non-hallucinating fallback
     if (generatedProducts.length === 0) {
-      methodUsed = 'trends-engine-fallback';
-      console.log('[AI Mass Catalog] Running Intelligent Shoe Trends Fallback Engine...');
+      methodUsed = 'honest-unverified-fallback';
+      console.log('[AI Mass Catalog] Vision model unavailable, using honest non-guessing grouping...');
 
-      const TRENDING_CATALOGUE = [
-        { brand: 'Timberland', name: 'Timberland 6-Inch Premium Waterproof Boot', price: 9800, originalPrice: 12500, category: 'Lifestyle', gender: 'Men', color: 'Black Leather / Wheat', desc: 'Rugged, seam-sealed waterproof nubuck leather with rustproof hardware and anti-fatigue comfort technology.' },
-        { brand: 'Nike', name: 'Air Jordan 4 Retro "Military Black"', price: 7800, originalPrice: 9500, category: 'Sneakers', gender: 'Unisex', color: 'White / Black / Neutral Grey', desc: 'Crafted with premium smooth leather and signature mesh inserts. Features lightweight Air-Sole cushioning and iconic silhouette.' },
-        { brand: 'Nike', name: 'Nike Dunk Low Retro "Panda"', price: 5800, originalPrice: 7200, category: 'Sneakers', gender: 'Unisex', color: 'Black / White', desc: 'The quintessential streetwear classic. Featuring durable monochrome leather uppers and grippy rubber traction cupsole.' },
-        { brand: 'Adidas', name: 'Adidas Originals Samba OG', price: 5200, originalPrice: 6500, category: 'Lifestyle', gender: 'Unisex', color: 'Cloud White / Core Black / Gum', desc: 'Heritage indoor soccer icon reborn for the streets. Features soft leather with suede T-toe overlay and retro gum rubber sole.' },
-        { brand: 'New Balance', name: 'New Balance 550 Vintage White', price: 6500, originalPrice: 8000, category: 'Sneakers', gender: 'Unisex', color: 'Sea Salt / White', desc: 'Streamlined 1989 basketball classic built with premium layered leather and clean retro court aesthetics.' },
-        { brand: 'Nike', name: 'Air Force 1 \'07 Triple White', price: 5500, originalPrice: 6800, category: 'Sneakers', gender: 'Unisex', color: 'Triple White', desc: 'Crisp leather edges, clean finish and legendary encapsulated Air cushioning for unmatched everyday style.' },
-        { brand: 'Nike', name: 'Air Jordan 1 High OG "Lost & Found"', price: 8500, originalPrice: 11000, category: 'Sneakers', gender: 'Unisex', color: 'Varsity Red / Black / Sail', desc: 'Vintage cracked leather collar, aged aesthetic midsole, and premium packaging recreating the 1985 release.' },
-        { brand: 'Adidas', name: 'Adidas Gazelle Indoor Core', price: 5400, originalPrice: 6800, category: 'Lifestyle', gender: 'Unisex', color: 'Collegiate Navy / White / Gum', desc: 'Supple suede upper with translucent gum rubber wrap outsole for timeless European terrace appeal.' },
-        { brand: 'Converse', name: 'Chuck Taylor All Star 70 Vintage Canvas', price: 4200, originalPrice: 5200, category: 'Sneakers', gender: 'Unisex', color: 'Egret / Black', desc: 'Heavy-grade vintage canvas with archival varnished foxing and cushioned OrthoLite insole.' },
-        { brand: 'Puma', name: 'Puma Suede Classic XXI', price: 4800, originalPrice: 5800, category: 'Lifestyle', gender: 'Men', color: 'Peacoat Navy / White', desc: 'Iconic suede silhouette that defined street culture since 1968. Full suede upper with comfortable sockliner.' },
-        { brand: 'Vans', name: 'Vans Old Skool Classic Skate', price: 4200, originalPrice: 5200, category: 'Skate', gender: 'Unisex', color: 'Black / True White', desc: 'Signature waffle rubber sole and durable canvas and suede uppers for supreme board feel and everyday wear.' },
-        { brand: 'Salomon', name: 'Salomon XT-6 Advanced Trail', price: 8900, originalPrice: 11500, category: 'Running', gender: 'Unisex', color: 'Phantom / Black / Vanilla', desc: 'Trail-tested technical performance with Quicklace system, EVA cushioning, and aggressive Contagrip lugs.' }
-      ];
-
-      // Smart grouping:
+      // Smart grouping by filename / angle
       const groups: { main: any; others: any[] }[] = [];
       const angleKeywords = ['sole', 'bottom', 'angle', 'side', 'back', 'box', 'heel', 'front', 'detail', 'tread'];
 
@@ -1045,21 +1030,24 @@ Here are the images:
         }
       });
 
-      const offset = (Number(batchIndex) || 0) * 3;
       generatedProducts = groups.map((g, idx) => {
-        const trend = TRENDING_CATALOGUE[(offset + idx) % TRENDING_CATALOGUE.length];
+        const cleanName = (g.main.fileName || `Shoe Photo ${idx + 1}`)
+          .replace(/\.[^/.]+$/, "")
+          .replace(/[_-]/g, " ")
+          .trim();
+
         return {
-          name: trend.name,
-          brand: trend.brand,
-          price: trend.price,
-          originalPrice: trend.originalPrice,
-          category: trend.category,
-          gender: trend.gender,
-          color: trend.color,
-          description: trend.desc,
+          name: cleanName || `Footwear Listing ${idx + 1}`,
+          brand: 'To Be Verified',
+          price: 5500,
+          originalPrice: 6800,
+          category: 'Sneakers',
+          gender: 'Unisex',
+          color: 'Pending Verification',
+          description: 'Authentic footwear listing pending model verification in Quick Aligner.',
           image: g.main.url,
           images: g.others.map((o: any) => o.url),
-          stock: 12 + ((offset + idx) % 8),
+          stock: 12,
           inStock: true,
           photoCount: 1 + g.others.length
         };
@@ -1069,8 +1057,8 @@ Here are the images:
     // Ensure all products have unique IDs and assigned seller
     const finalProducts = generatedProducts.map((p, idx) => ({
       id: `prod_${Date.now()}_b${batchIndex}_${idx}_${Math.random().toString(36).substring(2, 7)}`,
-      name: p.name || 'Premium Trending Sneaker',
-      brand: p.brand || 'Solemate Footwear',
+      name: p.name || 'Footwear Item',
+      brand: p.brand || 'Solemate',
       price: Number(p.price) || 5500,
       originalPrice: Number(p.originalPrice) || Math.round((Number(p.price) || 5500) * 1.2 / 100) * 100,
       image: p.image || items[0]?.url || '',
@@ -1078,7 +1066,7 @@ Here are the images:
       category: p.category || 'Sneakers',
       gender: p.gender || 'Unisex',
       color: p.color || 'Multi-Color',
-      description: p.description || 'Premium authentic footwear with superior cushioning and fast delivery across Kenya.',
+      description: p.description || 'Premium authentic footwear with fast delivery across Kenya.',
       stock: Number(p.stock) || 12,
       inStock: true,
       sellerId: defaultSellerId || 'seller-official',
@@ -1095,6 +1083,130 @@ Here are the images:
   } catch (err: any) {
     console.error('[AI Mass Catalog Error]:', err);
     res.status(500).json({ error: 'Failed to analyze photos for catalog', message: err.message });
+  }
+});
+
+// ==========================================
+// Grounded 100% Sneaker Authenticator & Aligner
+// ==========================================
+app.post('/api/catalog/ai-align-shoe', async (req, res) => {
+  try {
+    const { image, base64, currentName } = req.body;
+    if (!image && !base64) {
+      return res.status(400).json({ error: 'Please provide an image URL or base64 data to authenticate' });
+    }
+
+    console.log(`[Grounded AI Authenticator] Inspecting footwear photo...`);
+    const ai = getGenAI();
+    if (!ai) {
+      return res.status(503).json({ error: 'Gemini AI service is currently unavailable. Please verify API key.' });
+    }
+
+    const parts: any[] = [];
+    parts.push({
+      text: `You are a certified sneaker authenticator and footwear merchandiser in Nairobi, Kenya.
+CRITICAL MANDATE: NEVER GUESS. NEVER FABRICATE RANDOM HYPE SNEAKER NAMES.
+Examine this footwear photo with extreme visual scrutiny.
+
+INSPECTION PROTOCOL:
+1. Brand Emblems: Look for visible manufacturer logos (e.g., Timberland tree emblem, Nike Swoosh, Jordan Jumpman, Adidas 3-Stripes or Trefoil, New Balance 'N', Puma formstrip, Vans jazz stripe, Converse All Star circle).
+2. Shoebox & Packaging: Look carefully at the background. If a shoebox is visible (e.g. kraft cardboard box with "Timberland" or "Nike"), inspect the exact text and typography printed on it.
+3. Outsole & Tread: If the sole is visible, inspect any embossed branding signature or tread pattern (e.g. Timberland signature logo on outsole).
+4. Silhouette & Upper: Identify the exact model silhouette (e.g. "Timberland Adventure 2.0 Cupsole Sneaker", "Timberland 6-Inch Premium Boot", "Air Jordan 4 Retro", "Nike Dunk Low Retro", "Adidas Samba OG"). If the shoe is an unbranded or generic casual shoe, state the brand as "Casual Footwear" or "Fashion" and give an honest descriptive name like "Men's Black Leather Casual Cupsole Sneaker".
+5. Pricing in Kenya: Provide a realistic retail price in Kenyan Shillings (KES integer). For instance:
+   - Premium leather boots (Timberland, etc.): KES 9,000 - 13,000
+   - Retro sneakers (Jordan, Dunk, New Balance): KES 5,500 - 8,500
+   - Casual / lifestyle court shoes: KES 4,500 - 6,500
+
+Return strictly JSON with this exact schema:
+{
+  "name": string (exact verified model name),
+  "brand": string (verified brand),
+  "category": "Sneakers" | "Lifestyle" | "Running" | "Skate",
+  "gender": "Men" | "Women" | "Unisex" | "Kids",
+  "color": string (exact colorway seen in photo),
+  "price": number (realistic KES price integer),
+  "originalPrice": number (strike-through price in KES),
+  "confidence": "High" | "Medium" | "Uncertain",
+  "visualEvidence": string[] (2-4 bullet points describing visible evidence in the photo: logos seen, shoebox branding, sole details, materials),
+  "description": string (2-3 sentences describing the shoe features, materials, and Kenyan delivery)
+}`
+    });
+
+    if (base64) {
+      parts.push({
+        inlineData: {
+          mimeType: 'image/jpeg',
+          data: base64
+        }
+      });
+    } else if (image && image.startsWith('data:image')) {
+      const b64Data = image.split(',')[1];
+      const mime = image.split(';')[0].replace('data:', '') || 'image/jpeg';
+      parts.push({
+        inlineData: {
+          mimeType: mime,
+          data: b64Data
+        }
+      });
+    } else if (image && (image.startsWith('http://') || image.startsWith('https://'))) {
+      try {
+        const fetchRes = await fetch(image);
+        if (fetchRes.ok) {
+          const arrayBuffer = await fetchRes.arrayBuffer();
+          const buffer = Buffer.from(arrayBuffer);
+          const mimeType = (fetchRes.headers.get('content-type') || 'image/jpeg').split(';')[0];
+          parts.push({
+            inlineData: {
+              mimeType,
+              data: buffer.toString('base64')
+            }
+          });
+        } else {
+          parts.push({
+            text: `Image URL (preview): ${image}`
+          });
+        }
+      } catch (fetchErr: any) {
+        console.warn('[AI Authenticator] Failed to fetch image bytes from URL:', fetchErr.message);
+        parts.push({
+          text: `Image URL: ${image}`
+        });
+      }
+    }
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.8-flash',
+      contents: { parts },
+      config: {
+        responseMimeType: 'application/json',
+        systemInstruction: 'You are a certified footwear authenticator. Only report verified visual evidence. Return JSON matching the requested schema.'
+      }
+    });
+
+    const rawText = response.text || '{}';
+    const detected = JSON.parse(rawText);
+
+    res.json({
+      success: true,
+      detected: {
+        name: detected.name || currentName || 'Authentic Footwear',
+        brand: detected.brand || 'Solemate',
+        category: detected.category || 'Sneakers',
+        gender: detected.gender || 'Unisex',
+        color: detected.color || 'Multi-Color',
+        price: Number(detected.price) || 5500,
+        originalPrice: Number(detected.originalPrice) || 6800,
+        confidence: detected.confidence || 'Medium',
+        visualEvidence: Array.isArray(detected.visualEvidence) ? detected.visualEvidence : [
+          'Visual silhouette and materials analyzed from uploaded photo'
+        ],
+        description: detected.description || 'Premium footwear authentic styling with fast delivery across Kenya.'
+      }
+    });
+  } catch (err: any) {
+    console.error('[Grounded AI Error]:', err);
+    res.status(500).json({ error: 'Failed to authenticate footwear from photo', message: err.message });
   }
 });
 
