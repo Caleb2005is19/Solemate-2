@@ -926,6 +926,12 @@ app.get('/api/coupons/validate', async (req, res) => {
 // ==========================================
 // In-Memory & Firestore Background Job Engine
 // ==========================================
+interface InternalCatalogJobLog {
+  timestamp: string;
+  message: string;
+  type?: 'info' | 'gemini' | 'success' | 'warn';
+}
+
 interface InternalCatalogJob {
   id: string;
   sellerId: string;
@@ -936,6 +942,8 @@ interface InternalCatalogJob {
   processedPhotos: number;
   progressPercent: number;
   statusMessage: string;
+  estimatedSecondsRemaining?: number;
+  logs?: InternalCatalogJobLog[];
   photos: {
     id: string;
     url: string;
@@ -953,6 +961,16 @@ interface InternalCatalogJob {
 
 const inMemoryCatalogJobs = new Map<string, InternalCatalogJob>();
 let isCatalogWorkerActive = false;
+
+function addJobLog(job: InternalCatalogJob, message: string, type: 'info' | 'gemini' | 'success' | 'warn' = 'info') {
+  if (!job.logs) job.logs = [];
+  job.logs.unshift({
+    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+    message,
+    type
+  });
+  if (job.logs.length > 50) job.logs.pop();
+}
 
 // Background worker that processes jobs calmly with breathing cooldowns
 async function triggerCatalogJobWorker() {
@@ -990,6 +1008,10 @@ async function triggerCatalogJobWorker() {
         break; // No pending jobs
       }
 
+      if (targetJob.status === 'cancelled') {
+        continue;
+      }
+
       targetJob.status = 'processing';
       targetJob.updatedAt = new Date().toISOString();
 
@@ -1000,9 +1022,11 @@ async function triggerCatalogJobWorker() {
         // Job complete!
         targetJob.status = 'completed';
         targetJob.progressPercent = 100;
+        targetJob.estimatedSecondsRemaining = 0;
         targetJob.statusMessage = `All ${total} photos sorted into ${targetJob.products.length} verified shoe listings! Ready for review.`;
         targetJob.completedAt = new Date().toISOString();
         targetJob.updatedAt = new Date().toISOString();
+        addJobLog(targetJob, `Batch processing complete: ${targetJob.products.length} shoes verified & grouped.`, 'success');
 
         if (db) {
           try {
@@ -1015,9 +1039,17 @@ async function triggerCatalogJobWorker() {
       // Calm micro-batch of 2 photos per call
       const microBatchSize = 2;
       const nextBatch = targetJob.photos.slice(processedCount, processedCount + microBatchSize);
+      const remainingPhotos = Math.max(0, total - processedCount);
+      targetJob.estimatedSecondsRemaining = Math.ceil((remainingPhotos / 2) * 3.4);
 
       targetJob.statusMessage = `Analyzing photos ${processedCount + 1} to ${Math.min(processedCount + microBatchSize, total)} of ${total}...`;
       targetJob.progressPercent = Math.min(98, Math.round((processedCount / total) * 100));
+
+      addJobLog(
+        targetJob,
+        `Inspecting photos ${processedCount + 1}-${Math.min(processedCount + microBatchSize, total)} (${nextBatch.map(b => b.fileName || 'photo').join(', ')})`,
+        'gemini'
+      );
 
       if (db) {
         try {
@@ -1026,6 +1058,8 @@ async function triggerCatalogJobWorker() {
             statusMessage: targetJob.statusMessage,
             progressPercent: targetJob.progressPercent,
             processedPhotos: processedCount,
+            estimatedSecondsRemaining: targetJob.estimatedSecondsRemaining,
+            logs: targetJob.logs || [],
             updatedAt: new Date().toISOString()
           }, { merge: true });
         } catch {}
@@ -1043,9 +1077,19 @@ async function triggerCatalogJobWorker() {
         detectedShoes = createHonestFallbackShoes(nextBatch, targetJob.sellerId, processedCount);
       }
 
+      // Record logs for what was discovered
+      detectedShoes.forEach(shoe => {
+        addJobLog(
+          targetJob!,
+          `Identified: "${shoe.name}" (${shoe.brand}) • KES ${shoe.price.toLocaleString()}`,
+          'success'
+        );
+      });
+
       targetJob.products.push(...detectedShoes);
       targetJob.processedPhotos = processedCount + nextBatch.length;
       targetJob.progressPercent = Math.min(99, Math.round((targetJob.processedPhotos / total) * 100));
+      targetJob.estimatedSecondsRemaining = Math.max(0, Math.ceil(((total - targetJob.processedPhotos) / 2) * 3.4));
       targetJob.updatedAt = new Date().toISOString();
 
       if (db) {
@@ -1054,7 +1098,9 @@ async function triggerCatalogJobWorker() {
             products: targetJob.products,
             processedPhotos: targetJob.processedPhotos,
             progressPercent: targetJob.progressPercent,
+            estimatedSecondsRemaining: targetJob.estimatedSecondsRemaining,
             statusMessage: `Sorted ${targetJob.processedPhotos}/${total} photos (${targetJob.products.length} shoes created)...`,
+            logs: targetJob.logs || [],
             updatedAt: new Date().toISOString()
           }, { merge: true });
         } catch {}
@@ -1319,6 +1365,8 @@ app.get('/api/catalog/jobs/active', async (req, res) => {
         processedPhotos: j.processedPhotos,
         progressPercent: j.progressPercent,
         statusMessage: j.statusMessage,
+        estimatedSecondsRemaining: j.estimatedSecondsRemaining || 0,
+        logs: j.logs || [],
         productsCount: j.products ? j.products.length : 0,
         createdAt: j.createdAt,
         updatedAt: j.updatedAt,
@@ -1346,6 +1394,8 @@ app.get('/api/catalog/jobs/active', async (req, res) => {
               processedPhotos: data.processedPhotos,
               progressPercent: data.progressPercent,
               statusMessage: data.statusMessage,
+              estimatedSecondsRemaining: data.estimatedSecondsRemaining || 0,
+              logs: data.logs || [],
               productsCount: data.products ? data.products.length : 0,
               createdAt: data.createdAt,
               updatedAt: data.updatedAt,
@@ -1389,7 +1439,51 @@ app.get('/api/catalog/jobs/:jobId', async (req, res) => {
 });
 
 // ------------------------------------------
-// Cancel or Dismiss Job
+// Cancel Batch Processing Job
+// ------------------------------------------
+app.post('/api/catalog/jobs/:jobId/cancel', async (req, res) => {
+  try {
+    const { jobId } = req.params;
+    let job = inMemoryCatalogJobs.get(jobId);
+
+    if (!job && db) {
+      const snap = await db.collection('catalog_batch_jobs').doc(jobId).get();
+      if (snap.exists) {
+        job = snap.data() as InternalCatalogJob;
+        inMemoryCatalogJobs.set(jobId, job);
+      }
+    }
+
+    if (!job) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+
+    job.status = 'cancelled';
+    job.statusMessage = 'Job cancelled by administrator.';
+    job.estimatedSecondsRemaining = 0;
+    job.updatedAt = new Date().toISOString();
+    addJobLog(job, 'Processing cancelled by administrator.', 'warn');
+
+    if (db) {
+      try {
+        await db.collection('catalog_batch_jobs').doc(jobId).set({
+          status: 'cancelled',
+          statusMessage: job.statusMessage,
+          estimatedSecondsRemaining: 0,
+          logs: job.logs || [],
+          updatedAt: job.updatedAt
+        }, { merge: true });
+      } catch {}
+    }
+
+    res.json({ success: true, message: 'Job cancelled successfully', job });
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to cancel job', message: error.message });
+  }
+});
+
+// ------------------------------------------
+// Dismiss / Delete Job
 // ------------------------------------------
 app.post('/api/catalog/jobs/:jobId/dismiss', async (req, res) => {
   try {

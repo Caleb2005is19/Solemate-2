@@ -31,6 +31,7 @@ import { MassProductImportModal } from '../components/admin/MassProductImportMod
 import { QuickCatalogAlignerModal } from '../components/admin/QuickCatalogAlignerModal';
 import { GroundedAiReviewModal, GroundedAiDetectionResult } from '../components/admin/GroundedAiReviewModal';
 import { BackgroundJobsPanel } from '../components/admin/BackgroundJobsPanel';
+import { BatchProgressBanner } from '../components/admin/BatchProgressBanner';
 import { CatalogBatchJob } from '../services/types';
 
 export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
@@ -699,6 +700,16 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
               </div>
             </div>
           </div>
+        )}
+
+        {/* Sticky Real-Time AI Batch Progress Monitor */}
+        {role === 'admin' && (
+          <BatchProgressBanner
+            onOpenJobReview={(job) => {
+              setReviewBatchJob(job);
+              setIsMassImportOpen(true);
+            }}
+          />
         )}
 
         {activeTab === 'overview' && (

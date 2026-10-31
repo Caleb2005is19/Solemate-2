@@ -251,6 +251,12 @@ export interface SystemLog {
   metadata?: any;
 }
 
+export interface CatalogBatchJobLog {
+  timestamp: string;
+  message: string;
+  type?: 'info' | 'gemini' | 'success' | 'warn';
+}
+
 export interface CatalogBatchJob {
   id: string;
   sellerId: string;
@@ -261,6 +267,8 @@ export interface CatalogBatchJob {
   processedPhotos: number;
   progressPercent: number;
   statusMessage: string;
+  estimatedSecondsRemaining?: number;
+  logs?: CatalogBatchJobLog[];
   photos: {
     id: string;
     url: string;
