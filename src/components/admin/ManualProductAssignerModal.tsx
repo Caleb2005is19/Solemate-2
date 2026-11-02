@@ -18,7 +18,8 @@ import {
   Sparkles,
   Image as ImageIcon,
   SlidersHorizontal,
-  ChevronRight
+  ChevronRight,
+  Star
 } from 'lucide-react';
 import { Product, Seller } from '../../types';
 import { useStore } from '../../context/StoreContext';
@@ -69,6 +70,8 @@ export function ManualProductAssignerModal({
   const [photos, setPhotos] = useState<TrayPhoto[]>([]);
   const [shoes, setShoes] = useState<StagedShoe[]>([]);
   const [activeShoeId, setActiveShoeId] = useState<string | null>(null);
+  const [mobileTab, setMobileTab] = useState<'shoes' | 'tray'>('shoes');
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [selectedSellerId, setSelectedSellerId] = useState<string>(
     currentSellerId || (sellers[0]?.id || 'seller-official')
   );
@@ -79,6 +82,13 @@ export function ManualProductAssignerModal({
   const [error, setError] = useState<string | null>(null);
 
   if (!isOpen) return null;
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage(prev => prev === msg ? null : prev);
+    }, 2200);
+  };
 
   // Handle local files added
   const handleFilesAdded = (fileList: FileList | File[]) => {
@@ -99,13 +109,19 @@ export function ManualProductAssignerModal({
     }));
 
     setPhotos(prev => [...prev, ...newPhotos]);
+    showToast(`Added ${newPhotos.length} photo${newPhotos.length > 1 ? 's' : ''} to tray`);
+    
+    // On mobile, if no shoes exist yet, prompt tray view so user can auto-create or assign
+    if (shoes.length === 0) {
+      setMobileTab('tray');
+    }
   };
 
   // Create an empty shoe card
   const handleCreateShoe = (heroPhoto?: TrayPhoto) => {
     const shoeId = `shoe_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     
-    // Attempt clean name from filename if photo provided
+    // Clean name from filename if photo provided
     let initialName = 'New Footwear Item';
     if (heroPhoto) {
       initialName = heroPhoto.fileName
@@ -138,12 +154,16 @@ export function ManualProductAssignerModal({
 
     setShoes(prev => [...prev, newShoe]);
     setActiveShoeId(shoeId);
+    showToast(`Created shoe: ${initialName}`);
   };
 
   // 1-click Auto-create shoe for each unassigned photo
   const handleAutoCreatePerPhoto = () => {
     const unassigned = photos.filter(p => !p.assignedShoeId);
-    if (unassigned.length === 0) return;
+    if (unassigned.length === 0) {
+      setError('All photos are already assigned to shoes.');
+      return;
+    }
 
     const newShoes: StagedShoe[] = [];
     const updatedPhotos = [...photos];
@@ -183,6 +203,8 @@ export function ManualProductAssignerModal({
     if (newShoes.length > 0) {
       setActiveShoeId(newShoes[0].id);
     }
+    setMobileTab('shoes');
+    showToast(`Auto-created ${newShoes.length} shoe listings!`);
   };
 
   // Assign photo from tray to active shoe
@@ -199,6 +221,7 @@ export function ManualProductAssignerModal({
     // If photo is already assigned to this shoe, unassign it
     if (photo.assignedShoeId === activeShoeId) {
       handleDetachPhotoFromShoe(photo.id, activeShoeId);
+      showToast(`Detached photo from ${currentShoe.name}`);
       return;
     }
 
@@ -224,6 +247,8 @@ export function ManualProductAssignerModal({
         ? { ...p, assignedShoeId: activeShoeId, isHero: makeHero } 
         : p
     ));
+
+    showToast(makeHero ? `Set as Main Hero for ${currentShoe.name}` : `Added angle to ${currentShoe.name}`);
   };
 
   // Detach photo from shoe
@@ -264,6 +289,8 @@ export function ManualProductAssignerModal({
       }
       return p;
     }));
+
+    showToast('Promoted photo to Main Hero view');
   };
 
   // Delete a shoe card (returns photos to tray)
@@ -278,6 +305,7 @@ export function ManualProductAssignerModal({
       const remaining = shoes.filter(s => s.id !== shoeId);
       setActiveShoeId(remaining[0]?.id || null);
     }
+    showToast('Shoe removed (photos returned to tray)');
   };
 
   // Delete photo completely from tray
@@ -305,6 +333,7 @@ export function ManualProductAssignerModal({
     if (unreadyShoes.length > 0) {
       setError(`Shoe "${unreadyShoes[0].name}" has no hero photo assigned. Assign a photo or delete the empty card.`);
       setActiveShoeId(unreadyShoes[0].id);
+      setMobileTab('shoes');
       return;
     }
 
@@ -348,7 +377,7 @@ export function ManualProductAssignerModal({
           name: shoe.name.trim() || 'Footwear Item',
           brand: shoe.brand || 'Solemate',
           category: shoe.category || 'Sneakers',
-          gender: shoe.gender || 'Unisex',
+          gender: (shoe.gender as Product['gender']) || 'Unisex',
           price: Number(shoe.price) || 5500,
           originalPrice: Number(shoe.originalPrice) || Math.round((Number(shoe.price) || 5500) * 1.2 / 100) * 100,
           image: heroUrl,
@@ -383,33 +412,34 @@ export function ManualProductAssignerModal({
   const totalPhotosCount = photos.length;
   const unassignedCount = photos.filter(p => !p.assignedShoeId).length;
   const assignedCount = totalPhotosCount - unassignedCount;
+  const activeShoe = shoes.find(s => s.id === activeShoeId);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="bg-zinc-950 border border-zinc-800 text-white w-full max-w-7xl h-[94vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden ring-1 ring-white/10">
+    <div className="fixed inset-0 z-50 flex items-center justify-center sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="bg-zinc-950 sm:border sm:border-zinc-800 text-white w-full max-w-7xl h-[100dvh] sm:h-[92vh] sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden sm:ring-1 sm:ring-white/10">
         
-        {/* Top Header */}
-        <div className="p-4 sm:p-6 border-b border-zinc-800/80 bg-zinc-900/60 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-orange-500/15 border border-orange-500/30 text-orange-400 flex items-center justify-center shrink-0">
-              <Layers className="w-5 h-5" />
+        {/* Top Header - Mobile Compact */}
+        <div className="p-3 sm:p-5 border-b border-zinc-800/80 bg-zinc-900/90 flex items-center justify-between shrink-0 gap-2">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-orange-500/15 border border-orange-500/30 text-orange-400 flex items-center justify-center shrink-0">
+              <Layers className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-lg sm:text-xl font-black text-white tracking-tight">
-                  Fast Manual Photo Assigner
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <h2 className="text-base sm:text-lg font-black text-white tracking-tight truncate">
+                  Manual Photo Assigner
                 </h2>
-                <span className="text-[10px] bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
-                  Zero AI Cost • Instant
+                <span className="hidden sm:inline-block text-[10px] bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider shrink-0">
+                  Zero AI Cost
                 </span>
               </div>
-              <p className="text-xs text-zinc-400 font-medium">
-                Upload photos, assign main and angle views with 1 click, and publish directly to catalog.
+              <p className="text-[11px] sm:text-xs text-zinc-400 font-medium truncate">
+                {photos.length} photos • {shoes.length} shoes staged
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 shrink-0">
             {/* Quick Upload Button */}
             <input 
               ref={fileInputRef}
@@ -423,55 +453,97 @@ export function ManualProductAssignerModal({
             />
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 px-3.5 py-2.5 rounded-xl font-bold text-xs transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 bg-orange-600 hover:bg-orange-500 text-white px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-xl font-bold text-xs transition-colors cursor-pointer active:scale-95 shadow-md shadow-orange-600/20"
+              title="Add photos from camera or gallery"
             >
-              <Upload className="w-4 h-4 text-orange-400" />
-              <span>Add More Photos</span>
+              <Upload className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline">Add Photos</span>
+              <span className="sm:hidden">Upload</span>
             </button>
 
             <button
               onClick={onClose}
               disabled={isPublishing}
-              className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-xl transition-colors"
+              className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-xl transition-colors active:scale-95"
+              aria-label="Close modal"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
         </div>
 
+        {/* Mobile Segmented Switcher (Visible on < lg screens) */}
+        <div className="lg:hidden flex items-center border-b border-zinc-800/80 bg-zinc-900/90 p-1.5 gap-1.5 shrink-0">
+          <button
+            onClick={() => setMobileTab('shoes')}
+            className={`flex-1 py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all ${
+              mobileTab === 'shoes'
+                ? 'bg-zinc-800 text-white shadow-sm ring-1 ring-zinc-700'
+                : 'text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5 text-orange-400" />
+            <span>Shoes ({shoes.length})</span>
+          </button>
+          <button
+            onClick={() => setMobileTab('tray')}
+            className={`flex-1 py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all ${
+              mobileTab === 'tray'
+                ? 'bg-zinc-800 text-white shadow-sm ring-1 ring-zinc-700'
+                : 'text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            <ImageIcon className="w-3.5 h-3.5 text-amber-400" />
+            <span>Photos Tray ({photos.length})</span>
+            {unassignedCount > 0 && (
+              <span className="bg-amber-500/20 text-amber-300 text-[10px] font-black px-1.5 py-0.2 rounded-full border border-amber-500/40">
+                {unassignedCount} new
+              </span>
+            )}
+          </button>
+        </div>
+
         {/* Error Alert */}
         {error && (
-          <div className="mx-6 mt-4 p-3.5 bg-rose-950/40 border border-rose-800/80 text-rose-300 rounded-2xl flex items-center justify-between text-xs font-semibold shrink-0">
+          <div className="mx-3 sm:mx-6 mt-3 p-3 bg-rose-950/40 border border-rose-800/80 text-rose-300 rounded-2xl flex items-center justify-between text-xs font-semibold shrink-0">
             <div className="flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
               <span>{error}</span>
             </div>
-            <button onClick={() => setError(null)} className="text-rose-400 hover:text-white">
+            <button onClick={() => setError(null)} className="text-rose-400 hover:text-white p-1">
               <X className="w-4 h-4" />
             </button>
           </div>
         )}
 
-        {/* Main Split Body: Left = Shoe Cards, Right = Unassigned Photos Tray */}
-        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+        {/* Transient Action Toast */}
+        {toastMessage && (
+          <div className="bg-emerald-950/90 border-b border-emerald-800 text-emerald-200 px-4 py-1.5 text-xs font-bold text-center animate-in slide-in-from-top-1 shrink-0 flex items-center justify-center gap-1.5">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+            <span>{toastMessage}</span>
+          </div>
+        )}
+
+        {/* Main Body */}
+        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden min-h-0">
           
           {/* Left Column: Shoe Listings Workspace */}
-          <div className="flex-1 flex flex-col p-4 sm:p-6 overflow-y-auto custom-scrollbar border-b lg:border-b-0 lg:border-r border-zinc-800/80">
+          <div className={`flex-1 flex-col p-3 sm:p-6 overflow-y-auto custom-scrollbar border-b lg:border-b-0 lg:border-r border-zinc-800/80 ${
+            mobileTab === 'shoes' ? 'flex' : 'hidden lg:flex'
+          }`}>
             
             {/* Workspace Controls Header */}
-            <div className="flex flex-wrap items-center justify-between gap-3 mb-4 shrink-0">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-black uppercase tracking-wider text-zinc-400">
-                  Staged Shoe Listings ({shoes.length})
+            <div className="flex flex-wrap items-center justify-between gap-2.5 mb-4 shrink-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-black uppercase tracking-wider text-zinc-300">
+                  Staged Shoes ({shoes.length})
                 </span>
                 <span className="text-xs text-zinc-600">•</span>
-                <span className="text-xs text-zinc-400">
-                  Target Store:
-                </span>
+                <span className="text-xs text-zinc-400">Store:</span>
                 <select
                   value={selectedSellerId}
                   onChange={(e) => setSelectedSellerId(e.target.value)}
-                  className="bg-zinc-900 border border-zinc-700 text-xs text-white font-bold px-2.5 py-1.5 rounded-lg focus:outline-none focus:border-orange-500"
+                  className="bg-zinc-900 border border-zinc-700 text-xs text-white font-bold px-2 py-1 rounded-lg focus:outline-none focus:border-orange-500"
                 >
                   {sellers.map(s => (
                     <option key={s.id} value={s.id}>{s.name || s.id}</option>
@@ -485,7 +557,7 @@ export function ManualProductAssignerModal({
                   className="flex items-center gap-1.5 bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded-xl font-bold text-xs transition-colors shadow-md shadow-orange-500/20 active:scale-95"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  <span>New Shoe Card</span>
+                  <span>+ New Shoe</span>
                 </button>
 
                 {unassignedCount > 0 && (
@@ -503,34 +575,43 @@ export function ManualProductAssignerModal({
 
             {/* Empty State */}
             {shoes.length === 0 ? (
-              <div className="flex-1 flex flex-col items-center justify-center p-8 text-center border-2 border-dashed border-zinc-800 rounded-2xl bg-zinc-900/20">
-                <div className="w-16 h-16 rounded-2xl bg-zinc-900 text-zinc-500 flex items-center justify-center mb-4">
-                  <ImageIcon className="w-8 h-8" />
+              <div className="flex-1 flex flex-col items-center justify-center p-6 sm:p-8 text-center border-2 border-dashed border-zinc-800 rounded-2xl bg-zinc-900/20">
+                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-zinc-900 text-zinc-500 flex items-center justify-center mb-3 sm:mb-4">
+                  <ImageIcon className="w-7 h-7 sm:w-8 sm:h-8" />
                 </div>
-                <h3 className="text-base font-bold text-zinc-200 mb-1">No shoes created yet</h3>
-                <p className="text-xs text-zinc-500 max-w-md mb-5">
-                  Click any photo in the right tray to start a shoe, or click "Auto-Create All" to turn every uploaded photo into a footwear listing.
+                <h3 className="text-sm sm:text-base font-bold text-zinc-200 mb-1">No shoes staged yet</h3>
+                <p className="text-xs text-zinc-500 max-w-sm mb-4">
+                  Upload photos and tap "Auto-Create All" or create a blank shoe card and attach photos from the tray.
                 </p>
-                <div className="flex gap-3">
+                <div className="flex flex-wrap justify-center gap-2.5">
                   <button
                     onClick={() => handleCreateShoe()}
-                    className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-xl font-bold text-xs transition-colors"
+                    className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-xl font-bold text-xs transition-colors active:scale-95 shadow-md shadow-orange-500/20"
                   >
                     + Create Empty Shoe Card
                   </button>
-                  {photos.length > 0 && (
+
+                  {photos.length > 0 ? (
                     <button
                       onClick={handleAutoCreatePerPhoto}
-                      className="bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-2 rounded-xl font-bold text-xs transition-colors"
+                      className="bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-2 rounded-xl font-bold text-xs transition-colors active:scale-95"
                     >
                       Auto-Create from {photos.length} Photos
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-2 rounded-xl font-bold text-xs transition-colors active:scale-95 flex items-center gap-1.5"
+                    >
+                      <Upload className="w-3.5 h-3.5 text-orange-400" />
+                      <span>Upload Photos First</span>
                     </button>
                   )}
                 </div>
               </div>
             ) : (
               /* Shoe Cards Grid */
-              <div className="space-y-4">
+              <div className="space-y-3 sm:space-y-4">
                 {shoes.map((shoe) => {
                   const isActive = shoe.id === activeShoeId;
                   const heroPhoto = photos.find(p => p.id === shoe.heroPhotoId);
@@ -542,16 +623,16 @@ export function ManualProductAssignerModal({
                     <div 
                       key={shoe.id}
                       onClick={() => setActiveShoeId(shoe.id)}
-                      className={`p-4 sm:p-5 rounded-2xl border transition-all cursor-pointer ${
+                      className={`p-3.5 sm:p-5 rounded-2xl border transition-all cursor-pointer ${
                         isActive 
-                          ? 'bg-zinc-900/90 border-orange-500 ring-1 ring-orange-500/30 shadow-xl' 
+                          ? 'bg-zinc-900/95 border-orange-500 ring-1 ring-orange-500/30 shadow-xl' 
                           : 'bg-zinc-900/40 border-zinc-800 hover:border-zinc-700'
                       }`}
                     >
-                      <div className="flex flex-col md:flex-row gap-4 items-start">
+                      <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-start">
                         
                         {/* Shoe Photos Cluster */}
-                        <div className="flex items-start gap-2.5 shrink-0">
+                        <div className="flex items-start gap-2.5 shrink-0 w-full sm:w-auto">
                           {/* Main Hero Photo Slot */}
                           <div className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-xl bg-zinc-950 border border-zinc-800 overflow-hidden shrink-0 flex items-center justify-center group">
                             {heroPhoto ? (
@@ -564,50 +645,61 @@ export function ManualProductAssignerModal({
                                 <span className="absolute top-1 left-1 bg-orange-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded shadow">
                                   MAIN
                                 </span>
+                                
+                                {/* Detach Button: visible on mobile, hover on desktop */}
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     handleDetachPhotoFromShoe(heroPhoto.id, shoe.id);
                                   }}
-                                  className="absolute top-1 right-1 bg-black/70 hover:bg-rose-600 text-white p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity"
+                                  className="absolute top-1 right-1 bg-black/80 hover:bg-rose-600 active:bg-rose-700 text-white p-1.5 rounded-lg transition-colors shadow-md sm:opacity-0 sm:group-hover:opacity-100"
                                   title="Detach photo back to tray"
                                 >
-                                  <X className="w-3 h-3" />
+                                  <X className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                                 </button>
                               </>
                             ) : (
-                              <div className="text-center p-2 text-zinc-600">
-                                <ImageIcon className="w-6 h-6 mx-auto mb-1 opacity-50" />
-                                <span className="text-[10px] font-bold block leading-tight">Click tray photo to assign</span>
-                              </div>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveShoeId(shoe.id);
+                                  setMobileTab('tray');
+                                }}
+                                className="w-full h-full text-center p-2 text-zinc-500 hover:text-orange-400 flex flex-col items-center justify-center transition-colors"
+                              >
+                                <ImageIcon className="w-6 h-6 mb-1 opacity-60 text-orange-500" />
+                                <span className="text-[10px] font-bold block leading-tight">Tap to pick Main Photo</span>
+                              </button>
                             )}
                           </div>
 
-                          {/* Angle Photos Strip */}
-                          <div className="flex flex-wrap md:flex-col gap-1.5">
+                          {/* Angle Photos Strip (Horizontally Scrollable) */}
+                          <div className="flex-1 sm:flex-initial flex items-center sm:items-start sm:flex-col gap-1.5 overflow-x-auto max-w-[200px] sm:max-w-none py-0.5 scrollbar-none [scrollbar-width:none]">
                             {anglePhotos.map((angle) => (
                               <div 
                                 key={angle.id}
-                                className="relative w-11 h-11 sm:w-13 sm:h-13 rounded-lg bg-zinc-950 border border-zinc-800 overflow-hidden shrink-0 group"
+                                className="relative w-12 h-12 sm:w-13 sm:h-13 rounded-lg bg-zinc-950 border border-zinc-800 overflow-hidden shrink-0 group"
                               >
                                 <img src={angle.url} alt="angle" className="w-full h-full object-cover" />
-                                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
+                                
+                                {/* Persistent Touch Action Bar on Mobile / Desktop hover */}
+                                <div className="absolute inset-x-0 bottom-0 bg-black/80 p-0.5 flex items-center justify-between sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       handlePromoteToHero(angle.id, shoe.id);
                                     }}
-                                    className="p-1 bg-orange-500 hover:bg-orange-600 rounded text-white"
-                                    title="Make this Main Hero"
+                                    className="p-1 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 rounded text-white"
+                                    title="Promote to Main Hero"
                                   >
-                                    <Sparkles className="w-2.5 h-2.5" />
+                                    <Star className="w-2.5 h-2.5 fill-current" />
                                   </button>
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       handleDetachPhotoFromShoe(angle.id, shoe.id);
                                     }}
-                                    className="p-1 bg-rose-600 hover:bg-rose-700 rounded text-white"
+                                    className="p-1 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 rounded text-white"
                                     title="Detach back to tray"
                                   >
                                     <X className="w-2.5 h-2.5" />
@@ -616,17 +708,24 @@ export function ManualProductAssignerModal({
                               </div>
                             ))}
 
-                            {/* Angle count indicator */}
-                            {anglePhotos.length > 0 && (
-                              <span className="text-[10px] text-zinc-500 font-mono font-bold text-center">
-                                +{anglePhotos.length}
-                              </span>
-                            )}
+                            {/* Add Angle Button shortcut */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveShoeId(shoe.id);
+                                setMobileTab('tray');
+                              }}
+                              className="w-12 h-12 sm:w-13 sm:h-13 rounded-lg border border-dashed border-zinc-700 bg-zinc-950/60 hover:bg-zinc-800 text-zinc-400 hover:text-white flex flex-col items-center justify-center shrink-0 transition-colors"
+                              title="Pick an angle photo from tray"
+                            >
+                              <Plus className="w-4 h-4 text-orange-400" />
+                              <span className="text-[8px] font-bold">Angle</span>
+                            </button>
                           </div>
                         </div>
 
                         {/* Shoe Metadata Fields */}
-                        <div className="flex-1 w-full space-y-3">
+                        <div className="flex-1 w-full space-y-2.5 sm:space-y-3 min-w-0">
                           {/* Name Input */}
                           <div>
                             <input 
@@ -634,13 +733,13 @@ export function ManualProductAssignerModal({
                               value={shoe.name}
                               onChange={(e) => handleUpdateShoe(shoe.id, { name: e.target.value })}
                               placeholder="e.g. Air Jordan 4 Retro 'Military Black'"
-                              className="w-full bg-zinc-950 border border-zinc-800 focus:border-orange-500 rounded-xl px-3 py-2 text-sm font-bold text-white focus:outline-none"
+                              className="w-full bg-zinc-950 border border-zinc-800 focus:border-orange-500 rounded-xl px-3 py-2 text-sm sm:text-base font-bold text-white focus:outline-none"
                             />
                           </div>
 
-                          {/* Quick Brand Pills */}
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <span className="text-[10px] uppercase font-bold text-zinc-500 mr-1">Brand:</span>
+                          {/* Quick Brand Pills (Horizontally Scrollable) */}
+                          <div className="flex items-center gap-1.5 overflow-x-auto py-1 scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none]">
+                            <span className="text-[10px] uppercase font-bold text-zinc-500 shrink-0 mr-0.5">Brand:</span>
                             {BRAND_PRESETS.map((b) => (
                               <button
                                 key={b}
@@ -649,10 +748,10 @@ export function ManualProductAssignerModal({
                                   e.stopPropagation();
                                   handleUpdateShoe(shoe.id, { brand: b });
                                 }}
-                                className={`text-[11px] px-2 py-0.5 rounded-md font-bold transition-colors ${
+                                className={`text-[11px] sm:text-xs px-2.5 py-1 rounded-lg font-bold shrink-0 transition-colors active:scale-95 ${
                                   shoe.brand === b 
-                                    ? 'bg-orange-500 text-white' 
-                                    : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white'
+                                    ? 'bg-orange-500 text-white shadow-sm' 
+                                    : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
                                 }`}
                               >
                                 {b}
@@ -662,8 +761,8 @@ export function ManualProductAssignerModal({
 
                           {/* Price Row & Quick Price Pills */}
                           <div className="flex flex-wrap items-center gap-2">
-                            <div className="flex items-center gap-1.5 bg-zinc-950 px-2.5 py-1 rounded-xl border border-zinc-800">
-                              <span className="text-[11px] text-zinc-400 font-bold">KES</span>
+                            <div className="flex items-center gap-1.5 bg-zinc-950 px-2.5 py-1.5 rounded-xl border border-zinc-800 shrink-0">
+                              <span className="text-[11px] sm:text-xs text-zinc-400 font-bold">KES</span>
                               <input 
                                 type="number" 
                                 value={shoe.price}
@@ -675,7 +774,7 @@ export function ManualProductAssignerModal({
                               />
                             </div>
 
-                            <div className="flex flex-wrap items-center gap-1">
+                            <div className="flex items-center gap-1 overflow-x-auto py-1 scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] max-w-[240px] sm:max-w-none">
                               {PRICE_PRESETS.map(p => (
                                 <button
                                   key={p}
@@ -687,10 +786,10 @@ export function ManualProductAssignerModal({
                                       originalPrice: Math.round(p * 1.25 / 100) * 100
                                     });
                                   }}
-                                  className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded transition-colors ${
+                                  className={`text-[10px] sm:text-[11px] font-mono font-bold px-2 py-1 rounded-lg shrink-0 transition-colors active:scale-95 ${
                                     shoe.price === p 
-                                      ? 'bg-amber-400 text-zinc-950 font-black' 
-                                      : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                                      ? 'bg-amber-400 text-zinc-950 font-black shadow-sm' 
+                                      : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
                                   }`}
                                 >
                                   {p.toLocaleString()}
@@ -698,41 +797,43 @@ export function ManualProductAssignerModal({
                               ))}
                             </div>
 
-                            {/* Category & Gender */}
-                            <select
-                              value={shoe.category}
-                              onChange={(e) => handleUpdateShoe(shoe.id, { category: e.target.value })}
-                              className="bg-zinc-950 border border-zinc-800 text-[11px] text-zinc-300 font-bold px-2 py-1 rounded-lg focus:outline-none focus:border-orange-500"
-                            >
-                              <option value="Sneakers">Sneakers</option>
-                              <option value="Boots">Boots</option>
-                              <option value="Lifestyle">Lifestyle</option>
-                              <option value="Running">Running</option>
-                              <option value="Slides">Slides</option>
-                            </select>
+                            {/* Category & Gender Selects */}
+                            <div className="flex items-center gap-1.5 ml-auto">
+                              <select
+                                value={shoe.category}
+                                onChange={(e) => handleUpdateShoe(shoe.id, { category: e.target.value })}
+                                className="bg-zinc-950 border border-zinc-800 text-[11px] text-zinc-300 font-bold px-2 py-1.5 rounded-lg focus:outline-none focus:border-orange-500"
+                              >
+                                <option value="Sneakers">Sneakers</option>
+                                <option value="Boots">Boots</option>
+                                <option value="Lifestyle">Lifestyle</option>
+                                <option value="Running">Running</option>
+                                <option value="Slides">Slides</option>
+                              </select>
 
-                            <select
-                              value={shoe.gender}
-                              onChange={(e) => handleUpdateShoe(shoe.id, { gender: e.target.value as Product['gender'] })}
-                              className="bg-zinc-950 border border-zinc-800 text-[11px] text-zinc-300 font-bold px-2 py-1 rounded-lg focus:outline-none focus:border-orange-500"
-                            >
-                              <option value="Unisex">Unisex</option>
-                              <option value="Men">Men</option>
-                              <option value="Women">Women</option>
-                              <option value="Kids">Kids</option>
-                            </select>
+                              <select
+                                value={shoe.gender}
+                                onChange={(e) => handleUpdateShoe(shoe.id, { gender: e.target.value as Product['gender'] })}
+                                className="bg-zinc-950 border border-zinc-800 text-[11px] text-zinc-300 font-bold px-2 py-1.5 rounded-lg focus:outline-none focus:border-orange-500"
+                              >
+                                <option value="Unisex">Unisex</option>
+                                <option value="Men">Men</option>
+                                <option value="Women">Women</option>
+                                <option value="Kids">Kids</option>
+                              </select>
 
-                            {/* Delete Shoe Button */}
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteShoe(shoe.id);
-                              }}
-                              className="ml-auto text-zinc-500 hover:text-rose-400 p-1.5 hover:bg-zinc-800 rounded-lg transition-colors"
-                              title="Delete shoe (returns photos to tray)"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                              {/* Delete Shoe Button */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteShoe(shoe.id);
+                                }}
+                                className="text-zinc-500 hover:text-rose-400 p-2 hover:bg-zinc-800 rounded-lg transition-colors active:scale-95"
+                                title="Delete shoe (returns photos to tray)"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
                           </div>
                         </div>
 
@@ -745,14 +846,17 @@ export function ManualProductAssignerModal({
           </div>
 
           {/* Right Column: Unassigned Photos Staging Tray */}
-          <div className="w-full lg:w-96 p-4 sm:p-5 bg-zinc-950 flex flex-col shrink-0">
+          <div className={`w-full lg:w-96 p-3 sm:p-5 bg-zinc-950 flex-col shrink-0 overflow-y-auto custom-scrollbar ${
+            mobileTab === 'tray' ? 'flex' : 'hidden lg:flex'
+          }`}>
             
+            {/* Tray Header */}
             <div className="flex items-center justify-between mb-3 shrink-0">
               <div>
-                <h3 className="text-xs font-black uppercase tracking-wider text-zinc-300">
+                <h3 className="text-xs font-black uppercase tracking-wider text-zinc-200">
                   Photos Tray ({photos.length})
                 </h3>
-                <p className="text-[11px] text-zinc-500">
+                <p className="text-[11px] text-zinc-400">
                   {unassignedCount} unassigned • {assignedCount} linked
                 </p>
               </div>
@@ -765,25 +869,51 @@ export function ManualProductAssignerModal({
                       setShoes([]);
                     }
                   }}
-                  className="text-[11px] text-zinc-500 hover:text-rose-400 font-bold"
+                  className="text-[11px] text-zinc-500 hover:text-rose-400 font-bold py-1 px-2 rounded hover:bg-zinc-900 transition-colors"
                 >
                   Clear All
                 </button>
               )}
             </div>
 
+            {/* Mobile Active Shoe Banner in Tray Tab */}
+            {shoes.length > 0 && (
+              <div className="mb-3 p-2.5 bg-zinc-900 border border-zinc-800 rounded-xl flex items-center justify-between gap-2 shrink-0">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="text-[10px] uppercase font-bold text-zinc-500 shrink-0">Assign to:</span>
+                  <select
+                    value={activeShoeId || ''}
+                    onChange={(e) => setActiveShoeId(e.target.value)}
+                    className="bg-zinc-950 border border-zinc-700 text-xs text-white font-bold px-2 py-1 rounded-lg truncate focus:outline-none focus:border-orange-500 max-w-[160px]"
+                  >
+                    {shoes.map(s => (
+                      <option key={s.id} value={s.id}>{s.name || 'Shoe'}</option>
+                    ))}
+                  </select>
+                </div>
+                <button
+                  onClick={() => {
+                    handleCreateShoe();
+                  }}
+                  className="text-xs bg-orange-500 hover:bg-orange-600 text-white px-2.5 py-1 rounded-lg font-bold shrink-0 active:scale-95"
+                >
+                  + New Shoe
+                </button>
+              </div>
+            )}
+
             {/* Photos Grid in Tray */}
             {photos.length === 0 ? (
               <div 
                 onClick={() => fileInputRef.current?.click()}
-                className="flex-1 flex flex-col items-center justify-center p-6 border-2 border-dashed border-zinc-800 rounded-2xl text-center hover:border-zinc-700 cursor-pointer transition-colors"
+                className="flex-1 min-h-[220px] flex flex-col items-center justify-center p-6 border-2 border-dashed border-zinc-800 rounded-2xl text-center hover:border-zinc-700 cursor-pointer transition-colors bg-zinc-900/20 active:scale-98"
               >
-                <Upload className="w-8 h-8 text-zinc-500 mb-2" />
-                <span className="text-xs font-bold text-zinc-300 block mb-1">Click to upload photos</span>
-                <span className="text-[10px] text-zinc-500">Drop 10-50 photos from phone or computer</span>
+                <Upload className="w-8 h-8 text-orange-400 mb-2 animate-bounce" />
+                <span className="text-xs font-bold text-zinc-200 block mb-1">Upload Photos</span>
+                <span className="text-[10px] text-zinc-500">Tap here to select multiple shoe photos from your phone</span>
               </div>
             ) : (
-              <div className="flex-1 overflow-y-auto custom-scrollbar grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-3 gap-2.5 content-start pr-1">
+              <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-3 gap-2 content-start pr-0.5">
                 {photos.map((photo) => {
                   const isAssigned = !!photo.assignedShoeId;
                   const isHero = photo.isHero;
@@ -793,12 +923,12 @@ export function ManualProductAssignerModal({
                     <div 
                       key={photo.id}
                       onClick={() => handleAssignPhotoToActiveShoe(photo)}
-                      className={`relative aspect-square rounded-xl overflow-hidden border cursor-pointer transition-all group ${
+                      className={`relative aspect-square rounded-xl overflow-hidden border cursor-pointer transition-all active:scale-95 group ${
                         isAssigned 
-                          ? 'border-emerald-500/50 opacity-60 hover:opacity-100 ring-1 ring-emerald-500/20' 
-                          : 'border-zinc-800 hover:border-orange-500 hover:scale-105 shadow-md'
+                          ? 'border-emerald-500/50 opacity-70 hover:opacity-100 ring-1 ring-emerald-500/20' 
+                          : 'border-zinc-800 hover:border-orange-500 shadow-md ring-1 ring-white/5'
                       }`}
-                      title={isAssigned ? `Assigned to: ${assignedShoe?.name || 'Shoe'} (Click to detach)` : 'Click to assign to active shoe'}
+                      title={isAssigned ? `Assigned to: ${assignedShoe?.name || 'Shoe'} (Tap to detach)` : 'Tap to assign to active shoe'}
                     >
                       <img src={photo.url} alt={photo.fileName} className="w-full h-full object-cover" />
 
@@ -815,13 +945,13 @@ export function ManualProductAssignerModal({
                           e.stopPropagation();
                           handleDeletePhotoFromTray(photo.id);
                         }}
-                        className="absolute top-1 right-1 bg-black/70 hover:bg-rose-600 text-white p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="absolute top-1 right-1 bg-black/80 hover:bg-rose-600 active:bg-rose-700 text-white p-1 rounded-md transition-colors shadow sm:opacity-0 sm:group-hover:opacity-100"
                         title="Remove photo from tray"
                       >
                         <Trash2 className="w-3 h-3" />
                       </button>
 
-                      <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-1">
+                      <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-1 pointer-events-none">
                         <span className="text-[9px] text-zinc-300 font-mono truncate block">
                           {photo.fileName}
                         </span>
@@ -833,18 +963,18 @@ export function ManualProductAssignerModal({
             )}
 
             {/* Instruction Tip */}
-            <div className="mt-3 p-3 bg-zinc-900/60 border border-zinc-800/80 rounded-xl text-[11px] text-zinc-400 shrink-0">
-              <span className="font-bold text-zinc-200">How it works:</span> Click any photo in this tray to assign it to the selected shoe. Click again to detach.
+            <div className="mt-3 p-2.5 bg-zinc-900/60 border border-zinc-800/80 rounded-xl text-[11px] text-zinc-400 shrink-0">
+              <span className="font-bold text-zinc-200">Tip:</span> Tap any photo to assign it to the selected shoe. Tap again to detach back to tray.
             </div>
           </div>
 
         </div>
 
-        {/* Bottom Action Footer */}
-        <div className="p-4 sm:p-5 border-t border-zinc-800/80 bg-zinc-900/80 flex flex-col sm:flex-row items-center justify-between gap-4 shrink-0">
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-zinc-400 font-bold">
-              Ready to Publish: <strong className="text-white font-mono">{shoes.length} shoes</strong> ({photos.length} photos)
+        {/* Bottom Action Footer - Mobile Sticky Bar */}
+        <div className="p-3 sm:p-5 border-t border-zinc-800/80 bg-zinc-900/95 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0 pb-[max(env(safe-area-inset-bottom),12px)]">
+          <div className="flex items-center justify-between w-full sm:w-auto gap-2">
+            <span className="text-xs text-zinc-300 font-bold">
+              Ready: <strong className="text-white font-mono">{shoes.length} shoes</strong> ({photos.length} photos)
             </span>
             {isPublishing && (
               <span className="text-xs text-orange-400 font-bold animate-pulse">
@@ -853,11 +983,11 @@ export function ManualProductAssignerModal({
             )}
           </div>
 
-          <div className="flex items-center gap-3 w-full sm:w-auto">
+          <div className="flex items-center gap-2.5 w-full sm:w-auto">
             <button
               onClick={onClose}
               disabled={isPublishing}
-              className="flex-1 sm:flex-initial px-5 py-2.5 rounded-xl border border-zinc-800 text-xs font-bold text-zinc-400 hover:text-white transition-colors"
+              className="px-4 py-2.5 rounded-xl border border-zinc-800 text-xs font-bold text-zinc-400 hover:text-white transition-colors active:scale-95"
             >
               Cancel
             </button>
@@ -865,7 +995,7 @@ export function ManualProductAssignerModal({
             <button
               onClick={handlePublishAll}
               disabled={isPublishing || shoes.length === 0}
-              className="flex-1 sm:flex-initial flex items-center justify-center gap-2 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 disabled:opacity-50 text-white px-6 py-2.5 rounded-xl font-black text-xs sm:text-sm shadow-xl shadow-orange-500/25 transition-all cursor-pointer active:scale-95"
+              className="flex-1 sm:flex-initial flex items-center justify-center gap-2 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 disabled:opacity-50 text-white px-5 py-2.5 rounded-xl font-black text-xs sm:text-sm shadow-xl shadow-orange-500/25 transition-all cursor-pointer active:scale-95"
             >
               {isPublishing ? (
                 <>
