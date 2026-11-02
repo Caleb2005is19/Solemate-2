@@ -25,14 +25,19 @@ export function BackgroundJobsPanel({ onOpenJobReview, onRefreshProducts }: Back
     }
   };
 
+  const hasActive = jobs.some(j => j.status === 'queued' || j.status === 'processing' || j.status === 'uploading');
+
   useEffect(() => {
     fetchJobs();
-    // Poll every 3.5s if there is an active or processing job, otherwise every 12s
-    const hasActive = jobs.some(j => j.status === 'queued' || j.status === 'processing' || j.status === 'uploading');
-    const intervalTime = hasActive ? 3500 : 12000;
-    const timer = setInterval(fetchJobs, intervalTime);
+  }, []);
+
+  useEffect(() => {
+    // Only poll if there is an active job. Completely idle otherwise!
+    if (!hasActive) return;
+
+    const timer = setInterval(fetchJobs, 3500);
     return () => clearInterval(timer);
-  }, [jobs]);
+  }, [hasActive]);
 
   const handleDismiss = async (e: React.MouseEvent, jobId: string) => {
     e.stopPropagation();

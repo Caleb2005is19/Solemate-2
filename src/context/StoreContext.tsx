@@ -132,22 +132,65 @@ const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<Product[]>(() => {
+    try {
+      const cached = localStorage.getItem('solemate_cached_products');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [];
+  });
   const [orders, setOrders] = useState<Order[]>([]);
-  const [sellers, setSellers] = useState<Seller[]>([]);
+  const [sellers, setSellers] = useState<Seller[]>(() => {
+    try {
+      const cached = localStorage.getItem('solemate_cached_sellers');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [];
+  });
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [currentSellerId, setCurrentSellerId] = useState<string | null>(null);
   const [unreadOrdersCount, setUnreadOrdersCount] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [siteSettings, setSiteSettings] = useState<SiteSettings | null>(null);
-  const [themeSettings, setThemeSettings] = useState<ThemeSettings | null>(null);
+  const [loading, setLoading] = useState<boolean>(() => {
+    // If cached products or sellers exist, start with loading=false for instant 0ms first paint
+    try {
+      return !localStorage.getItem('solemate_cached_products');
+    } catch {
+      return true;
+    }
+  });
+  const [siteSettings, setSiteSettings] = useState<SiteSettings | null>(() => {
+    try {
+      const cached = localStorage.getItem('solemate_cached_site_settings');
+      if (cached) return JSON.parse(cached);
+    } catch {}
+    return null;
+  });
+  const [themeSettings, setThemeSettings] = useState<ThemeSettings | null>(() => {
+    try {
+      const cached = localStorage.getItem('solemate_cached_theme_settings');
+      if (cached) return JSON.parse(cached);
+    } catch {}
+    return null;
+  });
   const [featureToggles, setFeatureToggles] = useState<FeatureToggles | null>(null);
   const [contentBlocks, setContentBlocks] = useState<ContentBlock[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [contactMessages, setContactMessages] = useState<ContactMessage[]>([]);
-  const [homepageSections, setHomepageSections] = useState<HomepageSection[]>([]);
+  const [homepageSections, setHomepageSections] = useState<HomepageSection[]>(() => {
+    try {
+      const cached = localStorage.getItem('solemate_cached_homepage_sections');
+      if (cached) return JSON.parse(cached);
+    } catch {}
+    return [];
+  });
   const [promoCampaigns, setPromoCampaigns] = useState<PromoCampaign[]>(() => {
     try {
       const saved = localStorage.getItem('solemate_promo_campaigns');
@@ -254,12 +297,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const prods: Product[] = [];
       snapshot.forEach(doc => prods.push({ id: doc.id, ...doc.data() } as Product));
       setProducts(prods);
+      try { localStorage.setItem('solemate_cached_products', JSON.stringify(prods)); } catch {}
+      setLoading(false);
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'products'));
 
     const unsubSellers = onSnapshot(collection(db, 'sellers'), (snapshot) => {
       const slrs: Seller[] = [];
       snapshot.forEach(doc => slrs.push({ id: doc.id, ...doc.data() } as Seller));
       setSellers(slrs);
+      try { localStorage.setItem('solemate_cached_sellers', JSON.stringify(slrs)); } catch {}
       
       // Update currentSellerId if user is logged in
       if (currentUser) {
@@ -278,13 +324,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     });
 
     const unsubSite = onSnapshot(doc(db, 'settings', 'site'), (snapshot) => {
-      if (snapshot.exists()) setSiteSettings(snapshot.data() as SiteSettings);
+      if (snapshot.exists()) {
+        const data = snapshot.data() as SiteSettings;
+        setSiteSettings(data);
+        try { localStorage.setItem('solemate_cached_site_settings', JSON.stringify(data)); } catch {}
+      }
     }, (error) => {
       console.warn('Silent fallback for site settings subscription:', error.message);
     });
 
     const unsubTheme = onSnapshot(doc(db, 'settings', 'theme'), (snapshot) => {
-      if (snapshot.exists()) setThemeSettings(snapshot.data() as ThemeSettings);
+      if (snapshot.exists()) {
+        const data = snapshot.data() as ThemeSettings;
+        setThemeSettings(data);
+        try { localStorage.setItem('solemate_cached_theme_settings', JSON.stringify(data)); } catch {}
+      }
     }, (error) => {
       console.warn('Silent fallback for theme settings subscription:', error.message);
     });
@@ -315,6 +369,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const sections: HomepageSection[] = [];
       snapshot.forEach(doc => sections.push({ id: doc.id, ...doc.data() } as HomepageSection));
       setHomepageSections(sections);
+      try { localStorage.setItem('solemate_cached_homepage_sections', JSON.stringify(sections)); } catch {}
     }, (error) => {
       console.warn('Silent fallback for homepage sections subscription:', error.message);
     });

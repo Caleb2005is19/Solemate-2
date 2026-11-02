@@ -42,13 +42,19 @@ export function BatchProgressBanner({ onOpenJobReview, onRefreshProducts }: Batc
     }
   };
 
+  const hasActiveJob = jobs.some(j => j.status === 'uploading' || j.status === 'queued' || j.status === 'processing');
+
   useEffect(() => {
     fetchActiveJobs();
-    // Poll every 2.5s if there is any actively uploading, queued or processing job; otherwise every 12s
-    const hasActiveJob = jobs.some(j => j.status === 'uploading' || j.status === 'queued' || j.status === 'processing');
-    const interval = setInterval(fetchActiveJobs, hasActiveJob ? 2500 : 12000);
+  }, []);
+
+  useEffect(() => {
+    // Only poll if there is an actively running job. Zero background polling when idle!
+    if (!hasActiveJob) return;
+
+    const interval = setInterval(fetchActiveJobs, 3000);
     return () => clearInterval(interval);
-  }, [jobs]);
+  }, [hasActiveJob]);
 
   // Find the primary job to display in the sticky banner
   // Priority: 1. Processing/Queued/Uploading, 2. Newly Completed (ready for review), 3. Failed/Cancelled

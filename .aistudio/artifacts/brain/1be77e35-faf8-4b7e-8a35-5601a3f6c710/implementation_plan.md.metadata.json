@@ -1,6 +1,6 @@
 {
-  "summary":  "Completed implementation of the Visual Batch Progress Banner on the Admin Dashboard. Displays real-time status of asynchronous image batch processing with processed vs pending items, linear progress bar, dynamic time remaining, live activity logs drawer, one-click review modal launcher, and pause/cancel controls.",
-  "updatedAt":  "2026-10-31T17:31:22.813743575Z",
+  "summary":  "Implementation plan to drop Firebase usage to near zero, eliminate AI upload costs and timeouts with a pure manual photo selector and assigner, and restore instant site loading via aggressive browser caching and eliminating polling/logging overhead.",
+  "updatedAt":  "2026-11-02T13:58:47.252400967Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

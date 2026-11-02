@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
-import { LayoutDashboard, Package, ShoppingCart, Plus, Edit, Trash, Check, X, Users, Link as LinkIcon, LogOut, Upload, TrendingUp, Image as ImageIcon, DollarSign, Tag, Info, Box, Printer, Globe, Palette, ToggleLeft, FileText, Bell, Inbox, Settings, FileSpreadsheet, Ticket, Terminal, PhoneCall, Megaphone, Store, MessageCircle, ExternalLink, Sparkles, SlidersHorizontal, Star, Split, ShieldCheck, RefreshCw } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, Plus, Edit, Trash, Check, X, Users, Link as LinkIcon, LogOut, Upload, TrendingUp, Image as ImageIcon, DollarSign, Tag, Info, Box, Printer, Globe, Palette, ToggleLeft, FileText, Bell, Inbox, Settings, FileSpreadsheet, Ticket, Terminal, PhoneCall, Megaphone, Store, MessageCircle, ExternalLink, Sparkles, SlidersHorizontal, Star, Split, ShieldCheck, RefreshCw, Layers } from 'lucide-react';
 import { ContactSettingsTab } from '../components/admin/ContactSettingsTab';
 import { SiteSettingsTab } from '../components/admin/SiteSettingsTab';
 import { GoogleSheetsTab } from '../components/admin/GoogleSheetsTab';
@@ -29,6 +29,7 @@ import { downloadOrderPdf } from '../utils/pdfGenerator';
 import { InvoiceModal } from '../components/admin/InvoiceModal';
 import { MassProductImportModal } from '../components/admin/MassProductImportModal';
 import { QuickCatalogAlignerModal } from '../components/admin/QuickCatalogAlignerModal';
+import { ManualProductAssignerModal } from '../components/admin/ManualProductAssignerModal';
 import { GroundedAiReviewModal, GroundedAiDetectionResult } from '../components/admin/GroundedAiReviewModal';
 import { BackgroundJobsPanel } from '../components/admin/BackgroundJobsPanel';
 import { BatchProgressBanner } from '../components/admin/BatchProgressBanner';
@@ -69,6 +70,7 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
   >('overview');
   const [selectedSellerForReport, setSelectedSellerForReport] = useState<string | 'all'>('all');
   const [isAddingProduct, setIsAddingProduct] = useState(false);
+  const [isManualAssignerOpen, setIsManualAssignerOpen] = useState(false);
   const [isMassImportOpen, setIsMassImportOpen] = useState(false);
   const [reviewBatchJob, setReviewBatchJob] = useState<CatalogBatchJob | null>(null);
   const [isQuickAlignerOpen, setIsQuickAlignerOpen] = useState(false);
@@ -727,6 +729,14 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
                 {role === 'admin' && (
                   <>
                     <button
+                      onClick={() => setIsManualAssignerOpen(true)}
+                      className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-3 rounded-2xl font-bold transition-all shadow-md shadow-emerald-600/20 active:scale-95 cursor-pointer text-sm"
+                      title="Fast, zero-cost manual photo assigner (no AI fees, zero timeouts)"
+                    >
+                      <Layers className="w-4 h-4 text-emerald-200" />
+                      <span>Manual Photo Assigner</span>
+                    </button>
+                    <button
                       onClick={() => setIsQuickAlignerOpen(true)}
                       className="flex items-center gap-2 bg-white border border-zinc-200 hover:border-zinc-400 text-zinc-900 px-4 py-3 rounded-2xl font-bold transition-all shadow-sm active:scale-95 cursor-pointer text-sm"
                       title="Rapidly rename shoes, swap photos, or batch edit"
@@ -736,10 +746,11 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
                     </button>
                     <button
                       onClick={() => setIsMassImportOpen(true)}
-                      className="flex items-center gap-2 bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 hover:from-orange-600 hover:to-amber-600 text-white px-5 py-3 rounded-2xl font-black transition-all shadow-lg shadow-orange-500/25 active:scale-95 cursor-pointer text-sm"
+                      className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 px-4 py-3 rounded-2xl font-bold transition-all border border-zinc-700 active:scale-95 cursor-pointer text-sm"
+                      title="Optional AI auto-grouping import"
                     >
-                      <Sparkles className="w-4 h-4" />
-                      <span>AI Mass Photo Import</span>
+                      <Sparkles className="w-4 h-4 text-amber-400" />
+                      <span>AI Import (Optional)</span>
                     </button>
                   </>
                 )}
@@ -1716,6 +1727,17 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
             order={invoiceModalOrder}
             siteSettings={siteSettings}
             onClose={() => setInvoiceModalOrder(null)}
+          />
+        )}
+
+        {isManualAssignerOpen && (
+          <ManualProductAssignerModal
+            isOpen={isManualAssignerOpen}
+            onClose={() => setIsManualAssignerOpen(false)}
+            onSuccess={(count) => {
+              setSuccess(`Successfully added ${count} footwear products to your store!`);
+              setTimeout(() => setSuccess(null), 5000);
+            }}
           />
         )}
 
