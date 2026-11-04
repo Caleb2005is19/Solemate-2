@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Clock, Ticket, Check, ArrowRight, Sparkles } from 'lucide-react';
 import { PromoCampaign } from '../types';
+import { ImageWithSkeleton } from './ImageWithSkeleton';
 
 interface FeaturedPromoCardProps {
   campaign: PromoCampaign;
@@ -57,10 +58,13 @@ export function FeaturedPromoCard({ campaign, className = '' }: FeaturedPromoCar
     >
       {/* Background sneaker imagery with subtle gradient overlay */}
       {campaign.image && (
-        <img
+        <ImageWithSkeleton
           src={campaign.image}
           alt={campaign.title}
-          className="absolute inset-0 w-full h-full object-cover opacity-35 group-hover:scale-105 transition-transform duration-700 ease-out"
+          className="w-full h-full object-cover opacity-35 group-hover:scale-105 transition-transform duration-700 ease-out"
+          containerClassName="absolute inset-0 w-full h-full pointer-events-none"
+          loading="lazy"
+          decoding="async"
         />
       )}
       <div 

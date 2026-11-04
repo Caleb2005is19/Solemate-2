@@ -39,7 +39,7 @@ export function ProductCard({ product, onQuickView }: ProductCardProps) {
             src={product.image}
             alt={`${product.brand} ${product.name}`}
             className="object-cover w-full h-full group-hover:scale-110 transition-transform duration-700 ease-out"
-            containerClassName="h-full"
+            containerClassName="w-full h-full"
             loading="lazy"
             decoding="async"
           />

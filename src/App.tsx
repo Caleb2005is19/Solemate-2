@@ -11,6 +11,7 @@ import { Footer } from './components/Footer';
 import BackToTop from './components/BackToTop';
 import ScrollToTop from './components/ScrollToTop';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { MaintenanceGuard } from './components/MaintenanceGuard';
 
 // Lazy load pages for better performance
 const Home = lazy(() => import('./pages/Home').then(m => ({ default: m.Home })));
@@ -38,41 +39,43 @@ export default function App() {
         <NotificationProvider>
           <ThemeAndSettingsManager>
             <CartProvider>
-            <Router>
-              <ScrollToTop />
-              <div className="min-h-screen bg-white font-sans text-zinc-900 selection:bg-orange-500/30">
+              <Router>
+                <ScrollToTop />
                 <AuthModal />
-                <Navbar />
-                <CartDrawer />
-                <main>
-                  <Suspense fallback={<PageLoader />}>
-                    <Routes>
-                      <Route path="/" element={<Home />} />
-                      <Route path="/shop" element={<Shop />} />
-                      <Route path="/product/:id" element={<ProductDetail />} />
-                      <Route path="/checkout" element={<Checkout />} />
-                      <Route path="/admin" element={<Dashboard role="admin" />} />
-                      <Route path="/seller/:sellerId" element={<Dashboard role="seller" />} />
-                      <Route path="/my-orders" element={<MyOrders />} />
-                      <Route path="/profile" element={<Profile />} />
-                      <Route path="/stress-test" element={<StressTest />} />
-                      <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-                      <Route path="/privacy" element={<PrivacyPolicy />} />
-                      <Route path="/terms-of-service" element={<TermsOfService />} />
-                      <Route path="/terms" element={<TermsOfService />} />
-                      <Route path="*" element={<Home />} />
-                    </Routes>
-                  </Suspense>
-                </main>
-                
-                <Footer />
-                <BackToTop />
-              </div>
-            </Router>
-          </CartProvider>
-        </ThemeAndSettingsManager>
-      </NotificationProvider>
-    </StoreProvider>
+                <MaintenanceGuard>
+                  <div className="min-h-screen bg-white font-sans text-zinc-900 selection:bg-orange-500/30">
+                    <Navbar />
+                    <CartDrawer />
+                    <main>
+                      <Suspense fallback={<PageLoader />}>
+                        <Routes>
+                          <Route path="/" element={<Home />} />
+                          <Route path="/shop" element={<Shop />} />
+                          <Route path="/product/:id" element={<ProductDetail />} />
+                          <Route path="/checkout" element={<Checkout />} />
+                          <Route path="/admin" element={<Dashboard role="admin" />} />
+                          <Route path="/seller/:sellerId" element={<Dashboard role="seller" />} />
+                          <Route path="/my-orders" element={<MyOrders />} />
+                          <Route path="/profile" element={<Profile />} />
+                          <Route path="/stress-test" element={<StressTest />} />
+                          <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+                          <Route path="/privacy" element={<PrivacyPolicy />} />
+                          <Route path="/terms-of-service" element={<TermsOfService />} />
+                          <Route path="/terms" element={<TermsOfService />} />
+                          <Route path="*" element={<Home />} />
+                        </Routes>
+                      </Suspense>
+                    </main>
+                    
+                    <Footer />
+                    <BackToTop />
+                  </div>
+                </MaintenanceGuard>
+              </Router>
+            </CartProvider>
+          </ThemeAndSettingsManager>
+        </NotificationProvider>
+      </StoreProvider>
     </ErrorBoundary>
   );
 }

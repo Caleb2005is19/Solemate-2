@@ -1,7 +1,5 @@
 import React, { useEffect } from 'react';
 import { useStore } from '../context/StoreContext';
-import { loginWithGoogle, logout } from '../firebase';
-import { Wrench, ShieldAlert, KeyRound, ArrowRight, LogIn, LogOut } from 'lucide-react';
 
 // Helper to darken a hex color by a percentage
 function darkenHex(hex: string, percent: number): string {
@@ -37,7 +35,7 @@ function hexToRgb(hex: string): string {
 }
 
 export function ThemeAndSettingsManager({ children }: { children: React.ReactNode }) {
-  const { themeSettings, siteSettings, featureToggles, currentUser, isAdmin, setIsAuthModalOpen } = useStore();
+  const { themeSettings, siteSettings } = useStore();
 
   // 1. Dynamic Meta Title, SEO, Favicon updating
   useEffect(() => {
@@ -210,77 +208,6 @@ export function ThemeAndSettingsManager({ children }: { children: React.ReactNod
     };
   }, [themeSettings]);
 
-  // Handle Maintenance Mode
-  const isMaintenanceActive = featureToggles?.maintenanceMode === true;
-  // Let admins bypass maintenance mode so they can still operate and toggle it off
-  const isBypassed = isAdmin || currentUser?.email === 'carlisat19@gmail.com';
-  
-  if (isMaintenanceActive && !isBypassed) {
-    return (
-      <div className="min-h-screen bg-zinc-50 flex flex-col justify-between p-6 md:p-8 font-sans selection:bg-orange-500/30">
-        <div className="absolute inset-0 bg-[radial-gradient(#e4e4e7_1px,transparent_1px)] [background-size:16px_16px] opacity-40 -z-10" />
-        
-        {/* Top Header */}
-        <div className="flex justify-between items-center max-w-7xl w-full mx-auto">
-          <div className="flex items-center gap-2">
-            <div className="w-10 h-10 rounded-2xl bg-orange-500 flex items-center justify-center text-white font-black text-xl shadow-lg shadow-orange-100">
-              S
-            </div>
-            <span className="font-black text-zinc-900 tracking-tight text-lg">
-              {siteSettings?.businessName || 'Solemate.co.ke'}
-            </span>
-          </div>
-          
-          <button 
-            onClick={() => setIsAuthModalOpen(true)}
-            className="flex items-center gap-2 text-xs font-bold text-zinc-500 hover:text-zinc-900 bg-white px-4 py-2.5 rounded-2xl border border-zinc-100 shadow-sm transition-all active:scale-95"
-          >
-            <KeyRound className="w-3.5 h-3.5 text-zinc-400" />
-            Admin Login
-          </button>
-        </div>
-
-        {/* Center Card */}
-        <div className="max-w-xl w-full mx-auto bg-white border border-zinc-100 rounded-[3rem] p-8 md:p-12 shadow-xl shadow-zinc-200/50 text-center space-y-8 my-auto animate-in fade-in slide-in-from-bottom-6 duration-700">
-          <div className="w-24 h-24 bg-orange-50 text-orange-500 rounded-[2rem] flex items-center justify-center mx-auto shadow-lg shadow-orange-50">
-            <Wrench className="w-10 h-10 animate-pulse" />
-          </div>
-          
-          <div className="space-y-3">
-            <h1 className="text-3xl md:text-4xl font-black text-zinc-900 tracking-tight leading-none">
-              Polishing Our Shelves
-            </h1>
-            <p className="text-sm font-semibold text-orange-600 uppercase tracking-widest">
-              Undergoing Scheduled Maintenance
-            </p>
-          </div>
-
-          <p className="text-zinc-500 text-sm md:text-base leading-relaxed">
-            Our virtual showroom is getting a fresh shine! We are fine-tuning the platform to offer you an even smoother shopping experience. We will be back on track shortly so you can step into your favorite pairs.
-          </p>
-
-          <div className="p-4 bg-zinc-50 rounded-2xl border border-zinc-100 text-left flex items-start gap-3">
-            <ShieldAlert className="w-5 h-5 text-zinc-400 shrink-0 mt-0.5" />
-            <div>
-              <p className="text-xs font-bold text-zinc-700">Need immediate help with an order?</p>
-              <p className="text-xs text-zinc-500 mt-1">
-                Reach out to us directly via email at <strong className="text-zinc-700">{siteSettings?.contactEmail || 'hello@solemate.co.ke'}</strong>
-                {siteSettings?.whatsappNumber && (
-                  <> or WhatsApp at <strong className="text-zinc-700">{siteSettings.whatsappNumber}</strong></>
-                )}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="text-center w-full max-w-7xl mx-auto text-xs text-zinc-400 font-medium">
-          &copy; {new Date().getFullYear()} {siteSettings?.businessName || 'Solemate.co.ke'}. All rights reserved. Nairobi, Kenya.
-        </div>
-      </div>
-    );
-  }
-
-  // Under normal flow, render app content with dynamic configurations
+  // Render app content with dynamic configurations
   return <>{children}</>;
 }

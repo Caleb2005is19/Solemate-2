@@ -180,7 +180,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     } catch {}
     return null;
   });
-  const [featureToggles, setFeatureToggles] = useState<FeatureToggles | null>(null);
+  const [featureToggles, setFeatureToggles] = useState<FeatureToggles | null>(() => {
+    try {
+      const cached = localStorage.getItem('solemate_cached_feature_toggles');
+      if (cached) return JSON.parse(cached);
+    } catch {}
+    return null;
+  });
   const [contentBlocks, setContentBlocks] = useState<ContentBlock[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [contactMessages, setContactMessages] = useState<ContactMessage[]>([]);
@@ -344,7 +350,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     });
 
     const unsubFeatures = onSnapshot(doc(db, 'settings', 'features'), (snapshot) => {
-      if (snapshot.exists()) setFeatureToggles(snapshot.data() as FeatureToggles);
+      if (snapshot.exists()) {
+        const data = snapshot.data() as FeatureToggles;
+        setFeatureToggles(data);
+        try { localStorage.setItem('solemate_cached_feature_toggles', JSON.stringify(data)); } catch {}
+      }
     }, (error) => {
       console.warn('Silent fallback for feature toggles subscription:', error.message);
     });

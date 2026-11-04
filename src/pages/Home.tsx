@@ -57,7 +57,7 @@ export function Home() {
                     src={section.image || "https://images.unsplash.com/photo-1552346154-21d32810baa3?auto=format&fit=crop&q=80&w=1400"}
                     alt={section.title || "Hero"}
                     className="w-full h-full object-cover opacity-30"
-                    containerClassName="h-full"
+                    containerClassName="w-full h-full"
                     loading="eager"
                     fetchPriority="high"
                   />
@@ -165,7 +165,7 @@ export function Home() {
             src="https://images.unsplash.com/photo-1552346154-21d32810baa3?auto=format&fit=crop&q=80&w=1400"
             alt="Hero Background"
             className="w-full h-full object-cover opacity-30"
-            containerClassName="h-full"
+            containerClassName="w-full h-full"
             loading="eager"
             fetchPriority="high"
             decoding="async"
@@ -332,7 +332,9 @@ export function Home() {
                 src="https://images.unsplash.com/photo-1460353581641-37baddab0fa2?auto=format&fit=crop&q=80&w=1000"
                 alt="Men's Collection"
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-                containerClassName="h-full"
+                containerClassName="w-full h-full"
+                loading="lazy"
+                decoding="async"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/80 via-zinc-900/20 to-transparent" />
               <div className="absolute bottom-8 left-8">
@@ -348,7 +350,9 @@ export function Home() {
                 src="https://images.unsplash.com/photo-1525966222134-fcfa99b8ae77?auto=format&fit=crop&q=80&w=1000"
                 alt="Women's Collection"
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-                containerClassName="h-full"
+                containerClassName="w-full h-full"
+                loading="lazy"
+                decoding="async"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/80 via-zinc-900/20 to-transparent" />
               <div className="absolute bottom-8 left-8">

@@ -149,6 +149,9 @@ export interface FeatureToggles {
   enablePickupStation: boolean;
   enableGuestCheckout: boolean;
   maintenanceMode: boolean;
+  maintenanceTitle?: string;
+  maintenanceMessage?: string;
+  maintenanceEstimatedEnd?: string;
 }
 
 export interface ContentBlock {

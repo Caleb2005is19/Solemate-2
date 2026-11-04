@@ -1,6 +1,7 @@
-import React, { useState, useRef, MouseEvent } from 'react';
+import React, { useState, useRef, MouseEvent, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
+import { getLowResPlaceholder } from './ImageWithSkeleton';
 
 interface ImageZoomProps {
   src: string;
@@ -22,6 +23,15 @@ export function ImageZoom({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const imgRef = useRef<HTMLImageElement | null>(null);
+
+  const lowRes = getLowResPlaceholder(src);
+
+  useEffect(() => {
+    if (imgRef.current?.complete && imgRef.current?.naturalWidth > 0) {
+      setIsLoaded(true);
+    }
+  }, [src]);
 
   const handleMouseMove = (e: MouseEvent<HTMLDivElement>) => {
     if (!containerRef.current) return;
@@ -41,23 +51,33 @@ export function ImageZoom({
         onMouseMove={handleMouseMove}
         onClick={() => setIsFullscreen(true)}
       >
-        <AnimatePresence>
-          {!isLoaded && (
-            <motion.div
-              initial={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 z-0 bg-zinc-100 flex items-center justify-center"
-            >
-              <div className="w-8 h-8 border-2 border-zinc-200 border-t-orange-500 rounded-full animate-spin" />
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Shimmer skeleton background */}
+        <div 
+          aria-hidden="true" 
+          className={`absolute inset-0 bg-gradient-to-r from-zinc-100 via-zinc-200/50 to-zinc-100 transition-opacity duration-500 ${
+            isLoaded ? 'opacity-0 pointer-events-none' : 'opacity-100 animate-pulse'
+          }`}
+        />
+
+        {/* Low-resolution placeholder (LQIP) */}
+        {lowRes && (
+          <img
+            src={lowRes}
+            alt=""
+            aria-hidden="true"
+            className={`absolute inset-0 w-full h-full object-cover filter blur-md scale-110 pointer-events-none transition-opacity duration-500 select-none ${
+              isLoaded ? 'opacity-0' : 'opacity-90'
+            }`}
+            decoding="async"
+          />
+        )}
         
         <img
+          ref={imgRef}
           src={src}
           alt={alt}
           onLoad={() => setIsLoaded(true)}
-          className={`w-full h-full object-cover transition-all duration-700 ${isZoomed ? 'scale-110' : 'scale-100'} ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
+          className={`w-full h-full object-cover transition-all duration-500 ${isZoomed ? 'scale-110' : 'scale-100'} ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
           loading={loading}
           // @ts-ignore
           fetchPriority={fetchPriority}
