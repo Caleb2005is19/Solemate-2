@@ -23,7 +23,9 @@ import {
   RefreshCw,
   Image as ImageIcon,
   SlidersHorizontal,
-  X
+  X,
+  FileDown,
+  Loader2
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import {
@@ -47,6 +49,7 @@ import {
   getPanelDimensions
 } from '../components/admin/PackagingSvgRenderer';
 import { Packaging3DViewer } from '../components/admin/Packaging3DViewer';
+import { exportPackagingPdf, PanelSvgInput } from '../utils/packagingPdfExporter';
 import obsidianMockup from '../assets/images/solemate_bag_obsidian_mockup_1794746572009.jpg';
 import kraftMockup from '../assets/images/solemate_bag_kraft_mockup_1794746572028.jpg';
 import orangeMockup from '../assets/images/solemate_bag_orange_mailer_1794746572544.jpg';
@@ -160,10 +163,13 @@ export function PackagingStudio() {
   const [showSpecRail, setShowSpecRail] = useState(true);
   const [showMockupsModal, setShowMockupsModal] = useState(false);
   const [exportNotice, setExportNotice] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [copiedSpec, setCopiedSpec] = useState(false);
   const [copiedQrUrl, setCopiedQrUrl] = useState(false);
 
   const exportSvgRef = useRef<SVGSVGElement | null>(null);
+  const panelSvgRefs = useRef<Partial<Record<PrintSide, SVGSVGElement | null>>>({});
   const logoUploadRef = useRef<HTMLInputElement | null>(null);
 
   // Persist draft locally (zero Firestore writes)
@@ -356,6 +362,58 @@ export function PackagingStudio() {
     img.src = url;
   };
 
+  const handleExportPdf = async (mode: 'pack' | 'active') => {
+    if (isExportingPdf) return;
+    setIsExportingPdf(true);
+    setExportError(null);
+
+    try {
+      const targetPanels =
+        mode === 'active'
+          ? availablePanels.filter((p) => p.id === activeSide)
+          : availablePanels;
+
+      const panelInputs: PanelSvgInput[] = targetPanels.map((p) => {
+        const dims = getPanelDimensions(activeSize, p.id);
+        return {
+          id: p.id,
+          label: p.label,
+          physW: dims.physW,
+          physH: dims.physH,
+          viewW: dims.canvasW,
+          viewH: dims.canvasH,
+          svgElement:
+            p.id === activeSide
+              ? exportSvgRef.current || panelSvgRefs.current[p.id] || null
+              : panelSvgRefs.current[p.id] || null
+        };
+      });
+
+      await exportPackagingPdf({
+        panels: panelInputs,
+        config,
+        size: activeSize,
+        themeName: activeTheme.name,
+        resolvedBgHex,
+        resolvedPrimaryInk,
+        resolvedAccentInk,
+        qrPhysicalSizeCm,
+        transparentExport,
+        includeOverviewPage: mode === 'pack'
+      });
+
+      showNotice(
+        mode === 'pack'
+          ? `Exported Complete Print Pack PDF (${availablePanels.length} panels + spec sheet)`
+          : `Exported High-Res Print PDF (${activeSide.toUpperCase()} panel)`
+      );
+    } catch (err: any) {
+      setExportError(err?.message || 'Failed to generate printable PDF.');
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
+
   const handleCopyPrinterBrief = () => {
     const brief = [
       `${config.brandTitle} — PACKAGING PRODUCTION BRIEF`,
@@ -530,10 +588,24 @@ export function PackagingStudio() {
 
           <button
             onClick={handleDownloadPng}
-            className="px-3 py-1.5 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold inline-flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0"
+            className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-bold inline-flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0"
           >
-            <Download className="w-3.5 h-3.5" />
-            Print PNG
+            <Download className="w-3.5 h-3.5 text-orange-400" />
+            PNG
+          </button>
+
+          <button
+            onClick={() => handleExportPdf('pack')}
+            disabled={isExportingPdf}
+            className="px-3 py-1.5 rounded-lg bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-white text-xs font-bold inline-flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0"
+            title="Download high-resolution multi-page Print Pack PDF"
+          >
+            {isExportingPdf ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <FileDown className="w-3.5 h-3.5" />
+            )}
+            {isExportingPdf ? 'Building PDF...' : 'Print PDF'}
           </button>
 
           <button
@@ -546,11 +618,17 @@ export function PackagingStudio() {
         </div>
       </header>
 
-      {/* TOAST BANNER */}
+      {/* TOAST BANNERS */}
       {exportNotice && (
         <div className="bg-emerald-600 text-white px-4 py-2 text-xs font-bold flex items-center justify-center gap-2 shrink-0 print:hidden">
           <Check className="w-4 h-4 shrink-0" />
           <span>{exportNotice}</span>
+        </div>
+      )}
+      {exportError && (
+        <div className="bg-red-600 text-white px-4 py-2 text-xs font-bold flex items-center justify-center gap-2 shrink-0 print:hidden">
+          <AlertTriangle className="w-4 h-4 shrink-0" />
+          <span>{exportError}</span>
         </div>
       )}
 
@@ -1337,7 +1415,7 @@ export function PackagingStudio() {
             )}
           </div>
 
-          {/* Dedicated hidden/offscreen master export SVG so SVG/PNG export ALWAYS matches active panel even in 3D-only mode */}
+          {/* Dedicated offscreen master SVGs for all printable panels so high-res PDF/SVG/PNG exports work from any view mode */}
           <div className="sr-only" aria-hidden="true">
             <PackagingSvgRenderer
               svgRef={exportSvgRef}
@@ -1354,6 +1432,31 @@ export function PackagingStudio() {
               showPrintGuides={false}
               transparentExport={transparentExport}
             />
+            {availablePanels.map((panel) => (
+              <PackagingSvgRenderer
+                key={`offscreen-${panel.id}`}
+                svgRef={{
+                  get current() {
+                    return panelSvgRefs.current[panel.id] ?? null;
+                  },
+                  set current(el) {
+                    panelSvgRefs.current[panel.id] = el;
+                  }
+                }}
+                side={panel.id}
+                size={activeSize}
+                config={config}
+                resolvedBgHex={resolvedBgHex}
+                resolvedPrimaryInk={resolvedPrimaryInk}
+                resolvedAccentInk={resolvedAccentInk}
+                resolvedMutedInk={resolvedMutedInk}
+                resolvedStripeColor={activeTheme.stripeColor}
+                isDarkBag={isDarkBag}
+                qrMatrix={qrMatrix}
+                showPrintGuides={false}
+                transparentExport={transparentExport}
+              />
+            ))}
           </div>
 
           {/* PRINT-ONLY PRODUCTION SPEC SHEET FOOTER */}
@@ -1445,6 +1548,36 @@ export function PackagingStudio() {
               </div>
               <p className="text-[11px] text-zinc-500 leading-relaxed">
                 Quiet zone locked at 4 modules with #FFFFFF backing pad. Estimated print box: <span className="font-mono font-bold text-zinc-800">{qrPhysicalSizeCm} cm</span>.
+              </p>
+            </div>
+
+            {/* Print-Ready PDF Export Actions */}
+            <div className="space-y-2 pt-2 border-t border-zinc-100">
+              <h3 className="text-[11px] font-bold text-zinc-500 uppercase">
+                Printable PDF Export (300+ DPI)
+              </h3>
+              <button
+                onClick={() => handleExportPdf('pack')}
+                disabled={isExportingPdf}
+                className="w-full py-2.5 px-3 bg-zinc-900 hover:bg-zinc-800 disabled:opacity-60 text-white rounded-xl text-xs font-bold inline-flex items-center justify-center gap-2 transition-colors"
+              >
+                {isExportingPdf ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-orange-400" />
+                ) : (
+                  <FileDown className="w-3.5 h-3.5 text-orange-400" />
+                )}
+                Complete Print Pack (PDF)
+              </button>
+              <button
+                onClick={() => handleExportPdf('active')}
+                disabled={isExportingPdf}
+                className="w-full py-2 px-3 bg-white hover:bg-zinc-50 disabled:opacity-60 border border-zinc-200 text-zinc-800 rounded-xl text-xs font-bold inline-flex items-center justify-center gap-2 transition-colors"
+              >
+                <FileDown className="w-3.5 h-3.5 text-zinc-500" />
+                Active Panel Sheet ({activeSide.toUpperCase()} PDF)
+              </button>
+              <p className="text-[10px] text-zinc-500 leading-relaxed">
+                Complete Print Pack includes Page 1 Proof &amp; CMYK Brief followed by full-scale high-DPI plates for every panel.
               </p>
             </div>
           </aside>
