@@ -1,5 +1,5 @@
 import React, { Suspense, lazy } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { CartProvider } from './context/CartContext';
 import { StoreProvider } from './context/StoreContext';
 import { NotificationProvider } from './context/NotificationContext';
@@ -19,6 +19,7 @@ const Shop = lazy(() => import('./pages/Shop').then(m => ({ default: m.Shop })))
 const ProductDetail = lazy(() => import('./pages/ProductDetail').then(m => ({ default: m.ProductDetail })));
 const Checkout = lazy(() => import('./pages/Checkout').then(m => ({ default: m.Checkout })));
 const Dashboard = lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })));
+const PackagingStudio = lazy(() => import('./pages/PackagingStudio').then(m => ({ default: m.PackagingStudio })));
 const MyOrders = lazy(() => import('./pages/MyOrders').then(m => ({ default: m.MyOrders })));
 const Profile = lazy(() => import('./pages/Profile').then(m => ({ default: m.Profile })));
 const StressTest = lazy(() => import('./pages/StressTest').then(m => ({ default: m.StressTest })));
@@ -32,6 +33,51 @@ const PageLoader = () => (
   </div>
 );
 
+function AppLayout() {
+  const location = useLocation();
+  const isStandaloneStudio = location.pathname === '/admin/packaging';
+
+  if (isStandaloneStudio) {
+    return (
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          <Route path="/admin/packaging" element={<PackagingStudio />} />
+        </Routes>
+      </Suspense>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-white font-sans text-zinc-900 selection:bg-orange-500/30">
+      <Navbar />
+      <CartDrawer />
+      <main>
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/shop" element={<Shop />} />
+            <Route path="/product/:id" element={<ProductDetail />} />
+            <Route path="/checkout" element={<Checkout />} />
+            <Route path="/admin" element={<Dashboard role="admin" />} />
+            <Route path="/seller/:sellerId" element={<Dashboard role="seller" />} />
+            <Route path="/my-orders" element={<MyOrders />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/stress-test" element={<StressTest />} />
+            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+            <Route path="/privacy" element={<PrivacyPolicy />} />
+            <Route path="/terms-of-service" element={<TermsOfService />} />
+            <Route path="/terms" element={<TermsOfService />} />
+            <Route path="*" element={<Home />} />
+          </Routes>
+        </Suspense>
+      </main>
+
+      <Footer />
+      <BackToTop />
+    </div>
+  );
+}
+
 export default function App() {
   return (
     <ErrorBoundary>
@@ -43,33 +89,7 @@ export default function App() {
                 <ScrollToTop />
                 <AuthModal />
                 <MaintenanceGuard>
-                  <div className="min-h-screen bg-white font-sans text-zinc-900 selection:bg-orange-500/30">
-                    <Navbar />
-                    <CartDrawer />
-                    <main>
-                      <Suspense fallback={<PageLoader />}>
-                        <Routes>
-                          <Route path="/" element={<Home />} />
-                          <Route path="/shop" element={<Shop />} />
-                          <Route path="/product/:id" element={<ProductDetail />} />
-                          <Route path="/checkout" element={<Checkout />} />
-                          <Route path="/admin" element={<Dashboard role="admin" />} />
-                          <Route path="/seller/:sellerId" element={<Dashboard role="seller" />} />
-                          <Route path="/my-orders" element={<MyOrders />} />
-                          <Route path="/profile" element={<Profile />} />
-                          <Route path="/stress-test" element={<StressTest />} />
-                          <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-                          <Route path="/privacy" element={<PrivacyPolicy />} />
-                          <Route path="/terms-of-service" element={<TermsOfService />} />
-                          <Route path="/terms" element={<TermsOfService />} />
-                          <Route path="*" element={<Home />} />
-                        </Routes>
-                      </Suspense>
-                    </main>
-                    
-                    <Footer />
-                    <BackToTop />
-                  </div>
+                  <AppLayout />
                 </MaintenanceGuard>
               </Router>
             </CartProvider>
