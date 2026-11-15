@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
-import { LayoutDashboard, Package, ShoppingCart, Plus, Edit, Trash, Check, X, Users, Link as LinkIcon, LogOut, Upload, TrendingUp, Image as ImageIcon, DollarSign, Tag, Info, Box, Printer, Globe, Palette, ToggleLeft, FileText, Bell, Inbox, Settings, FileSpreadsheet, Ticket, Terminal, PhoneCall, Megaphone, Store, MessageCircle, ExternalLink, Sparkles, SlidersHorizontal, Star, Split, ShieldCheck, RefreshCw, Layers } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, ShoppingBag, Plus, Edit, Trash, Check, X, Users, Link as LinkIcon, LogOut, Upload, TrendingUp, Image as ImageIcon, DollarSign, Tag, Info, Box, Printer, Globe, Palette, ToggleLeft, FileText, Bell, Inbox, Settings, FileSpreadsheet, Ticket, Terminal, PhoneCall, Megaphone, Store, MessageCircle, ExternalLink, Sparkles, SlidersHorizontal, Star, Split, ShieldCheck, RefreshCw, Layers } from 'lucide-react';
 import { ContactSettingsTab } from '../components/admin/ContactSettingsTab';
 import { SiteSettingsTab } from '../components/admin/SiteSettingsTab';
 import { GoogleSheetsTab } from '../components/admin/GoogleSheetsTab';
@@ -17,6 +17,7 @@ import { SalesReportsTab } from '../components/admin/SalesReportsTab';
 import { OrdersTab } from '../components/admin/OrdersTab';
 import { LogsTab } from '../components/admin/LogsTab';
 import { PromoCampaignsTab } from '../components/admin/PromoCampaignsTab';
+import { PackagingStudioTab } from '../components/admin/PackagingStudioTab';
 import { Product, OrderStatus, Order, Seller } from '../types';
 import { formatPrice } from '../utils';
 import { loginWithGoogle, logout } from '../firebase';
@@ -66,7 +67,7 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
 
   const [activeTab, setActiveTab] = useState<
     'overview' | 'products' | 'inventory' | 'orders' | 'sellers' | 'sales-reports' |
-    'contact-details' | 'site-settings' | 'theme-settings' | 'feature-toggles' | 'content' | 'announcements' | 'messages' | 'homepage-builder' | 'google-sheets' | 'coupons' | 'logs' | 'promo-campaigns'
+    'contact-details' | 'site-settings' | 'theme-settings' | 'feature-toggles' | 'content' | 'announcements' | 'messages' | 'homepage-builder' | 'google-sheets' | 'coupons' | 'logs' | 'promo-campaigns' | 'packaging'
   >('overview');
   const [selectedSellerForReport, setSelectedSellerForReport] = useState<string | 'all'>('all');
   const [isAddingProduct, setIsAddingProduct] = useState(false);
@@ -496,7 +497,7 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
   return (
     <div className="min-h-screen bg-zinc-50 flex flex-col md:flex-row">
       {/* Sidebar */}
-      <div className="w-full md:w-64 bg-zinc-900 text-white flex flex-col">
+      <div className="w-full md:w-64 bg-zinc-900 text-white flex flex-col print:hidden">
         <div className="p-6 border-b border-zinc-800">
           <h2 className="text-xl font-bold text-white">
             {role === 'admin' ? 'Admin Portal' : 'Seller Portal'}
@@ -624,6 +625,14 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
                 </span>
                 <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md ${activeTab === 'promo-campaigns' ? 'bg-white/20 text-white' : 'bg-orange-500 text-white font-bold'}`}>
                   NEW
+                </span>
+              </button>
+              <button
+                onClick={() => setActiveTab('packaging')}
+                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-colors ${activeTab === 'packaging' ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/20' : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'}`}
+              >
+                <span className="flex items-center gap-3">
+                  <ShoppingBag className="w-5 h-5" /> Packaging & Bags
                 </span>
               </button>
               <button
@@ -1717,6 +1726,7 @@ export function Dashboard({ role }: { role: 'admin' | 'seller' }) {
         {activeTab === 'feature-toggles' && role === 'admin' && <FeatureTogglesTab />}
         {activeTab === 'content' && role === 'admin' && <ContentTab />}
         {activeTab === 'promo-campaigns' && role === 'admin' && <PromoCampaignsTab />}
+        {activeTab === 'packaging' && role === 'admin' && <PackagingStudioTab />}
         {activeTab === 'announcements' && role === 'admin' && <MarketingTab />}
         {activeTab === 'messages' && role === 'admin' && <MessagesTab />}
         {activeTab === 'homepage-builder' && role === 'admin' && <HomepageBuilderTab />}
