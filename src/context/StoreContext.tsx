@@ -93,6 +93,7 @@ interface StoreContextType {
   userProfile: UserProfile | null;
   updateUserProfile: (profile: Partial<UserProfile>) => Promise<void>;
   isAdmin: boolean;
+  authResolved: boolean;
   currentSellerId: string | null;
   unreadOrdersCount: number;
   markOrdersAsRead: () => void;
@@ -156,6 +157,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [authResolved, setAuthResolved] = useState(false);
   const [currentSellerId, setCurrentSellerId] = useState<string | null>(null);
   const [unreadOrdersCount, setUnreadOrdersCount] = useState(0);
   const [loading, setLoading] = useState<boolean>(() => {
@@ -245,20 +247,26 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   });
   const [lastReadTimestamp, setLastReadTimestamp] = useState<number>(() => {
     const saved = localStorage.getItem('lastReadOrders');
-    return saved ? parseInt(saved) : Date.now();
+    if (saved) return parseInt(saved, 10);
+    const now = Date.now();
+    try { localStorage.setItem('lastReadOrders', now.toString()); } catch {}
+    return now;
   });
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setCurrentUser(user);
       if (user) {
-        // Fetch user profile
+        setAuthResolved(false);
+        const isDefaultAdmin = user.email === 'carlisat19@gmail.com';
+        let resolvedAdmin = isDefaultAdmin;
+
+        // Fetch user profile before marking auth resolved so orders query doesn't run twice
         try {
           const docRef = doc(db, 'users', user.uid);
           const docSnap = await getDoc(docRef);
           if (docSnap.exists()) {
             const data = docSnap.data() as UserProfile;
-            if (user.email === 'carlisat19@gmail.com' && data.role !== 'admin') {
+            if (isDefaultAdmin && data.role !== 'admin') {
               const updatedProfile: UserProfile = {
                 ...data,
                 id: docSnap.id,
@@ -267,11 +275,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               await setDoc(docRef, updatedProfile, { merge: true });
               setUserProfile(updatedProfile);
             } else {
+              if (data.role === 'admin') resolvedAdmin = true;
               setUserProfile({ id: docSnap.id, ...data } as UserProfile);
             }
           } else {
             // Create default profile
-            const isDefaultAdmin = user.email === 'carlisat19@gmail.com';
             const newProfile: UserProfile = {
               id: user.uid,
               email: user.email || '',
@@ -283,16 +291,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           }
         } catch (error) {
           handleFirestoreError(error, OperationType.GET, `users/${user.uid}`);
-        }
-
-        // Check if admin (for prototype, hardcode the email or check custom claims)
-        if (user.email === 'carlisat19@gmail.com') {
-          setIsAdmin(true);
-        } else {
-          setIsAdmin(false);
+        } finally {
+          setCurrentUser(user);
+          setIsAdmin(resolvedAdmin);
+          setAuthResolved(true);
         }
       } else {
+        setCurrentUser(null);
+        setUserProfile(null);
         setIsAdmin(false);
+        setCurrentSellerId(null);
+        setAuthResolved(true);
       }
     });
     return () => unsubscribe();
@@ -479,8 +488,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [currentUser, isAdmin]);
 
   useEffect(() => {
+    if (!authResolved) return;
+
     if (!currentUser) {
       setOrders([]);
+      setUnreadOrdersCount(0);
       return;
     }
 
@@ -516,7 +528,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'orders'));
 
     return () => unsubOrders();
-  }, [currentUser, isAdmin, currentSellerId, lastReadTimestamp]);
+  }, [authResolved, currentUser, isAdmin, currentSellerId, lastReadTimestamp]);
 
   const markOrdersAsRead = useCallback(() => {
     const now = Date.now();
@@ -835,7 +847,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       products, addProduct, addProductsBatch, deleteProductsBatch, updateProductsBatch, updateProduct, deleteProduct, 
       orders, addOrder, updateOrderStatus,
       sellers, addSeller, updateSeller, deleteSeller,
-      currentUser, userProfile, updateUserProfile, isAdmin, currentSellerId,
+      currentUser, userProfile, updateUserProfile, isAdmin, authResolved, currentSellerId,
       unreadOrdersCount, markOrdersAsRead,
       loading,
       siteSettings, updateSiteSettings,

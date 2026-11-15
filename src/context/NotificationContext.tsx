@@ -20,8 +20,84 @@ interface NotificationContextType {
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
-const STORAGE_KEY = 'solemate_app_notifications_v2';
+const LEGACY_STORAGE_KEY = 'solemate_app_notifications_v2';
+const STORAGE_KEY = 'solemate_app_notifications_v3';
+const SEEN_ORDERS_STORAGE_KEY = 'solemate_notif_seen_order_events_v1';
 const SOUND_STORAGE_KEY = 'solemate_notification_sound_enabled';
+
+// Max age (15 minutes) for an order to trigger a brand-new order notification on snapshot arrival
+const NEW_ORDER_RECENCY_MS = 15 * 60 * 1000;
+
+function loadSeenOrderEvents(): Record<string, number> {
+  try {
+    const raw = localStorage.getItem(SEEN_ORDERS_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') return parsed;
+    }
+  } catch {}
+  return {};
+}
+
+function saveSeenOrderEvents(map: Record<string, number>) {
+  try {
+    const entries = Object.entries(map);
+    // Keep only the latest 600 keys so localStorage stays lean
+    const pruned =
+      entries.length > 600
+        ? Object.fromEntries(entries.sort((a, b) => b[1] - a[1]).slice(0, 600))
+        : map;
+    localStorage.setItem(SEEN_ORDERS_STORAGE_KEY, JSON.stringify(pruned));
+  } catch {}
+}
+
+function loadInitialNotifications(): AppNotification[] {
+  try {
+    const v3 = localStorage.getItem(STORAGE_KEY);
+    if (v3) {
+      const parsed = JSON.parse(v3);
+      if (Array.isArray(parsed)) return parsed;
+    }
+
+    // One-time migration from v2: deduplicate repeated order alerts and mark stale pre-fix order/payment alerts read
+    const legacy = localStorage.getItem(LEGACY_STORAGE_KEY);
+    if (legacy) {
+      const parsed = JSON.parse(legacy);
+      if (Array.isArray(parsed)) {
+        const seenSignatures = new Set<string>();
+        const cleaned: AppNotification[] = [];
+        for (const item of parsed) {
+          if (!item || typeof item !== 'object') continue;
+          const sig = `${item.type}|${item.title}|${item.message}`;
+          if (seenSignatures.has(sig)) continue;
+          seenSignatures.add(sig);
+          cleaned.push({
+            ...item,
+            read: item.type === 'order' || item.type === 'payment' ? true : Boolean(item.read)
+          });
+        }
+        const trimmed = cleaned.slice(0, 50);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed));
+        return trimmed;
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to parse stored notifications:', e);
+  }
+
+  return [
+    {
+      id: 'welcome-solemate',
+      recipient: 'all',
+      title: 'Welcome to Solemate Kenya',
+      message: 'Your portal for authentic sneakers, tracked deliveries, and store updates.',
+      type: 'general',
+      timestamp: new Date().toISOString(),
+      read: false,
+      link: '/shop'
+    }
+  ];
+}
 
 // Pleasant, clean synthesized chime using Web Audio API (zero external sound file dependencies)
 function playNotificationChime() {
@@ -38,11 +114,11 @@ function playNotificationChime() {
 
     osc.type = 'sine';
     const now = ctx.currentTime;
-    
+
     // Crisp two-tone chime (F5 -> A5)
     osc.frequency.setValueAtTime(698.46, now); // F5
     osc.frequency.exponentialRampToValueAtTime(880.00, now + 0.08); // A5
-    
+
     gain.gain.setValueAtTime(0.001, now);
     gain.gain.linearRampToValueAtTime(0.15, now + 0.02);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
@@ -57,32 +133,13 @@ function playNotificationChime() {
 }
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
-  const { currentUser, isAdmin, orders } = useStore();
-  
+  const { currentUser, isAdmin, authResolved, orders } = useStore();
+
   // Persistent notifications state
-  const [allNotifications, setAllNotifications] = useState<AppNotification[]>(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        return JSON.parse(stored);
-      }
-    } catch (e) {
-      console.warn('Failed to parse stored notifications:', e);
-    }
-    // Default initial notification
-    return [
-      {
-        id: 'welcome-solemate',
-        recipient: 'all',
-        title: 'Welcome to Solemate Kenya',
-        message: 'Your portal for authentic sneakers, tracked deliveries, and store updates.',
-        type: 'general',
-        timestamp: new Date().toISOString(),
-        read: false,
-        link: '/shop'
-      }
-    ];
-  });
+  const [allNotifications, setAllNotifications] = useState<AppNotification[]>(loadInitialNotifications);
+
+  // Persistent seen order-event registry so old/read orders never re-trigger
+  const seenOrderEventsRef = useRef<Record<string, number>>(loadSeenOrderEvents());
 
   // Sound preference state
   const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
@@ -115,14 +172,18 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     return 'default';
   });
 
-  // Save to localStorage whenever notifications change
-  useEffect(() => {
+  const persistNotifications = useCallback((list: AppNotification[]) => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(allNotifications));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
     } catch (e) {
       console.warn('Failed to save notifications to localStorage:', e);
     }
-  }, [allNotifications]);
+  }, []);
+
+  // Save to localStorage whenever notifications change
+  useEffect(() => {
+    persistNotifications(allNotifications);
+  }, [allNotifications, persistNotifications]);
 
   // Request native browser/device notification permission
   const requestBrowserPermission = useCallback(async (): Promise<boolean> => {
@@ -134,7 +195,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     try {
       const permission = await Notification.requestPermission();
       setPermissionStatus(permission);
-      
+
       if (permission === 'granted') {
         try {
           new Notification('Solemate Alerts Enabled', {
@@ -160,10 +221,14 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       read: false,
     };
 
-    setAllNotifications(prev => [newNotification, ...prev.slice(0, 49)]); // Keep latest 50
+    setAllNotifications(prev => {
+      const next = [newNotification, ...prev.slice(0, 49)];
+      persistNotifications(next);
+      return next;
+    });
 
     // Add to toast queue
-    setToasts(prev => [newNotification, ...prev.slice(0, 2)]); // Keep at most 3 visible toasts
+    setToasts(prev => [newNotification, ...prev.slice(0, 2)]);
 
     // Play subtle chime if enabled
     if (soundEnabled) {
@@ -192,25 +257,52 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         console.warn('Native notification trigger failed:', err);
       }
     }
-  }, [soundEnabled]);
+  }, [soundEnabled, persistNotifications]);
 
   const dismissToast = useCallback((id: string) => {
     setToasts(prev => prev.filter(t => t.id !== id));
   }, []);
 
+  const acknowledgeCurrentOrders = useCallback(() => {
+    const now = Date.now();
+    let changed = false;
+    orders.forEach(o => {
+      const keys = [`new:${o.id}`, `status:${o.id}:${o.status}`];
+      if (o.paymentStatus === 'Paid') keys.push(`paid:${o.id}`);
+      keys.forEach(k => {
+        if (!seenOrderEventsRef.current[k]) {
+          seenOrderEventsRef.current[k] = now;
+          changed = true;
+        }
+      });
+    });
+    if (changed) {
+      saveSeenOrderEvents(seenOrderEventsRef.current);
+    }
+  }, [orders]);
+
   const markAsRead = useCallback((id: string) => {
-    setAllNotifications(prev => 
-      prev.map(n => n.id === id ? { ...n, read: true } : n)
-    );
-  }, []);
+    setAllNotifications(prev => {
+      const next = prev.map(n => n.id === id ? { ...n, read: true } : n);
+      persistNotifications(next);
+      return next;
+    });
+  }, [persistNotifications]);
 
   const markAllAsRead = useCallback(() => {
-    setAllNotifications(prev => prev.map(n => ({ ...n, read: true })));
-  }, []);
+    acknowledgeCurrentOrders();
+    setAllNotifications(prev => {
+      const next = prev.map(n => ({ ...n, read: true }));
+      persistNotifications(next);
+      return next;
+    });
+  }, [acknowledgeCurrentOrders, persistNotifications]);
 
   const clearAll = useCallback(() => {
+    acknowledgeCurrentOrders();
     setAllNotifications([]);
-  }, []);
+    persistNotifications([]);
+  }, [acknowledgeCurrentOrders, persistNotifications]);
 
   // Send interactive test notification to let user immediately verify it works
   const sendTestNotification = useCallback(() => {
@@ -223,65 +315,105 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     });
   }, [notify]);
 
-  // Live order diffing & automatic notifications for orders
+  // Live order diffing & automatic notifications for genuinely new orders/changes
   const prevOrdersRef = useRef<Map<string, { status: string; paymentStatus?: string }>>(new Map());
-  const initializedOrdersRef = useRef(false);
+  const initializedScopeRef = useRef<string | null>(null);
+  const currentScopeKey = `${currentUser?.uid || 'guest'}:${isAdmin ? 'admin' : 'user'}`;
+
+  // Reset baseline whenever the user or role scope changes
+  useEffect(() => {
+    prevOrdersRef.current.clear();
+    initializedScopeRef.current = null;
+  }, [currentScopeKey]);
 
   useEffect(() => {
-    if (!orders || orders.length === 0) return;
+    if (!authResolved || !currentUser || !orders || orders.length === 0) return;
 
-    if (!initializedOrdersRef.current) {
-      // First snapshot: index existing orders without triggering alerts
+    const now = Date.now();
+    let seenMapDirty = false;
+
+    const markSeen = (key: string): boolean => {
+      if (seenOrderEventsRef.current[key]) return false;
+      seenOrderEventsRef.current[key] = now;
+      seenMapDirty = true;
+      return true;
+    };
+
+    // First snapshot for this user+role scope: silently index all existing orders as baseline
+    if (initializedScopeRef.current !== currentScopeKey) {
       orders.forEach(o => {
         prevOrdersRef.current.set(o.id, { status: o.status, paymentStatus: o.paymentStatus });
+        markSeen(`new:${o.id}`);
+        markSeen(`status:${o.id}:${o.status}`);
+        if (o.paymentStatus === 'Paid') {
+          markSeen(`paid:${o.id}`);
+        }
       });
-      initializedOrdersRef.current = true;
+      if (seenMapDirty) saveSeenOrderEvents(seenOrderEventsRef.current);
+      initializedScopeRef.current = currentScopeKey;
       return;
     }
 
-    // On subsequent updates, find differences
+    // Subsequent live snapshots while user is actively viewing the app
     orders.forEach(o => {
+      // Skip synthetic stress-test orders
+      if (o.userId === 'stress-test-user' || o.id?.startsWith('stress-')) {
+        prevOrdersRef.current.set(o.id, { status: o.status, paymentStatus: o.paymentStatus });
+        return;
+      }
+
       const prev = prevOrdersRef.current.get(o.id);
-      
+      const isMyOrder =
+        o.userId === currentUser.uid ||
+        o.customerInfo?.email?.toLowerCase() === currentUser.email?.toLowerCase();
+
       if (!prev) {
-        // New order placed!
-        const isMyOrder = currentUser && (o.userId === currentUser.uid || o.customerInfo?.email?.toLowerCase() === currentUser.email?.toLowerCase());
-        
-        if (isAdmin) {
-          notify({
-            recipient: 'admin',
-            title: 'New Customer Order',
-            message: `Order #${o.id.slice(-6)} received for KES ${Math.round(o.total).toLocaleString()} from ${o.customerInfo?.firstName || 'Customer'}.`,
-            type: 'order',
-            link: '/admin'
-          });
-        }
-        
-        if (isMyOrder) {
-          notify({
-            recipient: 'customer',
-            userId: o.userId,
-            title: 'Order Confirmed',
-            message: `Your order #${o.id.slice(-6)} has been placed and is currently pending fulfillment.`,
-            type: 'order',
-            link: '/profile?tab=orders'
-          });
+        const orderEpoch = new Date(o.date).getTime();
+        const isOldHistoricalOrder = !Number.isNaN(orderEpoch) && now - orderEpoch > NEW_ORDER_RECENCY_MS;
+        const shouldNotifyNew = markSeen(`new:${o.id}`) && !isOldHistoricalOrder;
+
+        // Also record current status & payment as seen so initial state doesn't double-fire
+        markSeen(`status:${o.id}:${o.status}`);
+        if (o.paymentStatus === 'Paid') markSeen(`paid:${o.id}`);
+
+        if (shouldNotifyNew) {
+          if (isAdmin) {
+            notify({
+              recipient: 'admin',
+              title: 'New Customer Order',
+              message: `Order #${o.id.slice(-6)} received for KES ${Math.round(o.total).toLocaleString()} from ${o.customerInfo?.firstName || 'Customer'}.`,
+              type: 'order',
+              link: '/admin',
+              metadata: { orderId: o.id }
+            });
+          }
+
+          if (isMyOrder) {
+            notify({
+              recipient: 'customer',
+              userId: o.userId,
+              title: 'Order Confirmed',
+              message: `Your order #${o.id.slice(-6)} has been placed and is currently pending fulfillment.`,
+              type: 'order',
+              link: '/profile?tab=orders',
+              metadata: { orderId: o.id }
+            });
+          }
         }
       } else {
         // Status change
-        if (prev.status !== o.status) {
-          const isMyOrder = currentUser && (o.userId === currentUser.uid || o.customerInfo?.email?.toLowerCase() === currentUser.email?.toLowerCase());
-          
+        if (prev.status !== o.status && markSeen(`status:${o.id}:${o.status}`)) {
           if (isAdmin) {
             notify({
               recipient: 'admin',
               title: `Order #${o.id.slice(-6)} Updated`,
               message: `Status changed from ${prev.status} to ${o.status}.`,
               type: 'order',
-              link: '/admin'
+              link: '/admin',
+              metadata: { orderId: o.id }
             });
           }
-          
+
           if (isMyOrder) {
             notify({
               recipient: 'customer',
@@ -289,37 +421,44 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
               title: `Order Status: ${o.status}`,
               message: `Your order #${o.id.slice(-6)} is now ${o.status.toLowerCase()}.`,
               type: 'order',
-              link: '/profile?tab=orders'
+              link: '/profile?tab=orders',
+              metadata: { orderId: o.id }
             });
           }
         }
 
         // Payment status change
-        if (prev.paymentStatus !== o.paymentStatus && o.paymentStatus === 'Paid') {
+        if (
+          prev.paymentStatus !== o.paymentStatus &&
+          o.paymentStatus === 'Paid' &&
+          markSeen(`paid:${o.id}`)
+        ) {
           notify({
             recipient: 'all',
             title: 'Payment Received',
             message: `M-Pesa payment confirmed for Order #${o.id.slice(-6)} (KES ${Math.round(o.total).toLocaleString()}).`,
             type: 'payment',
-            link: isAdmin ? '/admin' : '/profile?tab=orders'
+            link: isAdmin ? '/admin' : '/profile?tab=orders',
+            metadata: { orderId: o.id }
           });
         }
       }
 
-      // Update ref
       prevOrdersRef.current.set(o.id, { status: o.status, paymentStatus: o.paymentStatus });
     });
-  }, [orders, isAdmin, currentUser, notify]);
+
+    if (seenMapDirty) {
+      saveSeenOrderEvents(seenOrderEventsRef.current);
+    }
+  }, [authResolved, orders, isAdmin, currentUser, currentScopeKey, notify]);
 
   // Filter notifications appropriate for current viewer (Admin vs Customer)
   const filteredNotifications = useMemo(() => {
     return allNotifications.filter(n => {
       if (isAdmin) {
-        // Admin sees admin alerts and store-wide alerts
         return n.recipient === 'admin' || n.recipient === 'all' || !n.userId;
       }
-      
-      // Customer sees alerts targeting 'customer' or 'all'
+
       if (n.recipient === 'admin') return false;
       if (n.userId && currentUser?.uid && n.userId !== currentUser.uid) return false;
       return true;
